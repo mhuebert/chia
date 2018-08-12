@@ -1,0 +1,3 @@
+{:paths ["src"]
+ :deps {org.clojure/core.match {:mvn/version "0.3.0-alpha5"}
+        chia/components {:deps/root "../components"}}}

@@ -1,0 +1,52 @@
+{:paths ["_build"
+         "triple-db/src"
+         "gesture/src"
+         "reactive/src"
+         "style/src"
+         "view/src"
+         "routing/src"
+         "static/src"
+         "demo/src"
+         "jss/src"
+         "material-ui/src"
+         "util/src"
+         "demo/src"
+
+         "view/test"
+         "triple-db/test"]
+ :deps
+ {org.clojure/clojurescript {:mvn/version "1.10.339"}
+  org.clojure/clojure {:mvn/version "1.9.0"}
+  org.clojure/test.check {:mvn/version "0.10.0-alpha2"}
+
+  ;; nice data structure viewers in console
+  binaryage/devtools {:mvn/version "0.9.10"}
+
+  ;; sane macro quoting
+  backtick {:mvn/version "0.3.4"}
+  ;; profiling
+  com.taoensso/tufte {:mvn/version "2.0.1"}
+
+
+  net.cgrand/xforms {:mvn/version "0.16.0"}
+
+
+  ;; transitive deps
+
+  ;; routing
+  ring/ring-codec {:mvn/version "1.1.1"}
+  lambdaisland/uri {:mvn/version "1.1.0"}
+
+  ;; static
+  hiccup {:mvn/version "1.0.5"}
+
+  ;; triple-db
+  com.lucasbradstreet/cljs-uuid-utils {:mvn/version "1.0.2"}
+
+  ;; reactive
+  com.stuartsierra/dependency {:mvn/version "0.2.0"}
+  net.cgrand/macrovich {:mvn/version "0.2.1"}
+
+  ;; demo
+  org.clojure/core.match {:mvn/version "0.3.0-alpha5"}
+  }}

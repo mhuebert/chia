@@ -1,0 +1,7 @@
+{:paths ["src" "test"]
+
+ :deps
+ {org.clojure/clojurescript {:mvn/version "1.10.339"}
+  net.cgrand/xforms {:mvn/version "0.16.0"}
+  net.cgrand/macrovich {:mvn/version "0.2.1"}
+  chia/style {:deps/root "../style"}}}

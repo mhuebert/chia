@@ -1,0 +1,18 @@
+{
+  "hosting": {
+    "public": "demo/public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**",
+      "**/cljs-runtime/**",
+      "manifest.edn"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

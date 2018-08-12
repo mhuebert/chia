@@ -1,0 +1,16 @@
+pom.xml
+pom.xml.asc
+node_modules
+.shadow-cljs
+.cpcache
+.DS_STORE
+.nrepl-port
+.local-config.edn
+*.iml
+.idea
+.scratch
+project.clj
+target
+demo/public
+**/compiled/**
+out

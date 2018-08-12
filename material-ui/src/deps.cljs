@@ -1,0 +1,1 @@
+{:npm-deps {"@material-ui/core" "^1.4"}}

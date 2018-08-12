@@ -1,0 +1,7 @@
+{:paths ["src"]
+
+ :deps
+ {org.clojure/clojurescript {:mvn/version "1.10.339"}
+
+  ring/ring-codec {:mvn/version "1.1.1"}
+  lambdaisland/uri {:mvn/version "1.1.0"}}}

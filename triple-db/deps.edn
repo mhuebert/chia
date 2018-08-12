@@ -1,0 +1,5 @@
+{:paths ["src"]
+
+ :deps
+ {org.clojure/clojurescript {:mvn/version "1.10.339"}
+  com.lucasbradstreet/cljs-uuid-utils {:mvn/version "1.0.2"}}}

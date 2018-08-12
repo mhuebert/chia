@@ -1,0 +1,17 @@
+{:deps true
+ :builds {:browser {:target :browser
+                    :modules {:app {:entries [chia-demo.app]}}
+                    :output-dir "demo/public/compiled"
+                    :asset-path "/compiled"
+                    :build-hooks [(chia.static.shadow/write-assets!
+                                    {"../index.html" chia-demo.html/index})]
+                    :devtools {:http-root "demo/public"
+                               :http-port 8080}}
+          :worker {:target :browser
+                   :modules {:worker {:entries [chia-demo.worker]
+                                      :web-worker true}}
+                   :output-dir "demo/public"}
+          :test {:target :browser-test
+                 :test-dir "demo/public/compiled/browser-tests"
+                 :devtools {:http-port 8021
+                            :http-root "demo/public/compiled/browser-tests"}}}}
