@@ -78,13 +78,16 @@
 
 (declare get entity)
 
+(defn entity* [db-snap id]
+  (some-> (get-in* db-snap [:eav id])
+          (assoc :db/id id)))
+
 (defn entity
   "Returns entity for resolved id."
   [db id]
   (when-let [id (resolve-id db id)]
     (patterns/log-read db :e__ id)
-    (some-> (get-in* @db [:eav id])
-            (assoc :db/id id))))
+    (entity* @db id)))
 
 (defn get
   "Get attribute in entity with given id."
@@ -197,7 +200,7 @@
   (reduce (fn [state [a v]]
             (retract-attr state id a v))
           state
-          (entity (state 0) id)))
+          (entity* (state 0) id)))
 
 (defn- add
   [[db-snap datoms :as state] id attr val]

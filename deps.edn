@@ -11,6 +11,8 @@
          "material-ui/src"
          "util/src"
          "demo/src"
+         "apollo/src"
+         "shadow/src"
 
          "view/test"
          "triple-db/test"]

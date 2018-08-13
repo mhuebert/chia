@@ -54,24 +54,26 @@
    (fn []
      (this-as ^js this
        (let [$state (.-state this)]
-         (or (not= (gobj/get $state "props") (gobj/get $state "prev-props"))
-             (not= (gobj/get $state "children") (gobj/get $state "prev-children"))
-             (when-let [state (gobj/get $state "state")]
-               (not= @state (gobj/get $state "prev-state")))))))
+         (or (not= (j/get $state :props)
+                   (j/get $state :prev-props))
+             (not= (j/get $state :children)
+                   (j/get $state :prev-children))
+             (when-let [state (j/get $state :state)]
+               (not= @state (j/get $state :prev-state)))))))
    :static/get-derived-state-from-props
    (fn [^js props ^js $state]
      ;; when a component receives new props, update internal state.
-     (gobj/set $state "prev-props" (.-props $state))
-     (gobj/set $state "props" (.-props props))
-     (gobj/set $state "prev-children" (.-children $state))
-     (gobj/set $state "children" (.-children props))
-     $state)
+     (j/assoc! $state
+               :prev-props (.-props $state)
+               :props (.-props props)
+               :prev-children (.-children $state)
+               :children (.-children props)))
    :view/will-unmount
    (fn []
      (this-as ^js this
        ;; manually track unmount state, react doesn't do this anymore,
        ;; otherwise our async render loop can't tell if a component is still on the page.
-       (gobj/set this "unmounted" true)
+       (j/assoc! this :unmounted true)
 
        (doseq [f (some-> (.-chia$onUnmount this)
                          (vals))]
@@ -82,11 +84,12 @@
    :view/did-update
    (fn []
      (this-as ^js this
-       (let [$state (.-state this)]
-         (gobj/set $state "prev-props" (.-props $state))
-         (gobj/set $state "prev-children" (.-children $state))
-         (when-let [state (.-state $state)]
-           (gobj/set $state "prev-state" @state)))))})
+       (let [$state (.-state this)
+             state-atom (.-state $state)]
+         (-> $state
+             (j/assoc! :prev-props (.-props $state)
+                       :prev-children (.-children $state))
+             (cond-> state-atom (j/assoc! :prev-state @state-atom))))))})
 
 (defn wrap-method [k f]
   (case k
@@ -133,24 +136,25 @@
   (assert (set? required-keys))
   (->> (into required-keys (keys methods))
        (reduce (fn [obj k]
-                 (doto obj
-                   (gobj/set (or (get u/lifecycle-keys k) (throw (ex-info "Unknown lifecycle method" {:k k})))
-                             (or (some->> (get methods k)
-                                          (wrap-method k))
-                                 (get default-methods k))))) #js {})))
+                 (j/assoc! obj
+                           (or (get u/lifecycle-keys k) (throw (ex-info "Unknown lifecycle method" {:k k})))
+                           (or (some->> (get methods k)
+                                        (wrap-method k))
+                               (get default-methods k)))) #js {})))
 
 (defn- init-state!
   "Bind a component to an IWatchable/IDeref thing."
   [^js this watchable]
   (let [$state (.-state this)]
-    (gobj/set $state "state" watchable)
-    (gobj/set $state "prev-state" @watchable)
+    (j/assoc! $state
+              :state watchable
+              :prev-state @watchable)
 
     (add-watch watchable this
                (fn [_ _ old-state new-state]
                  (when (not= old-state new-state)
-                   (gobj/set $state "prev-state" old-state)
-                   (when-let [^js will-receive (gobj/get this "componentWillReceiveState")]
+                   (j/assoc! $state :prev-state old-state)
+                   (when-let [^js will-receive (j/get this :componentWillReceiveState)]
                      (.call will-receive this))
                    (when (and *trigger-state-render*
                               (if-let [^js should-update (.-shouldComponentUpdate this)]
@@ -165,9 +169,7 @@
   (when $props
     (when-let [state (when-let [initial-state (.-chia$initialState this)]
                        (let [state-data (if (fn? initial-state)
-                                          (apply initial-state (assoc (.-props $props)
-                                                                 :view/props (.-props $props))
-                                                 (.-children $props))
+                                          (.call initial-state this this)
                                           initial-state)]
                          (atom state-data)))]
       (init-state! this state)))
@@ -201,10 +203,11 @@
          (case k
            :view/state (get-state! this $state)
            (:view/props
+            :view/children
             :view/prev-props
             :view/prev-state
-            :view/children
-            :view/prev-children) (gobj/get $state (name k) not-found)
+            :view/prev-children) (j/get $state (name k) not-found)
+           ;; extendable
            (component-lookup this k not-found))
          (get (.-props $state) k not-found)))))
   r/IReadReactively
@@ -268,7 +271,7 @@
                                                     "ref" ref
                                                     "props" (cond-> props ref (dissoc :ref))
                                                     "children" children})))
-      (gobj/set "chia$constructor" constructor))))
+      (j/assoc! :chia$constructor constructor))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -284,7 +287,7 @@
      (or (some-> (.-chia$constructor this)
                  (.-prototype)
                  (class-get k not-found))
-         (-> (gobj/get this "chia$class")
+         (-> (j/get this :chia$class)
              (get k not-found))))))
 
 (defn pass-props
@@ -292,6 +295,7 @@
   By default, removes all keys listed in the component's :spec/props map. Set `:consume false` for props
   that should be passed through."
   [this]
+  (prn :CONSUMED (class-get this :props/consumed))
   (apply dissoc
          (get this :view/props)
          (class-get this :props/consumed)))

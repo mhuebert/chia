@@ -21,29 +21,25 @@
          (or given-name
              (gensym "view")))))
 
-(defn wrap-element [x]
+(defn wrap-hiccup [x]
   ;; TODO
   ;; upgrade hiccup/element to work partly at macroexpansion time
   `(~'chia.view.hiccup/element ~x
     {:wrap-props ~'chia.view/wrap-props}))
 
-(defn wrap-class [x css-name]
-  (assert (vector? x)
-          (str ":view/css requires a literal vector to be returned from the render method. In: " css-name))
-  (if (map? (second x))
-    (update-in x [1 :class] str " " css-name)
-    `(~'chia.view.hiccup/update-attr ~x str ~(str " " css-name))))
+(defn wrap-current-view-binding [body]
+  `(~'this-as this#
+    (binding [*current-view* this#]
+      ~body)))
 
 (defn- wrap-render-body
   "Wrap body in anonymous function form."
-  [name [args & body] css-name]
-  (assert (vector? args))
-  (let [effects (drop-last body)
-        return-element (cond-> (last body)
-                               css-name (wrap-class css-name))]
-    `(~'fn ~(symbol (str name \*)) ~args
-      ~@effects
-      ~(wrap-element return-element))))
+  [name [argv & body] pure?]
+  (assert (vector? argv)
+          (str "View " name " is missing an argument vector"))
+  `(~'fn ~(symbol (str name \*)) ~argv
+    ~(cond-> (wrap-hiccup `(do ~@body))
+             (not pure?) (wrap-current-view-binding))))
 
 (defn- make-constructor [the-name]
   (let [this-name (gensym)
@@ -94,19 +90,15 @@
   [& args]
   (let [[view-name docstring methods body] (u/parse-opt-args [symbol? string? map?] args)
         display-name (get-display-name *ns* view-name)
-        css? (:view/css methods)
-        css-name (when css? (str "chia__" (gensym view-name)))
+        {pure? :pure} (meta view-name)
         {:as methods
          :keys [lifecycle-keys]} (-> methods
                                      (merge (cond-> {;; TODO
                                                      ;; keep track of dev- vs prod-time, elide display-name and docstring in prod
                                                      :display-name display-name
-                                                     :view/render (wrap-render-body view-name body (when css?
-                                                                                                     css-name))}
-                                                    docstring (assoc :docstring docstring)
-                                                    css? (assoc :view/css-name css-name)))
-                                     (group-methods))
-        {pure? :pure} (meta view-name)]
+                                                     :view/render (wrap-render-body view-name body pure?)}
+                                                    docstring (assoc :docstring docstring)))
+                                     (group-methods))]
 
     (when (and pure? (seq (dissoc lifecycle-keys :view/render)))
       (throw (ex-info "Warning: lifecycle methods are not supported on pure components." {:name view-name
@@ -159,7 +151,7 @@
   "Simplified `for`, acts on a single collection; returns array and wraps with hiccup."
   [[x coll] body]
   `(reduce (fn [a# ~x]
-             (.push a# ~(wrap-element body))
+             (.push a# ~(wrap-hiccup body))
              a#)
            (cljs.core/array) ~coll))
 
@@ -171,7 +163,7 @@
   `(let [coll# ~coll
          a# (cljs.core/array)]
      (reduce (fn [~idx ~item]
-               (.push a# ~(wrap-element body))
+               (.push a# ~(wrap-hiccup body))
                (inc ~idx))
              0 coll#)
      a#))
