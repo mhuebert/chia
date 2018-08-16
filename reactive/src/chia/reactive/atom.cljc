@@ -3,7 +3,8 @@
   (:refer-clojure :exclude [get get-in deref select-keys assoc! dissoc! contains? swap! reset!])
   (:require [chia.reactive :as r]
             [clojure.set :as set]
-            [clojure.core :as core]))
+            [clojure.core :as core]
+            [chia.util :as u]))
 
 (defonce ^{:doc "Index of path-based dependencies, per atom."}
          readers-by-path
@@ -105,6 +106,12 @@
   (binding [*write-paths* {k nil}]
     (core/swap! ref dissoc k)))
 
+(defn dissoc-in!
+  "Dissoc keys from ref, limiting reactive dependency comparisons to the supplied `path`"
+  [ref path]
+  (binding [*write-paths* (assoc-in {} path nil)]
+    (core/swap! ref u/dissoc-in path)))
+
 (defn update!
   "Like Clojure's `update`, but mutates an atom, limiting reactive dependency comparisons to the supplied key `k`."
   [ref k f & args]
@@ -170,23 +177,6 @@
       (r/invalidate! reader {::before oldval
                              ::after newval}))))
 
-;; modified from https://github.com/clojure/core.incubator/blob/master/src/main/clojure/clojure/core/incubator.clj
-(defn disj-in
-  "Dis[join]'s `value` from set at `path` returning a new nested structure.
-   The set, if empty, and any empty maps that result, will not be present in the new structure."
-  [m [k & ks :as path] value]
-  (if ks
-    (if-let [nextmap (core/get m k)]
-      (let [newmap (disj-in nextmap ks value)]
-        (if (seq newmap)
-          (assoc m k newmap)
-          (dissoc m k)))
-      m)
-    (let [new-set (disj (core/get m k) value)]
-      (if (empty? new-set)
-        (dissoc m k)
-        (assoc m k new-set)))))
-
 (defonce ^{:doc "A set of readers for each atom, used to manage setup/teardown of watches."
            :private true}
          readers
@@ -204,7 +194,7 @@
                       (reduce (fn [m path]
                                 (update-in m path conj-set reader)) index added)
                       (reduce (fn [m path]
-                                (disj-in m path reader)) index removed)))))
+                                (u/disj-in m path reader)) index removed)))))
 
     (case source-transition
       :added (add-watch source :chia.reactive/atom handle-atom-reset)
@@ -212,7 +202,7 @@
       nil)
 
     (if (empty? next-patterns)
-      (vswap! readers disj-in [source] reader)
+      (vswap! readers u/disj-in [source] reader)
       (vswap! readers update source conj-set reader))
 
     next-patterns))
