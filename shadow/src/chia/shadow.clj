@@ -22,7 +22,7 @@
 (defn- resolve-sym [sym]
   (or (get aliased-fns sym)
       (do
-        (require (symbol (namespace sym)))
+        (require (symbol (namespace sym)) :reload)
         @(resolve sym))))
 
 (defn- simple-eval [form]

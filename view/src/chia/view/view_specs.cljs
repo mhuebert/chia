@@ -66,24 +66,24 @@
 
 (defn normalize-props-map
   "Resolves specs in map"
-  [{:keys [props/keys
-           props/keys-req] :as prop-specs}]
+  [{:keys [keys
+           keys-req] :as prop-specs}]
   (assert (and (or (nil? keys) (coll? keys))
                (or (nil? keys-req) (coll? keys-req))))
   (let [required (set keys-req)]
     (as-> (-> prop-specs
-              (dissoc :props/keys :props/keys-req)) prop-specs
+              (dissoc :keys :keys-req)) prop-specs
 
           ;; resolve specs
           (reduce-kv (fn [m k v]
                        (assoc m k (resolve-spec v)))
                      prop-specs prop-specs)
 
-          ;; expand :props/keys into resolved map entries
+          ;; expand :keys into resolved map entries
           (reduce (fn [m k] (assoc m (keyword (name k)) (resolve-spec k)))
                   prop-specs keys)
 
-          ;; expand :props/keys-req into resolved map entries
+          ;; expand :keys-req into resolved map entries
           (reduce (fn [m k]
                     (assoc m (keyword (name k)) (assoc (resolve-spec k) :required true)))
                   prop-specs required)
@@ -107,7 +107,9 @@
 
 (defn validate-spec [k {:keys [required spec spec-name] :as spec-map} value]
   (when (and spec-map (not (fn? spec)) (not (set? spec)))
-    (prn :invalid-spec? k spec-map))
+    (prn :invalid-spec? k {:spec spec
+                           :fn? (fn? spec)
+                           :m spec-map}))
   (if (nil? value)
     (when required (throw (js/Error (str "Prop is required: " k))))
     (when (and spec (not (spec value)))
@@ -116,7 +118,7 @@
       (throw (js/Error (str "Validation failed for prop: " k " with spec " (or spec-name spec) " and value " value))))))
 
 (defn validate-props [display-name
-                      {:keys [props/keys-req]
+                      {:keys [keys-req]
                        :as prop-specs} props]
   (try
     (doseq [k (into keys-req (filterv #(not (#{"props" "spec"} (namespace %))) (keys props)))]

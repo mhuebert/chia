@@ -25,19 +25,27 @@
     [tag (hiccup/props->js tag id classes clj-props)]))
 
 (defn make-fragment [children]
-  (.apply hiccup/*create-element* nil #js [hiccup/*fragment* #js {"children" children}]))
+  (.apply hiccup/*create-element* nil (doto (to-array children)
+                                        (.unshift nil)
+                                        (.unshift hiccup/*fragment*))))
+
+(defn element-arr [to-element form-vec]
+  (reduce (fn [out form]
+            (doto out (.push (to-element form)))) #js [] form-vec))
 
 (defn -to-element [form]
   (when form
     (cond (vector? form)
           (let [tag (form 0)]
             (cond (keyword? tag)
-                  (let [[props children] (hiccup/parse-args form)
-                        [js-tag js-props] (format-props props (form 0))
-                        args (hiccup/reduce-flatten-seqs -to-element [js-tag js-props] conj children)]
-                    (apply hiccup/*create-element* args))
+                  (case tag
+                    :<> (make-fragment (element-arr -to-element (subvec form 1)))
+                    (let [[props children] (hiccup/parse-args form)
+                          [js-tag js-props] (format-props props (form 0))
+                          args (hiccup/reduce-flatten-seqs -to-element [js-tag js-props] conj children)]
+                      (apply hiccup/*create-element* args)))
                   (fn? tag) (-to-element (apply tag (rest form)))
-                  :else (make-fragment (mapv -to-element form))))
+                  :else (make-fragment (element-arr -to-element form))))
 
           (satisfies? IElement form)
           (to-element form)

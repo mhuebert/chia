@@ -45,13 +45,15 @@
 
 (declare request-render)
 
+(defn forget! [component]
+  (vswap! to-render disj component))
+
 (defn schedule! [f]
   (vswap! to-run conj f)
   (request-render))
 
 (defn force-update!* [^js this]
-  (when-not (true? (.-unmounted this))
-    (.forceUpdate this)))
+  (.forceUpdate this))
 
 (defn force-update!
   "Force-updates `component` immediately."

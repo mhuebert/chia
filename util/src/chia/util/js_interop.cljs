@@ -55,3 +55,7 @@
         (gobj/get obj (wrap-key k) not-found))
       IDeref
       (-deref [o] obj))))
+
+(defn push! [^js a v]
+  (doto a
+    (.push v)))

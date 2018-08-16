@@ -1,8 +1,8 @@
 (ns chia.view.util
   (:refer-clojure :exclude [uuid])
   (:require [clojure.string :as string]
-   #?(:clj
-            [net.cgrand.macrovich :as macros]))
+            #?(:clj
+               [net.cgrand.macrovich :as macros]))
   #?(:cljs (:require-macros [net.cgrand.macrovich :as macros])))
 
 (def camelCase

@@ -49,3 +49,11 @@
            (let [[k v] (first pairs)]
              (recur (rest pairs)
                     (conj out `(~'goog.object/set ~(wrap-key k) ~v))))))))
+
+(defmacro push! [a v]
+  `(doto ~'^js ~a
+               (.push ~v)))
+
+(defmacro then [promise arglist & body]
+  `(.then ~'^js ~promise
+          (fn ~arglist ~@body)))

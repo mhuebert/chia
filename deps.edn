@@ -13,6 +13,9 @@
          "demo/src"
          "apollo/src"
          "shadow/src"
+         "x-vec/src"
+         "graphql/src"
+         "env/src"
 
          "view/test"
          "triple-db/test"]
@@ -51,4 +54,7 @@
 
   ;; demo
   org.clojure/core.match {:mvn/version "0.3.0-alpha5"}
+
+  ;; util
+  better-cond {:mvn/version "1.0.1"}
   }}

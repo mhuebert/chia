@@ -29,6 +29,7 @@
   [routes]
   (str (some->> (dissoc routes :root)
                 (keep (fn [[router path]]
+                        (assert (string? path))
                         (when path
                           (str (name router)
                                (some->> path

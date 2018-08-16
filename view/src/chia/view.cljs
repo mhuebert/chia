@@ -4,6 +4,7 @@
             [chia.view.render-loop :as render-loop]
             [chia.view.hiccup :as hiccup]
             [chia.view.hiccup.impl :as hiccup-impl]
+            [chia.view.view-specs :as vspec]
             [goog.object :as gobj]
             [chia.view.util :as u]
             ["react-dom" :as react-dom]
@@ -31,6 +32,7 @@
 
 (def ^:dynamic *trigger-state-render* true)
 (def ^:dynamic *current-view* nil)
+(def ^:dynamic *reload* false)
 
 (def instance-counter
   "For tracking the order in which components have been constructed (parent components are always constructed before their children)."
@@ -53,13 +55,14 @@
   {:view/should-update
    (fn []
      (this-as ^js this
-       (let [$state (.-state this)]
-         (or (not= (j/get $state :props)
-                   (j/get $state :prev-props))
-             (not= (j/get $state :children)
-                   (j/get $state :prev-children))
-             (when-let [state (j/get $state :state)]
-               (not= @state (j/get $state :prev-state)))))))
+       (or (true? *reload*)
+           (let [$state (.-state this)]
+             (or (not= (j/get $state :props)
+                       (j/get $state :prev-props))
+                 (not= (j/get $state :children)
+                       (j/get $state :prev-children))
+                 (when-let [state (j/get $state :state)]
+                   (not= @state (j/get $state :prev-state))))))))
    :static/get-derived-state-from-props
    (fn [^js props ^js $state]
      ;; when a component receives new props, update internal state.
@@ -73,12 +76,14 @@
      (this-as ^js this
        ;; manually track unmount state, react doesn't do this anymore,
        ;; otherwise our async render loop can't tell if a component is still on the page.
-       (j/assoc! this :unmounted true)
+       (render-loop/forget! this)
+
+       (some-> (:view/state this)
+               (remove-watch this))
 
        (doseq [f (some-> (.-chia$onUnmount this)
                          (vals))]
          (when f (f this)))
-       (some-> (:view/state this) (remove-watch this))
 
        (r/dispose-reader! this)))
    :view/did-update
@@ -249,7 +254,8 @@
 
   (doto (.-prototype constructor)
     (j/assoc! "displayName" (.-displayName unqualified-keys))
-    (cond-> qualified-keys (j/assoc! "chia$class" qualified-keys)))
+    (cond-> qualified-keys
+            (j/assoc! "chia$class" qualified-keys)))
 
   (gobj/extend constructor
                (wrap-methods static-keys #{:static/get-derived-state-from-props})
@@ -257,16 +263,30 @@
 
   constructor)
 
+(defn normalize-spec-keys [{:keys [spec/props
+                                   spec/children]
+                            :as m}]
+  (cond-> m
+          props (update :spec/props vspec/normalize-props-map)
+          children (update :spec/children vspec/resolve-spec-vector)))
+
+(defn validate-args! [{:keys [display-name qualified-keys]} props children]
+  (vspec/validate-props display-name (get qualified-keys :spec/props) props)
+  (vspec/validate-children display-name (get qualified-keys :spec/children) children))
+
 (defn- view*
   "Return a React element factory."
   [view-base constructor]
-  (let [^js constructor (extend-constructor view-base constructor)]
+  (let [view-base (update view-base :qualified-keys normalize-spec-keys)
+        constructor (extend-constructor view-base constructor)]
     (doto (fn [props & children]
             (let [[{:as props
                     :keys [ref]} children] (if (or (map? props)
                                                    (nil? props))
                                              [props children]
                                              [nil (cons props children)])]
+              (when goog.DEBUG
+                (validate-args! view-base props children))
               (react/createElement constructor #js {"key" (get-element-key props children constructor)
                                                     "ref" ref
                                                     "props" (cond-> props ref (dissoc :ref))
@@ -285,7 +305,7 @@
   ([^js this k not-found]
    (when this
      (or (some-> (.-chia$constructor this)
-                 (.-prototype)
+                 ;(.-prototype)
                  (class-get k not-found))
          (-> (j/get this :chia$class)
              (get k not-found))))))
@@ -295,10 +315,10 @@
   By default, removes all keys listed in the component's :spec/props map. Set `:consume false` for props
   that should be passed through."
   [this]
-  (prn :CONSUMED (class-get this :props/consumed))
   (apply dissoc
          (get this :view/props)
-         (class-get this :props/consumed)))
+         (some-> (class-get this :spec/props)
+                 (get :props/consumed))))
 
 (defn combine-props
   "Combines props, merging maps and joining collections/strings."
@@ -326,12 +346,6 @@
   "Return DOM node for component"
   [component]
   (react-dom/findDOMNode component))
-
-(defn mounted?
-  "Returns true if component is still mounted to the DOM.
-  This is necessary to avoid updating unmounted components."
-  [^js component]
-  (not (true? (.-unmounted component))))
 
 (defn on-unmount!
   "Register an unmount callback for `component`."
