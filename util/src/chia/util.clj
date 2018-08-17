@@ -1,9 +1,4 @@
-(ns chia.util
-  (:refer-clojure :exclude [cond])
-  (:require [clojure.walk :as walk]
-            [clojure.set :as set]
-            [clojure.edn :as edn]
-            [better-cond.core :as b]))
+(ns chia.util)
 
 (defmacro for-map [& body]
   `(->> (for ~@body)
@@ -19,7 +14,7 @@
   "Returns all user-assigned bindings resulting from a let binding."
   [let-bindings]
   (let [;; set of symbols that will be bound via clojure.core/destructure
-        bound-sym? (->> (destructure let-bindings)
+        bound-sym? (->> (clojure.core/destructure let-bindings) ;; not selfhost-compatible
                         (partition 2)
                         (map first)
                         (set))
@@ -54,6 +49,3 @@
            `(~'js/console.log (quote ~user-binding) ~(symbol (name user-binding))))
        (~'js/console.groupEnd)
        ~@body)))
-
-(defmacro cond [& args]
-  `(better-cond.core/cond ~@args))

@@ -76,7 +76,6 @@
      (this-as ^js this
        ;; manually track unmount state, react doesn't do this anymore,
        ;; otherwise our async render loop can't tell if a component is still on the page.
-       (render-loop/forget! this)
 
        (some-> (:view/state this)
                (remove-watch this))
@@ -85,7 +84,8 @@
                          (vals))]
          (when f (f this)))
 
-       (r/dispose-reader! this)))
+       (r/dispose-reader! this)
+       (render-loop/forget! this)))
    :view/did-update
    (fn []
      (this-as ^js this
@@ -355,4 +355,5 @@
 
 (defn adapt-react-class [the-class]
   (fn [& args]
-    (to-array (cons the-class args))))
+    (to-array (cons the-class (cond->> args
+                                       (not (map? (first args))) (cons #js {}))))))

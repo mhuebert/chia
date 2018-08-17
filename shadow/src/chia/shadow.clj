@@ -1,7 +1,9 @@
 (ns chia.shadow
   (:require [chia.static.assets :as a]
             [clojure.java.io :as io]
-            [clojure.pprint :refer [pprint]]))
+            [clojure.pprint :refer [pprint]]
+            [clojure.java.shell :refer [sh]]
+            ))
 
 (defmacro with-shadow-state [build-state & body]
   `(let [{:as build-state#
@@ -15,7 +17,11 @@
   (-> (io/resource path)
       (slurp)))
 
-(def aliased-fns {'resource resource})
+(defn cljs-script []
+  )
+
+(def aliased-fns {'resource resource
+                  'cljs-script cljs-script})
 
 (defn eval-if-fn [f] (if (fn? f) (f) f))
 

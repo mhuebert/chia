@@ -26,8 +26,14 @@
            (j/get :classes)
            (js->clj :keywordize-keys true)))))
 
+(defn to-string [styles]
+  (-> (JSS)
+      (.createStyleSheet (clj->js styles))
+      (str)))
+
 ;; if chia.view is present, enable :view/classes
-(when-let [component-lookup @(resolve 'chia.view/component-lookup)]
+(when-let [component-lookup (try @(resolve 'chia.view/component-lookup)
+                                 (catch js/Error e nil))]
   (let [class-get @(resolve 'chia.view/class-get)]
     (defmethod component-lookup :view/classes
       [this _ _]

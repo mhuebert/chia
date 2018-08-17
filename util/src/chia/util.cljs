@@ -37,3 +37,11 @@
       (if (empty? new-set)
         (dissoc m k)
         (assoc m k new-set)))))
+
+(defn update-keys [f m]
+  (persistent!
+   (reduce-kv (fn [m k v] (assoc! m (f k) v)) (transient (empty m)) m)))
+
+(defn update-vals [f m]
+  (persistent!
+   (reduce-kv (fn [m k v] (assoc! m k (f v))) (transient (empty m)) m)))
