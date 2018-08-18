@@ -14,14 +14,12 @@
        (do ~@body))))
 
 (defn- resource [path]
-  (-> (io/resource path)
-      (slurp)))
+  (let [the-resource (-> (io/resource path)
+                         (slurp))]
+    (println ::resource (str path))
+    the-resource))
 
-(defn cljs-script []
-  )
-
-(def aliased-fns {'resource resource
-                  'cljs-script cljs-script})
+(def aliased-fns {'resource resource})
 
 (defn eval-if-fn [f] (if (fn? f) (f) f))
 
@@ -62,5 +60,3 @@
   (update-in build-state [:compiler-options :closure-defines]
              merge (reduce-kv (fn [m var-name value]
                                 (assoc m var-name (simple-eval value))) {} vars)))
-
-

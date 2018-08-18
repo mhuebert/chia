@@ -56,13 +56,13 @@
 (defn asset-path
   "Asset-path function, for use in generating HTML"
   [path]
-  (cond->> path
-           (str/starts-with? path "/")
-           (str (when *content-hashes?*
-                  (some->> (io/file (public-path) (strip-slash path))
-                           (try-slurp)
-                           (md5)
-                           (str "?v="))))))
+  (cond-> path
+          (str/starts-with? path "/")
+          (str (when *content-hashes?*
+                 (some->> (io/file (public-path) (strip-slash path))
+                          (try-slurp)
+                          (md5)
+                          (str "?v="))))))
 
 (defn write-asset!
   "Write `content` string to an asset file"

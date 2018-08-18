@@ -41,7 +41,9 @@
            :.overflow-hidden {:overflow "hidden"}
            :.b-solid {:border-style "solid"}
            :.b-none {:border "none"}
-           :.no-underline {:text-decoration "no-underline"}}
+           :.no-underline {:text-decoration "none"}
+           :.display-link {:text-decoration "none"
+                           "&:hover" {:text-decoration "underline"}}}
           (u/for-map [side [:top :left :right :bottom]]
             {(str ".b-" (name side)) {(str "border-" (name side) "-style") "solid"}
              (str "." (name side) "-0") {side 0}})
@@ -111,6 +113,9 @@
                (str ".pad-h-" (num->str n)) {:padding-left (* unit n)
                                              :padding-right (* unit n)}
                (str ".pad-v-" (num->str n)) {:padding-top (* unit n)
-                                             :padding-bottom (* unit n)}})
+                                             :padding-bottom (* unit n)}
+               (str ".pad-t-" (num->str n)) {:padding-top (* unit n)}
+               (str ".pad-b-" (num->str n)) {:padding-bottom (* unit n)}
+               })
             (for [px (range 8 30)]
               [(str ".text-size-" px) {:font-size (str px "px")}])))})
