@@ -45,6 +45,7 @@
            :.b-none {:border "none"}
            :.no-underline {:text-decoration "none"}
            :.display-link {:text-decoration "none"
+                           :cursor "pointer"
                            "&:hover" {:text-decoration "underline"}}}
           (u/for-map [side [:top :left :right :bottom]]
             {(str ".b-" (name side)) {(str "border-" (name side) "-style") "solid"}
@@ -119,6 +120,10 @@
                (str ".margin-b-n" (num->str n)) {:margin-bottom (* unit (- n))}
                (str ".margin-r-n" (num->str n)) {:margin-right (* unit (- n))}
                (str ".margin-l-n" (num->str n)) {:margin-left (* unit (- n))}
+               (str ".margin-h-n" (num->str n)) {:margin-left (* unit (- n))
+                                                 :margin-right (* unit (- n))}
+               (str ".margin-v-n" (num->str n)) {:margin-top (* unit (- n))
+                                                 :margin-bottom (* unit (- n))}
 
                (str ".pad-" (num->str n)) {:padding (* unit n)}
                (str ".pad-h-" (num->str n)) {:padding-left (* unit n)
