@@ -25,9 +25,9 @@
     [tag (hiccup/props->js tag id classes clj-props)]))
 
 (defn make-fragment [children]
-  (.apply hiccup/*create-element* nil (doto (to-array children)
-                                        (.unshift nil)
-                                        (.unshift hiccup/*fragment*))))
+  (.apply react/createElement nil (doto (to-array children)
+                                    (.unshift nil)
+                                    (.unshift react/Fragment))))
 
 (defn element-arr [to-element form-vec]
   (reduce (fn [out form]
@@ -43,7 +43,7 @@
                     (let [[props children] (hiccup/parse-args form)
                           [js-tag js-props] (format-props props (form 0))
                           args (hiccup/reduce-flatten-seqs -to-element [js-tag js-props] conj children)]
-                      (apply hiccup/*create-element* args)))
+                      (apply react/createElement args)))
                   (fn? tag) (-to-element (apply tag (rest form)))
                   :else (make-fragment (element-arr -to-element form))))
 
@@ -54,15 +54,15 @@
           (-to-element (to-hiccup form))
 
           (seq? form)
-          (.apply hiccup/*create-element* nil
+          (.apply react/createElement nil
                   (reduce (fn [^js arr el]
                             (doto arr
                               (.push (-to-element el))))
-                          #js [hiccup/*fragment* nil] form))
+                          #js [react/Fragment nil] form))
 
           (= js/Array (.-constructor form))
           (if (fn? (first form))
-            (.apply hiccup/*create-element* nil (hiccup/clj->js-args! form -to-element))
+            (.apply react/createElement nil (hiccup/clj->js-args! form -to-element))
             (make-fragment form))
 
           :else form)))
@@ -77,8 +77,6 @@
    :create-element (fn) overrides React.createElement."
   ([form]
    (-to-element form))
-  ([form {:keys [wrap-props
-                 create-element]}]
-   (binding [hiccup/*wrap-props* wrap-props
-             hiccup/*create-element* (or hiccup/*create-element* create-element)]
+  ([{:keys [wrap-props]} form]
+   (binding [hiccup/*wrap-props* wrap-props]
      (-to-element form))))

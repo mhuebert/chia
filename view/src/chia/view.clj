@@ -1,7 +1,7 @@
 (ns chia.view
   (:refer-clojure :exclude [for])
   (:require [clojure.string :as str]
-            [chia.view.util :as u :refer [camelCase]]
+            [chia.view.util :as view-util :refer [camelCase]]
             [clojure.core :as core]
             [cljs.tagged-literals :as cljs-literals]))
 
@@ -21,11 +21,11 @@
          (or given-name
              (gensym "view")))))
 
-(defn wrap-hiccup [x]
+(defn to-element [x]
   ;; TODO
   ;; upgrade hiccup/element to work partly at macroexpansion time
-  `(~'chia.view.hiccup/element ~x
-    {:wrap-props ~'chia.view/wrap-props}))
+  `(~'chia.view.hiccup/element {:wrap-props ~'chia.view/wrap-props}
+    ~x))
 
 (defn wrap-current-view-binding [body]
   `(~'this-as this#
@@ -38,7 +38,7 @@
   (assert (vector? argv)
           (str "View " name " is missing an argument vector"))
   `(~'fn ~(symbol (str name \*)) ~argv
-    ~(cond-> (wrap-hiccup `(do ~@body))
+    ~(cond-> (to-element `(do ~@body))
              (not pure?) (wrap-current-view-binding))))
 
 (defn- make-constructor [the-name]
@@ -80,7 +80,7 @@
   (-> (reduce-kv (fn [m k v]
                    (assoc-in m [(let [the-ns (namespace k)]
                                   (cond (= the-ns "static") :static-keys
-                                        (contains? u/lifecycle-keys k) :lifecycle-keys
+                                        (contains? view-util/lifecycle-keys k) :lifecycle-keys
                                         (nil? the-ns) :unqualified-keys
                                         :else :qualified-keys)) k] v)) {} methods)
       (update :unqualified-keys (comp ->js-with-camelCase bind-vals))))
@@ -88,7 +88,7 @@
 
 (defmacro view
   [& args]
-  (let [[view-name docstring methods body] (u/parse-opt-args [symbol? string? map?] args)
+  (let [[view-name docstring methods body] (view-util/parse-opt-args [symbol? string? map?] args)
         display-name (get-display-name *ns* view-name)
         {pure? :pure} (meta view-name)
         {:as methods
@@ -114,7 +114,7 @@
     the argslist and body for the render function, which should
     return a Hiccup vector or React element."
   [& args]
-  (let [[view-name docstring _] (u/parse-opt-args [symbol? string?] args)
+  (let [[view-name docstring _] (view-util/parse-opt-args [symbol? string?] args)
         _ (assert (symbol? view-name))]
 
     `(def ~view-name ~@(some-> docstring (list))
@@ -151,7 +151,7 @@
   "Simplified `for`, acts on a single collection; returns array and wraps with hiccup."
   [[x coll] body]
   `(reduce (fn [a# ~x]
-             (.push a# ~(wrap-hiccup body))
+             (.push a# ~(to-element body))
              a#)
            (cljs.core/array) ~coll))
 
@@ -163,7 +163,7 @@
   `(let [coll# ~coll
          a# (cljs.core/array)]
      (reduce (fn [~idx ~item]
-               (.push a# ~(wrap-hiccup body))
+               (.push a# ~(to-element body))
                (inc ~idx))
              0 coll#)
      a#))

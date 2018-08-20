@@ -56,7 +56,8 @@
    - aria- and data- attributes
    - namespaced keywords (:custom/attr => 'custom-attr')"
   [k]
-  (cond (keyword-identical? k :for)
+  (cond (string? k) k
+        (keyword-identical? k :for)
         "htmlFor"
         (namespace k) (str (namespace k) "-" (name k))
         :else
@@ -123,5 +124,5 @@
                          js-conj
                          (.slice js-args 2))))
 
-(def ^:dynamic *create-element* react/createElement)
+
 (def ^:dynamic *fragment* react/Fragment)

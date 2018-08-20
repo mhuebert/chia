@@ -51,9 +51,13 @@
                     (conj out `(~'goog.object/set ~(wrap-key k) ~v))))))))
 
 (defmacro push! [a v]
-  `(doto ~'^js ~a
-               (.push ~v)))
+  `(doto ~a
+     (~'.push ~v)))
+
+(defmacro unshift! [arr v]
+  `(doto ~arr
+     (~'.unshift ~v)))
 
 (defmacro then [promise arglist & body]
-  `(.then ~'^js ~promise
-          (fn ~arglist ~@body)))
+  `(~'.then ~'^js ~promise
+    (fn ~arglist ~@body)))

@@ -28,9 +28,11 @@
            :.flex-auto {:flex "1 1 auto"
                         :min-width 0
                         :min-height 0}
+           :.flex-none {:flex "none"}
            :.justify-center {:justify-content "center"}
            :.flex-wrap {:flex-wrap "wrap"}
            :.items-center {:align-items "center"}
+           :.items-stretch {:align-items "stretch"}
            :.center {:margin-left "auto"
                      :margin-right "auto"}
            :.text-center {:text-align "center"}
@@ -66,12 +68,13 @@
             {(str ".cursor-" x) {:cursor x}})
           (u/for-map [n (range 0 11)]
             {(str ".opacity-" n) {:opacity (* n 0.1)}})
-          (u/for-map [[n v] (->> (interleave (range 1 5)
-                                             [0.03 0.05 0.075 0.1])
+          (u/for-map [[n v] (->> (interleave (range 1 9)
+                                             [0.015 0.03 0.05 0.075 0.1 0.25 0.5 0.75])
                                  (partition 2))
                       :let [color (str "rgba(0,0,0," v ")")]]
             {(str ".b-darken-" n) {:border-color color}
              (str ".bg-darken-" n) {:background-color color}
+             (str ".darken-" n) {:color color}
              (str ".hover-bg-darken-" n) {"&:hover" {:background-color color}}})
           (u/for-map [[n v] {:orange "#fa7921"
                              :light-orange "#fe9920"
@@ -109,6 +112,14 @@
                                                 :margin-bottom (* unit n)}
                (str ".margin-t-" (num->str n)) {:margin-top (* unit n)}
                (str ".margin-b-" (num->str n)) {:margin-bottom (* unit n)}
+               (str ".margin-r-" (num->str n)) {:margin-right (* unit n)}
+               (str ".margin-l-" (num->str n)) {:margin-left (* unit n)}
+
+               (str ".margin-t-n" (num->str n)) {:margin-top (* unit (- n))}
+               (str ".margin-b-n" (num->str n)) {:margin-bottom (* unit (- n))}
+               (str ".margin-r-n" (num->str n)) {:margin-right (* unit (- n))}
+               (str ".margin-l-n" (num->str n)) {:margin-left (* unit (- n))}
+
                (str ".pad-" (num->str n)) {:padding (* unit n)}
                (str ".pad-h-" (num->str n)) {:padding-left (* unit n)
                                              :padding-right (* unit n)}
@@ -118,4 +129,11 @@
                (str ".pad-b-" (num->str n)) {:padding-bottom (* unit n)}
                })
             (for [px (range 8 30)]
-              [(str ".text-size-" px) {:font-size (str px "px")}])))})
+              [(str ".text-size-" px) {:font-size (str px "px")}])
+            (for [n [18 24 36 48]]
+              [(str ".md-" n) {:font-size n}])
+            ;.material-icons.md-18 { font-size: 18px; }
+            ;.material-icons.md-24 { font-size: 24px; }
+            ;.material-icons.md-36 { font-size: 36px; }
+            ;.material-icons.md-48 { font-size: 48px; }
+            ))})

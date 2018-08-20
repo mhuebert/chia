@@ -80,7 +80,8 @@
 
 
 (s/fdef hiccup/element
-        :args (s/cat :body ::element :opts (s/? (s/keys :opt-un [::fn])))
+        :args (s/cat :opts (s/? (s/keys :opt-un [::fn]))
+                     :body ::element)
         :ret (s/or :element ::native-element
                    :primitive ::primitive))
 

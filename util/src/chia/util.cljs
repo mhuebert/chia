@@ -1,10 +1,10 @@
 (ns chia.util
+  (:require [chia.util.js-interop])
   (:require-macros [chia.util]))
 
 (defn guard [x f]
   (when (f x)
     x))
-
 
 ;; from https://github.com/clojure/core.incubator/blob/master/src/main/clojure/clojure/core/incubator.clj
 (defn dissoc-in
@@ -45,3 +45,6 @@
 (defn update-vals [f m]
   (persistent!
    (reduce-kv (fn [m k v] (assoc! m k (f v))) (transient (empty m)) m)))
+
+(defn find-first [pred coll]
+  (first (filter pred coll)))

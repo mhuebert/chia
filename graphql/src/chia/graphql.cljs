@@ -196,6 +196,11 @@
   ([name props body]
    (update (vec-wrap body) 1 assoc-in [:gql/directives name] props)))
 
+(defn top-level-keys [query]
+  (->> @(:form query)
+       (drop 2)
+       (mapv first)))
+
 (comment
  (let [include+ (partial directive :include)]
    (println (str (query someQuery [$el :String

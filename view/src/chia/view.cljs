@@ -1,12 +1,12 @@
 (ns chia.view
-  (:refer-clojure :exclude [partial])
   (:require [chia.reactive :as r]
             [chia.view.render-loop :as render-loop]
             [chia.view.hiccup :as hiccup]
             [chia.view.hiccup.impl :as hiccup-impl]
             [chia.view.view-specs :as vspec]
             [goog.object :as gobj]
-            [chia.view.util :as u]
+            [chia.view.util :as view-util]
+            [chia.util :as u]
             ["react-dom" :as react-dom]
             ["react" :as react]
             [clojure.core :as core]
@@ -142,7 +142,7 @@
   (->> (into required-keys (keys methods))
        (reduce (fn [obj k]
                  (j/assoc! obj
-                           (or (get u/lifecycle-keys k) (throw (ex-info "Unknown lifecycle method" {:k k})))
+                           (or (get view-util/lifecycle-keys k) (throw (ex-info "Unknown lifecycle method" {:k k})))
                            (or (some->> (get methods k)
                                         (wrap-method k))
                                (get default-methods k)))) #js {})))
@@ -353,7 +353,28 @@
   (set! (.-chia$onUnmount this)
         ((fnil assoc {}) (.-chia$onUnmount this) key f)))
 
-(defn adapt-react-class [the-class]
-  (fn [& args]
-    (to-array (cons the-class (cond->> args
-                                       (not (map? (first args))) (cons #js {}))))))
+(defn to-element [x]
+  (hiccup/element {:wrap-props wrap-props} x))
+
+(defn adapt-react-class
+  ([the-class]
+   (adapt-react-class nil the-class))
+  ([{:keys [element-keys]} the-class]
+   (fn [& args]
+     (let [props (when (map? (first args))
+                   (->> element-keys
+                        (reduce (fn [props k]
+                                  (update props k to-element)) (first args))))
+           js-form (-> (if props
+                         (cons props (rest args))
+                         (cons #js {} args))
+                       (to-array)
+                       (j/unshift! the-class))]
+       (to-element js-form)))))
+
+(defn partial-props [view initial-props]
+  (fn [props & children]
+    (let [[props children] (if (or (map? props)
+                                   (nil? props)) [props children]
+                                                 [{} (cons props children)])]
+      (apply view (merge initial-props props) children))))
