@@ -303,12 +303,13 @@
    Does not return lifecycle methods"
   ([this k] (class-get this k nil))
   ([^js this k not-found]
-   (when this
-     (or (some-> (.-chia$constructor this)
-                 ;(.-prototype)
-                 (class-get k not-found))
-         (-> (j/get this :chia$class)
-             (get k not-found))))))
+   (or (when this
+         (when-let [class (or (j/get this :chia$class)
+                              (j/get-in this [:chia$constructor
+                                              :prototype
+                                              :chia$class]))]
+           (get class k)))
+       not-found)))
 
 (defn pass-props
   "Remove prop keys handled by component, useful for passing down unhandled props to a child component.

@@ -27,7 +27,8 @@
 
    e.g. /hello(nav:details/edit//drawer:profile/photo)"
   [routes]
-  (str (some->> (dissoc routes :root)
+  (str (u/ensure-leading-char \/ (:root routes))
+       (some->> (dissoc routes :root)
                 (keep (fn [[router path]]
                         (assert (string? path))
                         (when path
@@ -38,5 +39,4 @@
                                         (str ":"))))))
                 (seq)
                 (str/join "//")
-                (u/wrap "()"))
-       (u/ensure-leading-char \/ (:root routes))))
+                (u/wrap "()"))))
