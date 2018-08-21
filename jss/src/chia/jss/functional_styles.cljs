@@ -83,7 +83,8 @@
                              :dark-green "#306b34"
                              :dark-blue "#0c4767"
                              :white "#ffffff"
-                             :black "#000000"}
+                             :black "#000000"
+                             :error-pink "#faeaed"}
                       :let [color-name (name n)]]
             {(str "." color-name) {:color v}
              (str ".bg-" color-name) {:background-color v}})
