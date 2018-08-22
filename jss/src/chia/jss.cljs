@@ -6,7 +6,7 @@
             [chia.view.util :as vu]
             [goog.object :as gobj]))
 
-(def ^js JSS
+(def JSS
   (memoize
    (fn
      ([]
@@ -19,20 +19,21 @@
 (def global-reset!
   (memoize
    (fn []
-     (-> (JSS)
+     (-> ^js (JSS)
          (.createStyleSheet reset-jss)
          (.attach)))))
 
 (def make-classes
   (memoize
    (fn [styles]
-     (-> (.createStyleSheet (JSS) (clj->js styles))
+     (-> ^js (JSS)
+         (.createStyleSheet (clj->js styles))
          (.attach)
          (j/get :classes)
          (js->clj :keywordize-keys true)))))
 
 (defn to-string [styles]
-  (-> (JSS)
+  (-> ^js (JSS)
       (.createStyleSheet (clj->js styles))
       (str)))
 
