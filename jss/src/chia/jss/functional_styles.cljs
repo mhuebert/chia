@@ -18,6 +18,13 @@
            {(str "@media (min-width: " (inc breakpoint) "px)")
             (u/update-keys #(append-to-name % "-lg") m)})))
 
+(defn color-styles [color-map]
+  (u/for-map [[n v] color-map
+              :let [color-name (name n)]]
+    {(str "." color-name) {:color v}
+     (str ".bg-" color-name) {:background-color v}
+     (str ".b--" color-name) {:border-color v}}))
+
 (defn base [& [{:as options
                 :keys [unit
                        break-small]
@@ -29,8 +36,8 @@
                                    "& .hover-opacity-child" {:opacity 0.5}
                                    "&:hover .hover-opacity-child" {:opacity 1}}
            #_#_:.overflow-hidden {:overflow "hidden"}
-           :.b-solid {:border-style "solid"}
-           :.b-none {:border "none"}
+           :.b--solid {:border-style "solid"}
+           :.b--none {:border "none"}
            :.no-underline {:text-decoration "none"}
            :.display-link {:text-decoration "none"
                            :cursor "pointer"
@@ -46,7 +53,7 @@
                                          "heavy" 900})]
             {(str ".weight-" key) {:font-weight weight}})
           (u/for-map [side [:top :left :right :bottom]]
-              {(str ".b-" (name side)) {(str "border-" (name side) "-style") "solid"}
+              {(str ".b--" (name side)) {(str "border-" (name side) "-style") "solid"}
                (str "." (name side) "-0") {side 0}})
           #_(u/for-map [[i v] (->> [unit
                                     (* 1.5 unit)
@@ -61,7 +68,7 @@
           {:.width-100p {:width "100%"}}
           (u/for-map [n (range 17)]
             {(str ".round-" n) {:border-radius n}
-             (str ".b-" n) {:border-width n}})
+             (str ".b--" n) {:border-width n}})
           #_(u/for-map [x ["pointer"
                            "default"]]
               {(str ".cursor-" x) {:cursor x}})
@@ -71,21 +78,18 @@
                                              [0.015 0.03 0.05 0.075 0.1 0.25 0.5 0.75])
                                  (partition 2))
                       :let [color (str "rgba(0,0,0," v ")")]]
-            {(str ".b-darken-" n) {:border-color color}
+            {(str ".b--darken-" n) {:border-color color}
              (str ".bg-darken-" n) {:background-color color}
              (str ".darken-" n) {:color color}
              (str ".hover-bg-darken-" n) {"&:hover" {:background-color color}}})
-          (u/for-map [[n v] {:orange "#fa7921"
-                             :light-orange "#fe9920"
-                             :green "#2e933c"
-                             :dark-green "#306b34"
-                             :dark-blue "#0c4767"
-                             :white "#ffffff"
-                             :black "#000000"
-                             :error-pink "#faeaed"}
-                      :let [color-name (name n)]]
-            {(str "." color-name) {:color v}
-             (str ".bg-" color-name) {:background-color v}})
+          (color-styles {:orange "#fa7921"
+                   :light-orange "#fe9920"
+                   :green "#2e933c"
+                   :dark-green "#306b34"
+                   :dark-blue "#0c4767"
+                   :white "#ffffff"
+                   :black "#000000"
+                   :error-pink "#faeaed"})
           #_(u/for-map [i (range 11)]
               {(str ".opacity-" (* i 10)) {:opacity (/ i 10)}})
 

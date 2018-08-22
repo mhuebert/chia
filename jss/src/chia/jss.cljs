@@ -14,7 +14,7 @@
                    (exists? js/window)
                    (j/assoc! :insertionPoint (vu/find-or-append-element "chia-jss")))))
      ([presets]
-      (jss/create (doto presets (js/console.log)))))))
+      (jss/create presets)))))
 
 (def global-reset!
   (memoize
