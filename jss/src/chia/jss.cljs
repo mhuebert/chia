@@ -3,28 +3,33 @@
             ["reset-jss" :as reset-jss]
             ["jss-preset-default" :default jss-preset]
             [chia.util.js-interop :as j]
+            [chia.view.util :as vu]
             [goog.object :as gobj]))
 
 (def ^js JSS
   (memoize
    (fn
-    ([] (JSS (jss-preset)))
-    ([presets] (jss/create presets)))))
+     ([]
+      (JSS (cond-> (jss-preset)
+                   (exists? js/window)
+                   (j/assoc! :insertionPoint (vu/find-or-append-element "chia-jss")))))
+     ([presets]
+      (jss/create (doto presets (js/console.log)))))))
 
 (def global-reset!
   (memoize
    (fn []
-       (-> (JSS)
-           (.createStyleSheet reset-jss)
-           (.attach)))))
+     (-> (JSS)
+         (.createStyleSheet reset-jss)
+         (.attach)))))
 
 (def make-classes
   (memoize
    (fn [styles]
-       (-> (.createStyleSheet (JSS) (clj->js styles))
-           (.attach)
-           (j/get :classes)
-           (js->clj :keywordize-keys true)))))
+     (-> (.createStyleSheet (JSS) (clj->js styles))
+         (.attach)
+         (j/get :classes)
+         (js->clj :keywordize-keys true)))))
 
 (defn to-string [styles]
   (-> (JSS)

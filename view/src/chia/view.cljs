@@ -357,15 +357,19 @@
 (defn to-element [x]
   (hiccup/element {:wrap-props wrap-props} x))
 
+(defn update-keys [m ks f]
+  (reduce (fn [m k] (assoc m k (f (get m k)))) m ks))
+
 (defn adapt-react-class
   ([the-class]
    (adapt-react-class nil the-class))
-  ([{:keys [element-keys]} the-class]
+  ([{:keys [element-keys
+            clj->js-keys]} the-class]
    (fn [& args]
      (let [props (when (map? (first args))
-                   (->> element-keys
-                        (reduce (fn [props k]
-                                  (update props k to-element)) (first args))))
+                   (-> (first args)
+                       (update-keys element-keys to-element)
+                       (update-keys clj->js-keys clj->js)))
            js-form (-> (if props
                          (cons props (rest args))
                          (cons #js {} args))

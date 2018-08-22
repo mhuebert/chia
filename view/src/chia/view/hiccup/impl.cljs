@@ -1,6 +1,7 @@
 (ns chia.view.hiccup.impl
   (:require [clojure.string :as str]
-            ["react" :as react]))
+            ["react" :as react]
+            [chia.util.js-interop :as j]))
 
 (defn parse-key
   "Parses a hiccup key like :div#id.class1.class2 to return the tag name, id, and classes.
@@ -43,11 +44,7 @@
           children)))
 
 (def camelCase
-  (memoize (fn [s]
-             (if (or (str/starts-with? s "data-")
-                     (str/starts-with? s "aria-"))
-               s
-               (str/replace s #"-([a-z])" (fn [[_ s]] (str/upper-case s)))))))
+  (memoize (fn [s] (str/replace s #"-([a-z])" (fn [[_ s]] (str/upper-case s))))))
 
 (defn key->react-attr
   "CamelCase react keys.
@@ -57,11 +54,14 @@
    - namespaced keywords (:custom/attr => 'custom-attr')"
   [k]
   (cond (string? k) k
-        (keyword-identical? k :for)
-        "htmlFor"
-        (namespace k) (str (namespace k) "-" (name k))
+        (keyword-identical? k :for) "htmlFor"
+        ;(namespace k) (str (namespace k) "-" (name k))
         :else
-        (camelCase (name k))))
+        (let [s (name k)]
+          (if (or (str/starts-with? s "data-")
+                  (str/starts-with? s "aria-"))
+            s
+            (camelCase s)))))
 
 (defn map->js
   "Return javascript object with camelCase keys. Not recursive."
@@ -77,12 +77,9 @@
   ;; benchmark different ways of merging strings.
   ;; eg. use a clojure StringBuilder,
   ;;     transient vs. ordinary vector
-  [^js/String k-classes ^js/String class classes]
-  (cond-> []
-          k-classes (conj k-classes)
-          class (conj class)
-          classes (into classes)
-          true (->> (str/join " "))))
+  [^string k-classes ^string class]
+  (cond-> k-classes
+          (some? class) (str " " class)))
 
 (def ^:dynamic *wrap-props* nil)
 
@@ -92,23 +89,26 @@
   ([props] (props->js "" "" nil props))
   ([tag k-id k-classes props]
    (when (or props k-id k-classes)
-     (let [{:keys [class class-name classes] :as props} (cond-> props
-                                                                (boolean *wrap-props*)
-                                                                (*wrap-props* tag))
+     (let [{:keys [class] :as props} (cond-> props
+                                             (boolean *wrap-props*)
+                                             (*wrap-props* tag))
+           className (when (or k-classes class)
+                       (cond-> k-classes
+                               (some? class) (str " " class)))
            prop-js (cond-> (js-obj)
-                           k-id (doto (aset "id" k-id))
-                           (or k-classes class class-name classes) (doto (aset "className" (merge-classes k-classes (or class class-name) classes))))]
-       (doseq [[k v] props]
-         (cond
-           ;; convert :style and :dangerouslySetInnerHTML to js objects
-           (or (keyword-identical? k :style)
-               (keyword-identical? k :dangerouslySetInnerHTML))
-           (aset prop-js (name k) (map->js v))
-           ;; ignore className-related keys
-           (or (keyword-identical? k :classes)
-               (keyword-identical? k :class)) nil
-           ;; passthrough all other values
-           :else (aset prop-js (key->react-attr k) v)))
+                           k-id (j/assoc! :id k-id)
+                           className (j/assoc! :className className))]
+       (when props
+         (doseq [[k v] props]
+           (cond
+             ;; convert :style and :dangerouslySetInnerHTML to js objects
+             (or (keyword-identical? k :style)
+                 (keyword-identical? k :dangerouslySetInnerHTML))
+             (unchecked-set prop-js (name k) (map->js v))
+             ;; ignore className-related keys
+             (keyword-identical? k :class) nil
+             ;; passthrough all other values
+             :else (unchecked-set prop-js (key->react-attr k) v))))
        prop-js))))
 
 (defn js-conj [ar x]

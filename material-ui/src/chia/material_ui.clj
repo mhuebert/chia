@@ -8,9 +8,10 @@
 
 (defmacro defm
   ([the-name]
-   `(~'chia.material-ui/defm ~the-name nil))
+   `(~'chia.material-ui/defm ~the-name {}))
   ([the-name options]
-   `(def ~the-name (~'chia.view/adapt-react-class ~options
+   `(def ~the-name (~'chia.view/adapt-react-class (update ~options
+                                                    :clj->js-keys conj :classes)
                     ~(-> the-name
                          (dashed->camel)
                          (symbol))))))

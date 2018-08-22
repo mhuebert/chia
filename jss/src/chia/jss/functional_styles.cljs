@@ -35,7 +35,16 @@
            :.display-link {:text-decoration "none"
                            :cursor "pointer"
                            "&:hover" {:text-decoration "underline"}}}
-
+          (u/for-map [[key weight] (seq {"thin" 100
+                                         "extra-light" 200
+                                         "light" 300
+                                         "normal" 400
+                                         "medium" 500
+                                         "semi-bold" 600
+                                         "bold" 700
+                                         "extra-bold" 800
+                                         "heavy" 900})]
+            {(str ".weight-" key) {:font-weight weight}})
           (u/for-map [side [:top :left :right :bottom]]
               {(str ".b-" (name side)) {(str "border-" (name side) "-style") "solid"}
                (str "." (name side) "-0") {side 0}})
