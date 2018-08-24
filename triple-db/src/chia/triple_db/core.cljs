@@ -425,4 +425,7 @@
              (some->> (patterns/removed-patterns prev-patterns next-patterns)
                       (unlisten source reader))))
 
-         next-patterns)))))
+         next-patterns)
+       IPrintWithWriter
+       (-pr-writer [this writer opts]
+         (-write writer (str "triple-db[]")))))))

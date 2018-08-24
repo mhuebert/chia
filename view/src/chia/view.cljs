@@ -109,7 +109,7 @@
     :view/render
     (fn []
       (this-as ^js this
-        (set! (.-chia$toUpdate this) false)                 ;; for render loop
+        (j/assoc! this :chia$toUpdate false)                ;; avoid double-render in render loop
         (r/with-dependency-tracking! this
                                      (v/apply-fn f this))))
     :view/did-update
@@ -162,7 +162,7 @@
                    (when-let [^js will-receive (j/get this :componentWillReceiveState)]
                      (.call will-receive this))
                    (when (and *trigger-state-render*
-                              (if-let [^js should-update (.-shouldComponentUpdate this)]
+                              (if-let [^js should-update (j/get this :shouldComponentUpdate)]
                                 (.call should-update this)
                                 true))
                      (force-update this))))))
@@ -172,7 +172,7 @@
   "Populate initial state for `component`."
   [^js this ^js $props]
   (when $props
-    (when-let [state (when-let [initial-state (.-chia$initialState this)]
+    (when-let [state (when-let [initial-state (j/get this :chia$initialState)]
                        (let [state-data (if (fn? initial-state)
                                           (.call initial-state this this)
                                           initial-state)]

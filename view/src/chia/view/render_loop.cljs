@@ -1,6 +1,7 @@
 (ns chia.view.render-loop
   (:require ["react" :as react]
-            ["react-dom" :as react-dom]))
+            ["react-dom" :as react-dom]
+            [chia.util.js-interop :as j]))
 
 (set! *warn-on-infer* true)
 (defonce ^:dynamic *immediate-state-update* false)
@@ -15,7 +16,7 @@
 
 (defonce fps-element
          (memoize (fn []
-                    (-> js/document.body
+                    (-> (j/get js/document :body)
                         (.appendChild (doto (js/document.createElement "div")
                                         (.setAttribute "style"  "padding: 3px 3px 0 0; font-size: 9px;")
                                         (.setAttribute "class" "fixed top-0 right-0 z-max monospace gray")))))))
@@ -29,16 +30,16 @@
   (set! count-fps? value))
 
 (defonce _raf-polyfill
-         (when (js* "typeof window !== 'undefined'")
-           (if-not (.-requestAnimationFrame js/window)
-             (set! (.-requestAnimationFrame js/window)
-                   (or
-                    (.-webkitRequestAnimationFrame js/window)
-                    (.-mozRequestAnimationFrame js/window)
-                    (.-oRequestAnimationFrame js/window)
-                    (.-msRequestAnimationFrame js/window)
-                    (fn [cb]
-                      (js/setTimeout cb (/ 1000 60))))))))
+         (when (and (exists? js/window)
+                    (not (j/get js/window :requestAnimationFrame)))
+           (j/assoc! js/window :requestAnimationFrame
+                     (or
+                      (j/get js/window :webkitRequestAnimationFrame)
+                      (j/get js/window :mozRequestAnimationFrame)
+                      (j/get js/window :oRequestAnimationFrame)
+                      (j/get js/window :msRequestAnimationFrame)
+                      (fn [cb]
+                        (js/setTimeout cb (/ 1000 60)))))))
 
 (defonce to-render (volatile! #{}))
 (defonce to-run (volatile! []))
@@ -46,14 +47,15 @@
 (declare request-render)
 
 (defn forget! [component]
-  (vswap! to-render disj component))
+  (vswap! to-render disj component)
+  (j/assoc! component :chia$toUpdate false))
 
 (defn schedule! [f]
   (vswap! to-run conj f)
   (request-render))
 
-(defn force-update!* [^js this]
-  (.forceUpdate this))
+(defn force-update!* [^js component]
+  (.forceUpdate component))
 
 (defn force-update!
   "Force-updates `component` immediately."
@@ -67,12 +69,13 @@
   (if (true? *immediate-state-update*)
     (force-update! component)
     (do
-      (set! (.-chia$toUpdate component) true)
+
+      (j/assoc! component :chia$toUpdate true)
       (vswap! to-render conj component)
       (request-render))))
 
 (defn order [^js component]
-  (.-chia$order component))
+  (j/get component :chia$order))
 
 (defn flush!
   []
@@ -80,7 +83,7 @@
     (let [components @to-render]
       (vreset! to-render #{})
       (doseq [^js c (sort-by order components)]
-        (when ^boolean (.-chia$toUpdate c)
+        (when ^boolean (j/get c :chia$toUpdate)
           (force-update!* c)))))
 
   (when-not ^boolean (empty? @to-run)

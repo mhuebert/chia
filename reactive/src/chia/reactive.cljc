@@ -6,14 +6,6 @@
             [chia.reactive :as r]
             [net.cgrand.macrovich :as macros])))
 
-;(defonce invalidation-queue (volatile! []))
-;
-;(defn invalidate-reader [reader]
-;  (vswap! invalidation-queue conj reader))
-;
-;(defn invalidate-readers! [readers]
-;  (vswap! invalidation-queue into readers))
-
 (def ^:dynamic *reader*
   "The currently-computing reader"
   nil)
@@ -168,25 +160,3 @@
   (when *reader*
     (vswap! *reader-dependency-log* assoc source (apply f (get @*reader-dependency-log* source) args)))
   source)
-
-
-
-;; rules:
-;; - if `patterns` are not provided, `source` must implement IWatchable.
-;; - if `patterns are provided,      `source` must implement IWatchableByPattern.
-
-;; issues
-;;
-;; triggering updates
-;; - compare equality vs. on any reset!
-;;
-;; stopping reactively-reading when not being watched
-;; - a data source which also acts as a reader can dispose of its read-process when it no longer has any watchers.
-;;   ...just as a reader can dispose of its read-process when it unmounts.
-
-
-;; PATHS
-;; no need to have a separate data structure...
-;; I can just index the patterns in a namespace...
-;; when a path-source changes, we "crawl" the path-listeners to find the ones which have changed,
-;; stopping early ...
