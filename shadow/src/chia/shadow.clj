@@ -2,8 +2,7 @@
   (:require [chia.static.assets :as a]
             [clojure.java.io :as io]
             [clojure.pprint :refer [pprint]]
-            [clojure.java.shell :refer [sh]]
-            ))
+            [clojure.java.shell :refer [sh]]))
 
 (defmacro with-shadow-state [build-state & body]
   `(let [{:as build-state#

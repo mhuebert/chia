@@ -11,7 +11,6 @@
          "material-ui/src"
          "util/src"
          "demo/src"
-         "apollo/src"
          "shadow/src"
          "x-vec/src"
          "graphql/src"
