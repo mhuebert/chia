@@ -81,6 +81,7 @@
                    (assoc-in m [(let [the-ns (namespace k)]
                                   (cond (= the-ns "static") :static-keys
                                         (contains? view-util/lifecycle-keys k) :lifecycle-keys
+                                        (contains? view-util/__deprecated-keys k) (throw (ex-info "Deprecated React lifecycle key" {:key k}))
                                         (nil? the-ns) :unqualified-keys
                                         :else :qualified-keys)) k] v)) {} methods)
       (update :unqualified-keys (comp ->js-with-camelCase bind-vals))))

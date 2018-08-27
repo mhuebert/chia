@@ -66,11 +66,15 @@
               (doto (.setAttribute "id" id))
               (->> (.appendChild (.-body js/document))))))))
 
+#?(:clj
+   (def __deprecated-keys #{:view/will-receive-props
+                            :view/will-update
+                            :view/will-mount}))
+
 (def lifecycle-keys
   "Mapping of methods-map keys to React lifecycle keys."
   {:view/initial-state "chia$initialState"
    :view/did-catch "componentDidCatch"
-   :view/will-mount "componentWillMount"
    :view/did-mount "componentDidMount"
    :static/get-derived-state-from-props "getDerivedStateFromProps"
    :view/will-receive-state "componentWillReceiveState"

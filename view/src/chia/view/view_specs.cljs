@@ -113,9 +113,9 @@
   (if (nil? value)
     (when required (throw (js/Error (str "Prop is required: " k))))
     (when (and spec (not (spec value)))
-      #_(println "Failed Spec" spec-map)
-      #_(prn :spec spec-name :val value :spec spec)
-      (throw (js/Error (str "Validation failed for prop: " k " with spec " (or spec-name spec) " and value " value))))))
+      (throw (js/Error (str "Validation failed: " {:prop k
+                                                   :spec (or spec-name spec)
+                                                   :value value}))))))
 
 (defn validate-props [display-name
                       {:keys [keys-req]
@@ -124,8 +124,8 @@
     (doseq [k (into keys-req (filterv #(not (#{"props" "spec"} (namespace %))) (keys props)))]
       (validate-spec k (get prop-specs k) (get props k)))
     (catch js/Error e
-      (println "Error validating props in " display-name)
-      (throw e)))
+      (js/console.error display-name e)
+      (throw (js/Error.))))
   props)
 
 (defn validate-children [display-name {:keys [req &more] :as children-spec} children]

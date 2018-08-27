@@ -54,9 +54,9 @@
 (def default-methods
   {:view/should-update
    (fn []
-     (this-as ^js this
+     (this-as this
        (or (true? *reload*)
-           (let [$state (.-state this)]
+           (let [$state (j/get this :state)]
              (or (not= (j/get $state :props)
                        (j/get $state :prev-props))
                  (not= (j/get $state :children)
@@ -64,13 +64,13 @@
                  (when-let [state (j/get $state :state)]
                    (not= @state (j/get $state :prev-state))))))))
    :static/get-derived-state-from-props
-   (fn [^js props ^js $state]
+   (fn [props $state]
      ;; when a component receives new props, update internal state.
      (j/assoc! $state
-               :prev-props (.-props $state)
-               :props (.-props props)
-               :prev-children (.-children $state)
-               :children (.-children props)))
+               :prev-props (j/get $state :props)
+               :props (j/get props :props)
+               :prev-children (j/get $state :children)
+               :children (j/get props :children)))
    :view/will-unmount
    (fn []
      (this-as ^js this
@@ -122,10 +122,6 @@
       (let [default-fn (get default-methods :static/get-derived-state-from-props)]
         (f props (default-fn props state))))
 
-    (:view/will-update
-     :view/will-mount
-     :view/will-receive-props) (throw (ex-info "Deprecated lifecycle method" {:method k
-                                                                              :fn f}))
     (if (fn? f)
       (case (namespace k)
         "view"
@@ -270,9 +266,10 @@
           props (update :spec/props vspec/normalize-props-map)
           children (update :spec/children vspec/resolve-spec-vector)))
 
-(defn validate-args! [{:keys [display-name qualified-keys]} props children]
-  (vspec/validate-props display-name (get qualified-keys :spec/props) props)
-  (vspec/validate-children display-name (get qualified-keys :spec/children) children))
+(defn validate-args! [{:keys [unqualified-keys qualified-keys]} props children]
+  (let [display-name (j/get unqualified-keys :displayName)]
+    (vspec/validate-props display-name (get qualified-keys :spec/props) props)
+    (vspec/validate-children display-name (get qualified-keys :spec/children) children)))
 
 (defn- view*
   "Return a React element factory."
@@ -285,8 +282,10 @@
                                                    (nil? props))
                                              [props children]
                                              [nil (cons props children)])]
+
               (when goog.DEBUG
                 (validate-args! view-base props children))
+
               (react/createElement constructor #js {"key" (get-element-key props children constructor)
                                                     "ref" ref
                                                     "props" (cond-> props ref (dissoc :ref))

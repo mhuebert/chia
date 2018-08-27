@@ -27,7 +27,7 @@
 
    e.g. /hello(nav:details/edit//drawer:profile/photo)"
   [routes]
-  (str (u/ensure-leading-char \/ (:root routes))
+  (str (u/ensure-leading-char \/ (:root routes ""))
        (some->> (dissoc routes :root)
                 (keep (fn [[router path]]
                         (assert (string? path))
