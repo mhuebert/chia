@@ -51,6 +51,14 @@
     (this-as ^js this
       (v/apply-fn f this))))
 
+(defn get-derived-state-from-props [props $state]
+  ;; when a component receives new props, update internal state.
+  (j/assoc! $state
+            :prev-props (j/get $state :props)
+            :props (j/get props :props)
+            :prev-children (j/get $state :children)
+            :children (j/get props :children)))
+
 (def default-methods
   {:view/should-update
    (fn []
@@ -63,14 +71,7 @@
                        (j/get $state :prev-children))
                  (when-let [state (j/get $state :state)]
                    (not= @state (j/get $state :prev-state))))))))
-   :static/get-derived-state-from-props
-   (fn [props $state]
-     ;; when a component receives new props, update internal state.
-     (j/assoc! $state
-               :prev-props (j/get $state :props)
-               :props (j/get props :props)
-               :prev-children (j/get $state :children)
-               :children (j/get props :children)))
+   :static/get-derived-state-from-props get-derived-state-from-props
    :view/will-unmount
    (fn []
      (this-as ^js this
@@ -167,13 +168,14 @@
 (defn- init-state-atom!
   "Populate initial state for `component`."
   [^js this ^js $props]
-  (when $props
-    (when-let [state (when-let [initial-state (j/get this :chia$initialState)]
-                       (let [state-data (if (fn? initial-state)
-                                          (.call initial-state this this)
-                                          initial-state)]
-                         (atom state-data)))]
-      (init-state! this state)))
+  (when-let [state (when-let [initial-state (j/get this :chia$initialState)]
+                     (let [state-data (if (fn? initial-state)
+                                        (let [$state (.-state this)]
+                                          (set! (.-state this) (get-derived-state-from-props $props $state))
+                                          (.call initial-state this this))
+                                        initial-state)]
+                       (atom state-data)))]
+    (init-state! this state))
   this)
 
 (defn- get-state!

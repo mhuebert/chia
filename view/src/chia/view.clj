@@ -41,6 +41,8 @@
     ~(cond-> (to-element `(do ~@body))
              (not pure?) (wrap-current-view-binding))))
 
+
+
 (defn- make-constructor [the-name]
   (let [this-name (gensym)
         fn-name (gensym the-name)]
