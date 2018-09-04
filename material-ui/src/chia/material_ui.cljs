@@ -41,6 +41,3 @@
    (createMuiTheme (clj->js options))))
 
 (def theme-provider (v/adapt-react-class MuiThemeProvider))
-
-
-

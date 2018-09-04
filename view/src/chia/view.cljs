@@ -330,12 +330,30 @@
                       (coll? a) (into a b)
                       :else b)) m1 m2))
 
+(defn to-element [x]
+  (hiccup/element {:wrap-props wrap-props} x))
+
+(defn resolve-dom-element [x]
+  (cond->> x
+           (string? x)
+           (.getElementById js/document)))
+
 (defn render-to-dom
   "Render view to element, which should be a DOM element or id of element on page."
+  ([react-element dom-element {:as options
+                               :keys [reload?]}]
+   (if-not reload?
+     (render-to-dom react-element dom-element)
+     (binding [*reload* true]
+       (render-to-dom react-element dom-element))))
+  ([react-element dom-element]
+   (react-dom/render (to-element react-element)
+                     (resolve-dom-element dom-element))))
+
+(defn portal
   [react-element dom-element]
-  (react-dom/render react-element (cond->> dom-element
-                                           (string? dom-element)
-                                           (.getElementById js/document))))
+  (react-dom/createPortal (to-element react-element)
+                          (resolve-dom-element dom-element)))
 
 (defn unmount-from-dom
   [dom-element]
@@ -352,25 +370,26 @@
 (defn on-unmount!
   "Register an unmount callback for `component`."
   [^js this key f]
-  (set! (.-chia$onUnmount this)
-        ((fnil assoc {}) (.-chia$onUnmount this) key f)))
-
-(defn to-element [x]
-  (hiccup/element {:wrap-props wrap-props} x))
+  (j/update! this :chia$onUnmount assoc key f))
 
 (defn update-keys [m ks f]
   (reduce (fn [m k] (assoc m k (f (get m k)))) m ks))
+
+(defn update-some-keys [m ks f]
+  (reduce (fn [m k]
+            (cond-> m
+                    (contains? m k) (assoc k (f (get m k))))) m ks))
 
 (defn adapt-react-class
   ([the-class]
    (adapt-react-class nil the-class))
   ([{:keys [element-keys
-            clj->js-keys]} the-class]
+            clj-keys]} the-class]
    (fn [& args]
      (let [props (when (map? (first args))
                    (-> (first args)
-                       (update-keys element-keys to-element)
-                       (update-keys clj->js-keys clj->js)))
+                       (update-some-keys element-keys to-element)
+                       (update-some-keys clj-keys clj->js)))
            js-form (-> (if props
                          (cons props (rest args))
                          (cons #js {} args))
@@ -378,9 +397,21 @@
                        (j/unshift! the-class))]
        (to-element js-form)))))
 
+(defn merge-props
+  "Merge props, concatenating :class props and merging styles."
+  [m1 m2]
+  (merge m1
+         m2
+         (merge-with #(str %1 " " %2)
+                     (select-keys m1 [:class])
+                     (select-keys m2 [:class]))
+         (merge-with merge
+                     (select-keys m1 [:style])
+                     (select-keys m2 [:style]))))
+
 (defn partial-props [view initial-props]
   (fn [props & children]
     (let [[props children] (if (or (map? props)
                                    (nil? props)) [props children]
                                                  [{} (cons props children)])]
-      (apply view (merge initial-props props) children))))
+      (apply view (merge-props initial-props props) children))))

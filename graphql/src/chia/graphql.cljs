@@ -201,6 +201,10 @@
        (drop 2)
        (mapv first)))
 
+(defn options [query]
+  (->> @(:form query)
+       (second)))
+
 (comment
  (let [include+ (partial directive :include)]
    (println (str (query someQuery [$el :String

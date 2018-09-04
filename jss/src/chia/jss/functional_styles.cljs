@@ -41,7 +41,8 @@
            :.no-underline {:text-decoration "none"}
            :.display-link {:text-decoration "none"
                            :cursor "pointer"
-                           "&:hover" {:text-decoration "underline"}}}
+                           "&:hover" {:text-decoration "underline"}}
+           }
           (u/for-map [[key weight] (seq {"thin" 100
                                          "extra-light" 200
                                          "light" 300

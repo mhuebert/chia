@@ -78,12 +78,12 @@
   (-> the-name (meta) :tag (str)))
 
 (core/defn parse-args [args arglist?]
-  (core/let [[docstring args] (if (string? (first args))
+  (core/let [[var-name args] (if (symbol? (first args))
                                [(first args) (rest args)]
                                [nil args])
-             [var-name args] (if (symbol? (first args))
-                               [(first args) (rest args)]
-                               [nil args])
+             [docstring args] (if (string? (first args))
+                                [(first args) (rest args)]
+                                [nil args])
              [opts args] (if (map? (first args))
                            [(first args) (rest args)]
                            [nil args])
