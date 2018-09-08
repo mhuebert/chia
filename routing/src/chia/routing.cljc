@@ -144,6 +144,9 @@
        (gdom/getAncestor el pred))))
 
 #?(:cljs
+   (def ^:dynamic *click-event* nil))
+
+#?(:cljs
    (defn click-event-handler
      "Intercept clicks on links with valid pushstate hrefs. Callback is passed the link's href value."
      [callback e]
@@ -164,7 +167,8 @@
                                        (.getElementById js/document (subs (.-hash link) 1))))]
          (when-not handle-natively?
            (.preventDefault e)
-           (callback (str/replace (.-href link) origin "")))))))
+           (binding [*click-event* e]
+             (callback (str/replace (.-href link) origin ""))))))))
 
 #?(:cljs
    (def intercept-clicks
@@ -194,7 +198,11 @@
                       intercept-clicks? true}}]
       (when intercept-clicks? (intercept-clicks))
       (when fire-now? (listener (parse-path (get-route))))
-      (let [cb #(listener (parse-path (get-route)))]
+      (let [cb (fn [e]
+                 (listener (-> (get-route)
+                               (parse-path)
+                               (cond-> *click-event*
+                                       (assoc :click-event *click-event*)))))]
         (.addEventListener history "navigate" cb)
         ;; return the callback, for unlisten purposes
         cb))))
