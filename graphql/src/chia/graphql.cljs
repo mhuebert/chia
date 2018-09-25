@@ -22,7 +22,11 @@
 
 (defn emit-value [x]
   (cond (string? x) (str \" x \")
-        (or (keyword? x) (symbol? x)) (name x)
+        (or (keyword? x) (symbol? x)) (let [[original-name base-name collection? required?] (re-matches #"([^+!]+)(\+)?(!)?" (name x))]
+                                        (if collection?
+                                          (str "[" base-name "]"
+                                               (when required? "!"))
+                                          original-name))
         (boolean? x) (str x)
         (number? x) x
         (nil? x) "null"
