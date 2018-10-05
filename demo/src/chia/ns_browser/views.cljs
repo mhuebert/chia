@@ -186,7 +186,7 @@
            [:div {:classes [:flex/row.items-center
                             :margin/v-2
                             :hover:parent/opacity]}
-            [:div.material-icons.cursor-pointer.text-center.transition.opacity-0.width-6
+            [:div.material-icons.pointer.tc.transition.opacity-0.width-6
              {:classes (if starred? [:text/orange
                                      :opacity-100]
                                     [:text/darken-5

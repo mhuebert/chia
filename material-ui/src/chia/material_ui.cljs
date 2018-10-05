@@ -15,7 +15,7 @@
         (dissoc :size)
         (update :class str
                 " "
-                (when (:on-click attrs) "cursor-pointer ")
+                (when (:on-click attrs) "pointer ")
                 (case size :s "md-18"
                            :m "md-24"
                            :l "md-36"

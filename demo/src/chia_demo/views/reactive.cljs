@@ -34,9 +34,8 @@
   [{:keys [path
            view/state
            view/classes] :as this} parent-angle]
-  [:div.bg-darken-1.b-darken-4.margin-1.flex.flex-row.items-center.justify-center.flex-wrap.relative.round-4.overflow-hidden.b-solid.b-1
+  [:div.bg-darken-1.b--darken-4.ma1.flex.flex-row.items-center.justify-center.flex-wrap.relative.br3.overflow-hidden.ba.bw1.ma2
    {:style {:background-color (db/get-in (conj path :color) "#fff")
-            :margin 10
             :min-width 50
             :min-height 50}}
    (u/show-count this)
@@ -49,7 +48,7 @@
                                                  (:angle @state 0)) "deg)")
                     :transition "transform 0.3s ease-out"}
             :on-click #(swap! state update :angle + 80)
-            :class "cursor-pointer"}
+            :class "pointer"}
            :rotate-right)
 
    (v/for [k (db/keys-in path)]
@@ -67,14 +66,14 @@
    :view/will-unmount #(db/assoc! ::colors {})
    :view/did-mount #(add-color! [::colors])}
   [this]
-  (list [:div.b-1.b-darken-2
+  (list [:div.ba.b--darken-2
          [:div.flex.flex-row.flex-wrap.items-center
           (for [n (db/keys-in [::colors])
                 :when (not= :color n)]
             (color-box {:path [::colors n]}))
           [:div {:on-click #(add-color! [::colors])}
            (u/icon :add-circle)]]]
-        [:div.text-pre-wrap.margin-all-4.pos-relative
+        [:div.pre-wrap.ma3.relative
          (u/show-count this)
          [:br]
          (with-out-str (pp/pprint (db/deref)))]))

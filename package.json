@@ -1,6 +1,6 @@
 {
   "devDependencies": {
-    "shadow-cljs": "^2.4.33"
+    "shadow-cljs": "^2.6.10"
   },
   "dependencies": {
     "@material-ui/core": "^1.4.3",

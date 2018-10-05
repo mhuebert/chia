@@ -9,11 +9,11 @@
              " b " b
              " c " c)])
 
-(v/defview components
+(v/defview demo
   {:demo/title "Components"
    :view/styles {}}
   [{:keys [view/state]}]
-  [:div {:classes [:pad/all-3]}
+  [:div.pa2
    #js [Button {:on-click #(swap! state update :yes not)
                 :variant "contained"
                 :color "primary"} "switch!"]
