@@ -30,13 +30,7 @@
                    (react/createElement #js {:value context-v} out)))))))
 
 (v/defview context-observer
-  {:view/should-update (fn [{:keys [view/props
-                                    view/prev-props
-                                    view/state
-                                    view/prev-state]}]
-                         (or (not= (dissoc props :view-fn)
-                                   (dissoc prev-props :view-fn))
-                             (not= @state prev-state)))}
+  {:view/should-update (constantly true)}
   [{:keys [view-fn
            context-value]}]
   (view-fn context-value))

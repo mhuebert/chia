@@ -229,13 +229,16 @@
     (apply swap! args)))
 
 (defn- get-element-key [props children constructor]
-  (or (get props :key)
-      (when-let [class-react-key (.-key constructor)]
-        (cond (string? class-react-key) class-react-key
-              (keyword? class-react-key) (get props class-react-key)
-              (fn? class-react-key) (.apply class-react-key (assoc props :view/children children) (to-array children))
-              :else (throw (js/Error "Invalid key supplied to component"))))
-      (.-displayName constructor)))
+  (let [k (or (get props :key)
+              (when-let [class-react-key (.-key constructor)]
+                (cond (string? class-react-key) class-react-key
+                      (keyword? class-react-key) (get props class-react-key)
+                      (fn? class-react-key) (.apply class-react-key (assoc props :view/children children) (to-array children))
+                      :else (throw (js/Error "Invalid key supplied to component")))))]
+    (if (and k
+             (or (string? k) (keyword? k)))
+      (name k)
+      (.-displayName constructor))))
 
 (defn- ^:export extend-constructor
   [{:keys [lifecycle-keys
@@ -288,7 +291,7 @@
               (when goog.DEBUG
                 (validate-args! view-base props children))
 
-              (react/createElement constructor #js {"key" (get-element-key props children constructor)
+              (react/createElement constructor #js {"key" (str (get-element-key props children constructor))
                                                     "ref" ref
                                                     "props" (cond-> props ref (dissoc :ref))
                                                     "children" children})))
@@ -386,13 +389,14 @@
   ([{:keys [element-keys
             clj-keys]} the-class]
    (fn [& args]
-     (let [props (when (map? (first args))
-                   (-> (first args)
-                       (update-some-keys element-keys to-element)
-                       (update-some-keys clj-keys clj->js)))
-           js-form (-> (if props
-                         (cons props (rest args))
-                         (cons #js {} args))
+     (let [[props children] (if (or (map? (first args))
+                                    (nil? (first args)))
+                              [(first args) (rest args)]
+                              [{} args])
+           props (-> props
+                     (update-some-keys element-keys to-element)
+                     (update-some-keys clj-keys clj->js))
+           js-form (-> (cons props children)
                        (to-array)
                        (j/unshift! the-class))]
        (to-element js-form)))))

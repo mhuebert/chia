@@ -9,13 +9,13 @@
   ([icon-name] (icon {} icon-name))
   ([{:keys [size]
      :or {size :m}
-     :as attrs} icon-name]
+     :as props} icon-name]
    [:div.material-icons
-    (-> attrs
+    (-> props
         (dissoc :size)
         (update :class str
                 " "
-                (when (:on-click attrs) "pointer ")
+                (when (:on-click props) "cursor-pointer ")
                 (case size :s "md-18"
                            :m "md-24"
                            :l "md-36"
@@ -28,12 +28,13 @@
 (m/defm icon-button*)
 
 (defn icon-button
-  ([icon-name] (icon-button {} icon-name))
-  ([attrs icon-name]
-   [icon-button* (-> attrs
-                     (assoc :key icon-name)
-                     (dissoc :icon))
-    (icon (get attrs :icon) icon-name)]))
+  ([icon-name]
+   (icon-button {} icon-name))
+  ([{:as props
+     icon-props :icon} icon-name]
+   (icon-button* (-> (dissoc props :icon)
+                     (assoc :key icon-name))
+                 (icon icon-props icon-name))))
 
 (defn create-theme
   ([] (create-theme {}))

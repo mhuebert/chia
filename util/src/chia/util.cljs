@@ -6,6 +6,10 @@
   (when (f x)
     x))
 
+(defn some-str [s]
+  (when (and s (string? s) (not= s ""))
+    s))
+
 ;; from https://github.com/clojure/core.incubator/blob/master/src/main/clojure/clojure/core/incubator.clj
 (defn dissoc-in
   "Dissociates an entry from a nested associative structure returning a new
