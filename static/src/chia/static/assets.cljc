@@ -7,6 +7,9 @@
                        ["path" :as path]]))
   #?(:clj (:import (java.security MessageDigest))))
 
+(def join-paths #?(:clj  io/file
+                   :cljs path/join))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;; Asset handling
@@ -25,6 +28,15 @@
 (def ^:dynamic *asset-path*
   "Path where assets are to be accessed by client"
   nil)
+
+(def ^:dynamic *asset-host*
+  "Host where assets are to be accessed by client"
+  nil)
+
+(defn strip-asset-path [s]
+  (if *asset-path*
+    (str/replace s (re-pattern (str "^" *asset-path*)) "")
+    s))
 
 (defn public-path []
   (if *asset-path*
@@ -47,11 +59,8 @@
 (defn try-slurp [file]
   (try #?(:clj  (slurp file)
           :cljs (some-> (fs/readFileSync file) (str)))
-       (catch #?(:clj Exception
+       (catch #?(:clj  Exception
                  :cljs js/Error) e nil)))
-
-(def join-paths #?(:clj  io/file
-                   :cljs path/join))
 
 (def make-parents #?(:clj  io/make-parents
                      :cljs (fn [s]
@@ -64,7 +73,9 @@
 (defn read-asset
   "Returns the contents for an asset"
   [path]
-  (-> (asset-file path)
+  (-> path
+      (strip-asset-path)
+      (asset-file)
       (try-slurp)))
 
 (def write!
@@ -74,13 +85,14 @@
 (defn asset-path
   "Asset-path function, for use in generating HTML"
   [path]
-  (cond-> path
-          (str/starts-with? path "/")
-          (str (when *content-hashes?*
-                 (some->> (join-paths (public-path) (strip-slash path))
-                          (try-slurp)
-                          (md5)
-                          (str "?v="))))))
+  (if-not (str/starts-with? path "/")
+    path
+    (let [prefix *asset-host*
+          postfix (when *content-hashes?*
+                    (some->> (read-asset path)
+                             (md5)
+                             (str "?v=")))]
+      (str prefix path postfix))))
 
 (defn write-asset!
   "Write `content` string to an asset file"
