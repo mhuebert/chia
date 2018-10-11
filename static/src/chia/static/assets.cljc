@@ -1,7 +1,11 @@
 (ns chia.static.assets
-  (:require [clojure.java.io :as io]
-            [clojure.string :as str])
-  (:import (java.security MessageDigest)))
+  (:require [clojure.string :as str]
+            #?@(:clj  [[clojure.java.io :as io]]
+                :cljs [["md5" :as md5-fn]
+                       ["fs" :as fs]
+                       ["mkdirp" :as mkdirp]
+                       [goog.path :as gpath]]))
+  #?(:clj (:import (java.security MessageDigest))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -31,21 +35,30 @@
   (cond-> path
           (str/starts-with? path "/") (subs 1)))
 
-(defn md5
+(def md5
   "Returns md5 hash for string"
   ;; from https://gist.github.com/jizhang/4325757#gistcomment-2196746
-  [^String s]
-  (let [algorithm (MessageDigest/getInstance "MD5")
-        raw (.digest algorithm (.getBytes s))]
-    (format "%032x" (BigInteger. 1 raw))))
+
+  #?(:clj  (fn [s] (let [algorithm (MessageDigest/getInstance "MD5")
+                         raw (.digest algorithm (.getBytes s))]
+                     (format "%032x" (BigInteger. 1 raw))))
+     :cljs md5-fn))
 
 (defn try-slurp [file]
-  (try (slurp file)
+  (try #?(:clj  (slurp file)
+          :cljs (some-> (fs/readFileSync file) (str)))
        (catch Exception e nil)))
+
+(def join-paths #?(:clj  io/file
+                   :cljs gpath/join))
+
+(def make-parents #?(:clj  io/make-parents
+                     :cljs (fn [s]
+                             (mkdirp (str/replace s #"/[^/]+$" "")))))
 
 (defn asset-file [path]
   (assert *output-dir* "*asset-dir* must be set")
-  (io/file *output-dir* (strip-slash path)))
+  (join-paths *output-dir* (strip-slash path)))
 
 (defn read-asset
   "Returns the contents for an asset"
@@ -59,7 +72,7 @@
   (cond-> path
           (str/starts-with? path "/")
           (str (when *content-hashes?*
-                 (some->> (io/file (public-path) (strip-slash path))
+                 (some->> (join-paths (public-path) (strip-slash path))
                           (try-slurp)
                           (md5)
                           (str "?v="))))))
@@ -68,8 +81,6 @@
   "Write `content` string to an asset file"
   [path content]
   (doto (asset-file path)
-    (io/make-parents)
+    (make-parents)
     (spit content))
   (println (str " + " path)))
-
-(def html-page nil)
