@@ -4,11 +4,12 @@
 
 (defn wrap-key [k]
   (cond
+    (string? k) k
     (keyword? k) (name k)
     (symbol? k) (if (= (:tag (meta k)) "String")
                   k
                   `(wrap-key ~k))
-    :else k))
+    :else `(wrap-key ~k)))
 
 (defn wrap-path [p]
   (if (vector? p)

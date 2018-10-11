@@ -1,13 +1,17 @@
 (ns chia.util.js-interop
   (:refer-clojure :exclude [get get-in assoc! assoc-in! update! update-in!])
   (:require [goog.object :as gobj])
-  (:require-macros chia.util.js-interop))
+  (:require-macros [chia.util.js-interop :as j]))
 
 (defn wrap-key [k]
   (cond-> k
           (keyword? k) (name)))
 
-(def get gobj/get)
+(defn get
+  ([o k]
+   (j/get o k))
+  ([o k not-found]
+   (j/get o k not-found)))
 
 (defn get-in
   ([obj ks]

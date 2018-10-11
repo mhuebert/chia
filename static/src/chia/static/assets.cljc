@@ -4,7 +4,7 @@
                 :cljs [["md5" :as md5-fn]
                        ["fs" :as fs]
                        ["mkdirp" :as mkdirp]
-                       [goog.path :as gpath]]))
+                       ["path" :as path]]))
   #?(:clj (:import (java.security MessageDigest))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -47,10 +47,11 @@
 (defn try-slurp [file]
   (try #?(:clj  (slurp file)
           :cljs (some-> (fs/readFileSync file) (str)))
-       (catch Exception e nil)))
+       (catch #?(:clj Exception
+                 :cljs js/Error) e nil)))
 
 (def join-paths #?(:clj  io/file
-                   :cljs gpath/join))
+                   :cljs path/join))
 
 (def make-parents #?(:clj  io/make-parents
                      :cljs (fn [s]
@@ -65,6 +66,10 @@
   [path]
   (-> (asset-file path)
       (try-slurp)))
+
+(def write!
+  #?(:clj  spit
+     :cljs fs/writeFileSync))
 
 (defn asset-path
   "Asset-path function, for use in generating HTML"
@@ -82,5 +87,5 @@
   [path content]
   (doto (asset-file path)
     (make-parents)
-    (spit content))
+    (write! content))
   (println (str " + " path)))
