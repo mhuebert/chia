@@ -10,6 +10,10 @@
   "The currently-computing reader"
   nil)
 
+(def ^:dynamic *silent*
+  "Prevents changes from triggering recomputation"
+  false)
+
 (def ^:dynamic *reader-dependency-log*
   "Keeps track of what data sources a reader accesses during compute"
   nil)
@@ -59,20 +63,17 @@
 ;;
 
 (defprotocol IReadReactively
-  (invalidate! [reader info]
+  (-invalidate! [reader info]
     "Recomputes the value of a reader"))
+
+(defn invalidate! [reader info]
+  (when-not *silent*
+    (-invalidate! reader info)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;; Reactive data sources
 ;;
-
-(defn invalidate-simple!
-  "Invalidates a data source, triggering re-computation of dependent readers."
-  [source info]
-  (doseq [reader (keys (get @dependents source))]
-    (invalidate! reader info))
-  source)
 
 (defprotocol IWatchableByPattern
   "Protocol which enables a reactive data source to support pattern-based dependencies."
@@ -146,6 +147,12 @@
                                   ~@body)]
       (update-reader-deps! ~reader dependencies#)
       value#)))
+
+(macros/deftime
+ (defmacro silently
+   [& body]
+   `(binding [*silent* true]
+      ~@body)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;

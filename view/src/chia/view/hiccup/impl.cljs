@@ -55,7 +55,8 @@
   [k]
   (cond (string? k) k
         (keyword-identical? k :for) "htmlFor"
-        ;(namespace k) (str (namespace k) "-" (name k))
+        (and (keyword? k)
+             (namespace k)) (str (namespace k) "-" (name k))
         :else
         (let [s (name k)]
           (if (or (str/starts-with? s "data-")
@@ -78,8 +79,11 @@
   ;; eg. use a clojure StringBuilder,
   ;;     transient vs. ordinary vector
   [^string k-classes ^string class]
-  (cond-> k-classes
-          (some? class) (str " " class)))
+  (when (or k-classes class)
+    (str k-classes
+         (when (and k-classes class)
+           " ")
+         class)))
 
 (def ^:dynamic *wrap-props* nil)
 
@@ -92,9 +96,7 @@
      (let [{:keys [class] :as props} (cond-> props
                                              (boolean *wrap-props*)
                                              (*wrap-props* tag))
-           className (when (or k-classes class)
-                       (cond-> k-classes
-                               (some? class) (str " " class)))
+           className (merge-classes k-classes class)
            prop-js (cond-> (js-obj)
                            k-id (j/assoc! :id k-id)
                            className (j/assoc! :className className))]

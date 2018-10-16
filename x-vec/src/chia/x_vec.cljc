@@ -1,4 +1,5 @@
-(ns chia.x-vec)
+(ns chia.x-vec
+  (:require [chia.util :as u]))
 
 (declare -emit)
 
@@ -19,7 +20,11 @@
 (defprotocol IEmitXvec
   (to-hiccup [this] "Returns an x-vec representing `this`"))
 
-(defn parse-args
+(defn get-props [form]
+  (some-> (second form)
+          (u/guard map?)))
+
+(defn parse-vec
   "Return props and children for a hiccup form. If the second element is not a map, supplies an empty map as props."
   [form]
   (let [len (count form)]
@@ -41,7 +46,7 @@
 (defn -emit [form]
   (cond (vector? form)
         (try
-          (let [[props children] (parse-args form)
+          (let [[props children] (parse-vec form)
                 tag (form 0)
                 function-form? (fn? tag)
                 [tag props] (cond-> [tag props]

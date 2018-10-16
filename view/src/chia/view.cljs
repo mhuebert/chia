@@ -214,7 +214,7 @@
            (component-lookup this k not-found))
          (get (.-props $state) k not-found)))))
   r/IReadReactively
-  (invalidate! [this _] (force-update this))
+  (-invalidate! [this _] (force-update this))
   INamed
   (-name [^js this] (.-displayName this))
   (-namespace [this] nil)

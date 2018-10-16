@@ -25,17 +25,17 @@
     (is (= ["div" {:className "red"}]
            (element-args [:div.red])
            (element-args [:div {:class "red"}])
-           (element-args [:div {:classes ["red"]}]))
-        "Three ways to specify a class")
+           #_(element-args [:div {:classes ["red"]}]))
+        "Two ways to specify a class")
 
     (is (= ["div" {:className "red"}]
            (element-args [:div.red nil]))
         "Three ways to specify a class")
 
     (is (= (element-args [:.red {:class   "white black"
-                                 :classes ["purple"]}])
-           ["div" {:className "red white black purple"}])
-        "Combine classes from element tag, :class, and :classes")
+                                 #_#_:classes ["purple"]}])
+           ["div" {:className "red white black"}])
+        "Combine classes from element tag and :class")
 
     (is (= (element-args [:.red])
            ["div" {:className "red"}])
@@ -74,12 +74,12 @@
     (is (= (element-args [:special/effect#el.pink {:data-collapse true
                                                    :aria-label    "hello"
                                                    :class         "bg-black"
-                                                   :classes       ["white"]
+                                                   #_#_:classes       ["white"]
                                                    :style         {:font-family "serif"
                                                                    :font-size   12}}])
            ["special:effect" {:data-collapse true
                               :aria-label    "hello"
-                              :className     "pink bg-black white"
+                              :className     "pink bg-black"
                               :style         {:fontFamily "serif"
                                               :fontSize   12}
                               :id            "el"}])

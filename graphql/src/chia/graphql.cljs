@@ -17,7 +17,6 @@
   (cond->> s
            (not (str/starts-with? s pfx)) (str pfx)))
 
-(declare emit-vec)
 (defprotocol IGraphQL)
 
 (defn emit-value [x]
@@ -55,13 +54,6 @@
  (assert (= (emit-value {:a 1 :b 2}) "{a: 1, b: 2}"))
  (assert (= (emit-value ^::props {:a 1 :b 2}) "(a: 1, b: 2)")))
 
-(defmulti emit-vec identity)
-
-(defmethod emit-vec :...
-  [_ props children]
-  ((get-method emit-vec :default)
-   :... (set/rename-keys props {:on :gql/on}) children))
-
 (defn vec-wrap [x]
   (cond (keyword? x) [x {}]
         (and (vector? x) (not (map? (second x))))
@@ -76,15 +68,15 @@
 (defn update-last [v f & args]
   (apply update v (dec (count v)) f args))
 
-(defmethod emit-vec :default
-  [tag {:as props
-        :keys [gql/operation
-               gql/directives
-               gql/alias-of
-               gql/defaults]} children]
+(defn emit-vec [tag {:as props
+                     :keys [gql/operation
+                            gql/directives
+                            gql/alias-of
+                            gql/defaults]} children]
   (let [{:as props
          :keys [gql/on]} (cond-> props
-                                 (= "fragment" operation)
+                                 (or (= "fragment" operation)
+                                     (= tag :...))
                                  (set/rename-keys {:on :gql/on}))]
     (-> (cond-> []
                 operation (conj (name operation))
@@ -99,8 +91,8 @@
              (emit-children children)))))
 
 (defn emit-nonvec [x]
-  (cond (nil? x) x
-        (string? x) x
+  (cond (or (nil? x)
+            (string? x)) x
         (keyword? x) (name x)
         (number? x) (str x)
         (and (satisfies? IGraphQL x)
@@ -111,25 +103,13 @@
                 (prn :nonvec-emit-error x)
                 (throw (js/Error. (str "Not a keyword or number: " x ", " (type x)))))))
 
-(defn emit*
-  ([form]
-   (emit* 0 form))
-  ([depth form]
-   (x/emit {:emit-vec emit-vec
-            :parse-tag identity
-            :emit-list identity
-            :emit-nonvec emit-nonvec} form)))
-
 (defmulti graphql-lookup (fn [o k not-found] k))
 
 (defmethod graphql-lookup :default
-  [_ k not-found]
-  (when goog.DEBUG
-    (js/console.warn
-     (str ::graphq-lookup
-          " Tried to look up unknown key on GraphQL instance: " k)))
+  [this k not-found]
+  (when goog.DEBUG (js/console.warn (str ::graphql-lookup
+                                         "Tried to look up unknown key on GraphQL instance: " k)))
   not-found)
-
 
 (deftype GraphQL [form
                   operation
@@ -138,6 +118,9 @@
                   fragments
                   fragments+]
   IGraphQL
+  IPrintWithWriter
+  (-pr-writer [this writer opts]
+    (-write writer (str "🔎[" (name this) "]")))
   Object
   (toString [this] @string+)
   INamed
@@ -169,7 +152,8 @@
   (let [form (delay (if (fn? form) (form) form))
         emitted-data (delay
                       (binding [*fragments* (atom #{})]
-                        (let [string (emit* @form)]
+                        (let [string (x/emit {:emit-vec emit-vec
+                                              :emit-nonvec emit-nonvec} @form)]
                           {:string string
                            :fragments @*fragments*})))
         fragments (delay

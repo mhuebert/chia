@@ -2,7 +2,8 @@
   (:refer-clojure :exclude [uuid])
   (:require [clojure.string :as string]
             #?(:clj
-               [net.cgrand.macrovich :as macros]))
+               [net.cgrand.macrovich :as macros])
+            [chia.util.js-interop :as j])
   #?(:cljs (:require-macros [net.cgrand.macrovich :as macros])))
 
 (def camelCase
@@ -63,7 +64,7 @@
      ([id tag]
       (or (.getElementById js/document id)
           (-> (.createElement js/document (name tag))
-              (doto (.setAttribute "id" id))
+              (j/assoc! :id (name id))
               (->> (.appendChild (.-body js/document))))))))
 
 #?(:clj

@@ -1,15 +1,12 @@
 (ns chia.triple-db.core
   (:refer-clojure
-   :exclude [get get-in select-keys set! peek contains? namespace]
-   :rename {get get*
-            contains? contains?*
-            select-keys select-keys*
-            namespace namespace*})
+   :exclude [get get-in select-keys set! peek contains? namespace])
   (:require [cljs-uuid-utils.core :as uuid-utils]
             [clojure.set :as set]
             [chia.triple-db.patterns :as patterns]
-            [chia.reactive :as r])
-  (:require-macros [chia.triple-db.core :refer [get-in*]]))
+            [chia.reactive :as r]
+            [clojure.core :as core])
+  (:require-macros [chia.triple-db.core :as d]))
 
 (enable-console-print!)
 
@@ -25,39 +22,39 @@
   (swap! db update :schema merge schema))
 
 (defn get-schema [db-snap a]
-  (get-in* db-snap [:schema a]))
+  (d/get-in* db-snap [:schema a]))
 
 (defn index?
   "Returns true if attribute is indexed."
   ([schema]
-   (contains?* schema :db/index))
+   (core/contains? schema :db/index))
   ([db-snap a]
    (index? (get-schema db-snap a))))
 
 (defn many?
   "Returns true for attributes with cardinality `many`, which store a set of values for each attribute."
   ([schema]
-   (keyword-identical? :db.cardinality/many (get* schema :db/cardinality)))
+   (keyword-identical? :db.cardinality/many (core/get schema :db/cardinality)))
   ([db-snap a]
    (many? (get-schema db-snap a))))
 
 (defn unique?
   "Returns true for attributes where :db/index is :db.index/unique."
   ([schema]
-   (keyword-identical? :db.index/unique (get* schema :db/index)))
+   (keyword-identical? :db.index/unique (core/get schema :db/index)))
   ([db-snap a]
    (unique? (get-schema db-snap a))))
 
 (defn ref?
   [schema]
-  (keyword-identical? :db.type/ref (get* schema :db/type)))
+  (keyword-identical? :db.type/ref (core/get schema :db/type)))
 
 (defn resolve-id*
   "Returns id, resolving lookup refs (vectors of the form `[attribute value]`) to ids.
   Lookup refs are only supported for indexed attributes."
   [db-snap id]
   (if ^boolean (vector? id)
-    (first (get-in* db-snap (into [:ave] id)))
+    (first (d/get-in* db-snap (into [:ave] id)))
     id))
 
 (defn resolve-id
@@ -74,12 +71,12 @@
   [db id]
   (let [id (resolve-id db id)]
     (when-not ^boolean (nil? id) (patterns/log-read db :e__ id))
-    (true? (contains?* (get* @db :eav) id))))
+    (true? (core/contains? (core/get @db :eav) id))))
 
 (declare get entity)
 
 (defn entity* [db-snap id]
-  (some-> (get-in* db-snap [:eav id])
+  (some-> (d/get-in* db-snap [:eav id])
           (assoc :db/id id)))
 
 (defn entity
@@ -96,7 +93,7 @@
   ([db id attr not-found]
    (when-let [id (resolve-id db id)]
      (patterns/log-read db :ea_ [id attr])
-     (get-in* @db [:eav id attr] not-found))))
+     (d/get-in* @db [:eav id attr] not-found))))
 
 (defn get-in
   "Get-in the entity with given id."
@@ -105,33 +102,33 @@
   ([db id ks not-found]
    (when-let [id (resolve-id db id)]
      (patterns/log-read db :ea_ [id (first ks)])
-     (get-in* @db (into [:eav id] ks) not-found))))
+     (d/get-in* @db (into [:eav id] ks) not-found))))
 
 (defn select-keys
   "Select keys from entity of id"
   [db id ks]
   (when-let [id (resolve-id db id)]
     (patterns/log-read db :ea_ (mapv #(do [id %]) ks) true)
-    (-> (get-in* @db [:eav id])
+    (-> (d/get-in* @db [:eav id])
         (assoc :db/id id)
-        (select-keys* ks))))
+        (core/select-keys ks))))
 
 (defn touch
   "Add refs to entity"
   [db {:keys [db/id] :as entity}]
   (reduce-kv
    (fn [m attr ids]
-     (assoc m (keyword (namespace* attr) (str "_" (name attr)))
+     (assoc m (keyword (core/namespace attr) (str "_" (name attr)))
               ids))
    entity
-   (get-in* @db [:vae id])))
+   (d/get-in* @db [:vae id])))
 
 (defn- assert-uniqueness [db-snap id attr val]
-  (when-not (empty? (get-in* db-snap [:ave attr val]))
+  (when-not (empty? (d/get-in* db-snap [:ave attr val]))
     (throw (js/Error. (str "Unique index on " attr "; attempted to write duplicate value " val " on id " id ".")))))
 
 (defn- add-index [db-snap id a v schema]
-  (let [index (get* schema :db/index)]
+  (let [index (core/get schema :db/index)]
     (when (keyword-identical? index :db.index/unique)
       (assert-uniqueness db-snap id a v))
     (cond-> db-snap
@@ -164,12 +161,12 @@
 
 (defn- clear-empty-ent [db-snap id]
   (cond-> db-snap
-          (#{{:db/id id} {}} (get-in* db-snap [:eav id])) (update :eav dissoc id)))
+          (#{{:db/id id} {}} (d/get-in* db-snap [:eav id])) (update :eav dissoc id)))
 
 (declare retract-attr)
 
 (defn- retract-attr-many [[db-snap datoms :as state] id attr value schema]
-  (let [prev-val (get-in* db-snap [:eav id attr])]
+  (let [prev-val (d/get-in* db-snap [:eav id attr])]
     (let [removals (if (nil? value) prev-val (set/intersection value prev-val))
           kill? (= removals prev-val)]
       (if (empty? removals)
@@ -182,12 +179,12 @@
                  (true? *notify*) (conj! [id attr nil removals]))]))))
 
 (defn- retract-attr
-  ([state id attr] (retract-attr state id attr (get-in* (state 0) [:eav id attr])))
+  ([state id attr] (retract-attr state id attr (d/get-in* (state 0) [:eav id attr])))
   ([[db-snap datoms :as state] id attr value]
    (let [schema (get-schema db-snap attr)]
      (if (many? schema)
        (retract-attr-many state id attr value schema)
-       (let [prev-val (if-not (nil? value) value (get-in* db-snap [:eav id attr]))]
+       (let [prev-val (if-not (nil? value) value (d/get-in* db-snap [:eav id attr]))]
          (if-not (nil? prev-val)
            [(-> (update-in db-snap [:eav id] dissoc attr)
                 (update-index id attr nil prev-val (get-schema db-snap attr))
@@ -206,7 +203,7 @@
   [[db-snap datoms :as state] id attr val]
   {:pre [(not (keyword-identical? attr :db/id))]}
   (let [schema (get-schema db-snap attr)
-        prev-val (get-in* db-snap [:eav id attr])]
+        prev-val (d/get-in* db-snap [:eav id attr])]
     (if (many? schema)
       (let [additions (set/difference val prev-val)]
         (if (empty? additions)
@@ -226,7 +223,7 @@
   (reduce-kv
    (fn [db-snap attr val]
      (let [schema (get-schema db-snap attr)
-           prev-val (get* prev-m attr)]
+           prev-val (core/get prev-m attr)]
        (cond (many? schema)
              (update-index db-snap id attr
                            (set/difference val prev-val)
@@ -240,7 +237,7 @@
 (defn add-map-datoms [datoms id m prev-m db-snap]
   (reduce-kv
    (fn [datoms attr val]
-     (let [prev-val (get* prev-m attr)]
+     (let [prev-val (core/get prev-m attr)]
        (cond-> datoms
                (not= val prev-val) (conj! (if (many? db-snap attr)
                                             [id attr
@@ -256,9 +253,9 @@
 
 (defn- add-map
   [[db-snap datoms] m]
-  (let [id (get* m :db/id)
+  (let [id (core/get m :db/id)
         m (dissoc m :db/id)
-        prev-m (get-in* db-snap [:eav id])]
+        prev-m (d/get-in* db-snap [:eav id])]
     [(-> (assoc-in db-snap [:eav id] (remove-nils (merge prev-m m)))
          (add-map-indexes id m prev-m)
          (clear-empty-ent id))
@@ -266,7 +263,7 @@
              (true? *notify*) (add-map-datoms id m prev-m db-snap))]))
 
 (defn- update-attr [[db-snap datoms :as state] id attr f & args]
-  (let [prev-val (get-in* db-snap [:eav id attr])
+  (let [prev-val (d/get-in* db-snap [:eav id attr])
         new-val (apply f prev-val args)]
     (if (many? db-snap attr)
       (let [additions (set/difference new-val prev-val)
@@ -316,10 +313,10 @@
 
   Listeners are called with the complete :tx-report. A listener is called at most once per transaction."
   [{:keys [::db-after ::datoms] :as tx-report}]
-  (when-let [pattern-value-map (get* db-after :listeners)]
+  (when-let [pattern-value-map (core/get db-after :listeners)]
     (doseq [reader (patterns/datom-values pattern-value-map datoms (many-attrs (:schema db-after)))]
       (r/invalidate! reader tx-report)))
-  (doseq [reader (get* db-after :tx-listeners)]
+  (doseq [reader (core/get db-after :tx-listeners)]
     (r/invalidate! reader tx-report)))
 
 (defn- commit-tx [state tx]
@@ -354,7 +351,7 @@
             :or {notify true}}]
    (binding [*notify* (or notify log-datoms)]
      (when-let [{:keys [::db-after ::datoms] :as tx} (cond (nil? txs) nil
-                                                           (and (map? txs) (contains?* txs ::datoms)) txs
+                                                           (and (map? txs) (core/contains? txs ::datoms)) txs
                                                            (or (vector? txs)
                                                                (list? txs)
                                                                (seq? txs)) (transaction @db txs)
@@ -375,19 +372,19 @@
   (->> qs
        (mapv (fn [q]
                (set (cond (fn? q)
-                          (reduce-kv (fn [s id entity] (if ^boolean (q entity) (conj s id) s)) #{} (get* @db :eav))
+                          (reduce-kv (fn [s id entity] (if ^boolean (q entity) (conj s id) s)) #{} (core/get @db :eav))
 
                           (keyword? q)
                           (do (patterns/log-read db :_a_ q)
-                              (reduce-kv (fn [s id entity] (if ^boolean (contains?* entity q) (conj s id) s)) #{} (get* @db :eav)))
+                              (reduce-kv (fn [s id entity] (if ^boolean (core/contains? entity q) (conj s id) s)) #{} (core/get @db :eav)))
 
                           :else
                           (let [[attr val] q
                                 db-snap @db]
                             (patterns/log-read db :_av [attr val])
                             (if (index? db-snap attr)
-                              (get-in* db-snap [:ave attr val])
-                              (entity-ids db [#(= val (get* % attr))])))))))
+                              (d/get-in* db-snap [:ave attr val])
+                              (entity-ids db [#(= val (core/get % attr))])))))))
        (apply set/intersection)))
 
 (defn entities
@@ -399,7 +396,6 @@
   "Returns a unique id (string)."
   []
   (str (uuid-utils/make-random-uuid)))
-
 
 (defn create
   "Create a new db, with optional schema, which should be a mapping of attribute keys to

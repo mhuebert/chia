@@ -9,7 +9,7 @@
 (deftest reactivity
   (let [reader (reify
                  r/IReadReactively
-                 (invalidate! [_ _]))]
+                 (-invalidate! [_ _]))]
     (d/transact! [{:db/id 1
                    :name "Peter"}
                   {:db/id 2

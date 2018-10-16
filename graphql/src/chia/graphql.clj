@@ -58,12 +58,12 @@
                                               (throw (ex-info "lookup with not-found not supported" {:k k#})))
                                             ~'IDeref
                                             (~'-deref [_#]
-                                             ~(reduce (core/fn [m k]
-                                                        (assoc m (-> (name k)
-                                                                     (str/replace-first "$" "")
-                                                                     (keyword))
-                                                                 (keyword k))) {}
-                                                      (keys variable-map))))]
+                                              ~(reduce (core/fn [m k]
+                                                         (assoc m (-> (name k)
+                                                                      (str/replace-first "$" "")
+                                                                      (keyword))
+                                                                  (keyword k))) {}
+                                                       (keys variable-map))))]
                    [])
         (~'chia.graphql/emit ~operation-name
          ~(cond->> `[~(op-name the-name)
@@ -75,7 +75,14 @@
                    fn-wrap? (list `core/fn [])))))))
 
 (core/defn- var-operation [the-name]
-  (-> the-name (meta) :tag (str)))
+  (core/let [m (meta the-name)]
+    (cond (:Query m)
+          "query"
+          (:Mutation m)
+          "mutation"
+          (:Fragment m)
+          "fragment"
+          :else (do (prn :unknown-sym-operation m) nil))))
 
 (core/defn parse-args [args arglist?]
   (core/let [[var-name args] (if (symbol? (first args))

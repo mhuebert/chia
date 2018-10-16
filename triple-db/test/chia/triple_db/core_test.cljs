@@ -13,7 +13,7 @@
 
     (d/listen db (reify
                    r/IReadReactively
-                   (invalidate! [_ {:keys [::d/datoms]}]
+                   (-invalidate! [_ {:keys [::d/datoms]}]
                      (swap! tx-log conj datoms))))
 
     (d/transact! db [{:db/id "herman"}])
@@ -170,7 +170,7 @@
         reader-1 (fn [path]
                    (reify
                      r/IReadReactively
-                     (invalidate! [_ {:keys [::d/datoms]}]
+                     (-invalidate! [_ {:keys [::d/datoms]}]
                        (swap! log assoc path datoms))))]
 
     (testing "entity pattern"
@@ -218,7 +218,7 @@
                          IDeref
                          (-deref [_] @state)
                          r/IReadReactively
-                         (invalidate! [this _]
+                         (-invalidate! [this _]
                            (swap! state update :invalidations inc)
                            (this))
                          IFn

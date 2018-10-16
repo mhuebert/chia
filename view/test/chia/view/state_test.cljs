@@ -2,12 +2,14 @@
   (:require
    [cljs.test :refer [deftest is are testing]]
    [chia.triple-db :as d]
-   [chia.view :as v]))
+   [chia.view :as v]
+   [chia.view.util :as vu]))
 
-(def append-el #(js/document.body.appendChild (js/document.createElement "div")))
+(defn get-el []
+  (vu/find-or-append-element "chia-view-state-test" "div"))
 
 (deftest local-state
-  (let [el (append-el)
+  (let [el (get-el)
         render #(v/render-to-dom % el)]
     (testing "atom from initial-state"
       (let [log (atom [])
@@ -29,8 +31,6 @@
         (v/flush!)
         (is (= @log [0 1 "x"]))))))
 
-
-
 (deftest triple-db
 
   (testing "React to global state (chia.triple-db)"
@@ -40,7 +40,7 @@
                    :occupation "Chimney Sweep"}])
 
     (let [log (atom [])
-          el (append-el)
+          el (get-el)
           view (v/view [{:keys [db/id]}]
                  (swap! log conj (d/get id :name))
                  [:div "hello"])
