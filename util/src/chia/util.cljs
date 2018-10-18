@@ -52,3 +52,8 @@
 
 (defn find-first [pred coll]
   (first (filter pred coll)))
+
+(defn apply-if-fn [f & args]
+  (if (fn? f)
+    (apply f args)
+    f))

@@ -35,7 +35,8 @@
   (-> (d/create)
       (n/cache-response! {:query query}
                          (clj->js {:data data}))
-      (n/read-query {:query query})))
+      (n/read-query {:query query})
+      :async/value))
 
 (test/deftest graphql-cache
 

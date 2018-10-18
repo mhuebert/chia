@@ -11,9 +11,9 @@
         (fn? token) (get-token (token))
         :else (p/resolved token)))
 
-(defn handle-error [{:keys [query variables]} error]
-  (cache/merge-query-meta! [query variables] {:async/error {:message "Error sending GraphQL operation"
-                                                            :error error}}))
+(defn handle-error [req error]
+  (cache/merge-query-meta! req {:async/error {:message "Error sending GraphQL operation"
+                                              :error error}}))
 
 (defn fetch [url options]
   (unfetch url (-> options

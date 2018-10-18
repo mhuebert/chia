@@ -2,13 +2,16 @@
   (:require [chia.triple-db.core :as d]
             [chia.graphql :as g]
             [chia.graphql.normalize :as n]
-            [cljs.pprint :refer [pprint]]
-            [chia.util.js-interop :as j]))
+            [chia.view :as v]
+            [chia.util :as u]))
 
-(def cache (d/create))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; GraphQL Cache
 
-(def query-listeners (volatile! {}))
-(def query-unmount (volatile! {}))
+(defonce cache (d/create))
+
+(def read-query (partial n/read-query cache))
 
 (defn merge-query-meta! [req attrs]
   (d/transact! cache [(assoc attrs
@@ -21,23 +24,39 @@
   (n/cache-response! cache req response)
   (n/read-query cache req))
 
-(defn start-watch! [{:keys [current-view
-                            query
-                            variables
-                            callbacks
-                            refetch!]}]
-  (let [start? (empty? (get @query-listeners [query variables]))]
-    (when start?
-      (let [{:keys [start end]} (if (fn? callbacks)
-                                  (callbacks variables refetch!)
-                                  callbacks)]
-        (vswap! query-unmount assoc [query variables] end)
-        (start)))
-    (vswap! query-listeners update [query variables] (fnil conj #{}) current-view)
-    start?))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Keep track of view<>req relationships
 
-(defn end-watch! [view path]
-  (vswap! query-listeners update path disj view)
-  (when-let [end (and (empty? (get @query-listeners path))
-                      (get @query-unmount path))]
-    (end)))
+(defonce ^:private req-listeners (volatile! {}))
+
+(defn ^:private unmount-req! [view req]
+  (vswap! req-listeners update-in [req :views] disj view)
+  (-> #(when (some-> (get-in @req-listeners [req :views])
+                     (u/guard set?)
+                     (empty?))
+         (doseq [on-unmount (vals (get-in @req-listeners [req :on-unmount] req))]
+           (on-unmount req))
+         (vswap! req-listeners dissoc req))
+      ;; wait before unmounting to avoid rapid unmount/mount cycles during page transitions
+      (js/setTimeout 500)))
+
+(defn on-unmount!
+  "Register a callback to be evaluated when `req` is no longer listened to by any views."
+  [req k f]
+  (vswap! req-listeners assoc-in [req :on-unmount k] f))
+
+(defn listen! [{:as req
+                :keys [query]}]
+  (let [mount-req? (empty? (get-in @req-listeners [req :views]))
+        current-view v/*current-view*]
+    (vswap! req-listeners update-in [req :views] (fnil conj #{}) current-view)
+    (v/on-unmount! current-view req #(unmount-req! current-view req))
+    (when mount-req?
+      (let [{:keys [gql/on-mount
+                    gql/on-unmount]} (g/options query)]
+        (when on-unmount
+          (on-unmount! req :lifecycle on-unmount))
+        (when on-mount
+          (on-mount req)))
+      true)))
