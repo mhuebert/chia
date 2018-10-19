@@ -74,14 +74,14 @@
    :static/get-derived-state-from-props get-derived-state-from-props
    :view/will-unmount
    (fn []
-     (this-as ^js this
+     (this-as this
        ;; manually track unmount state, react doesn't do this anymore,
        ;; otherwise our async render loop can't tell if a component is still on the page.
 
        (some-> (:view/state this)
                (remove-watch this))
 
-       (doseq [f (some-> (.-chia$onUnmount this)
+       (doseq [f (some-> (j/get this :chia$onUnmount)
                          (vals))]
          (when f (f this)))
 
@@ -180,10 +180,10 @@
 
 (defn- get-state!
   "Lazily create and bind a state atom for `component`"
-  [^js this ^js $state]
-  (when-not (.-state $state)
+  [this $state]
+  (when-not (j/contains? $state :state)
     (init-state! this (atom nil)))
-  (.-state $state))
+  (j/get $state :state))
 
 (defmulti component-lookup (fn [this k not-found] k))
 
@@ -191,36 +191,35 @@
   [this k not-found]
   not-found)
 
-(declare class-get)
-
-(extend-type Component
-  ;; for convenience, we allow reading keys from a component's props by looking them up
-  ;; directly on the component. this enables destructuring in lifecycle/render method arglist.
-  ILookup
-  (-lookup
-    ([^js this k]
-     (-lookup this k nil))
-    ([^js this k not-found]
-     (let [^js $state (.-state this)]
-       (if (= "view" (namespace k))
-         (case k
-           :view/state (get-state! this $state)
-           (:view/props
-            :view/children
-            :view/prev-props
-            :view/prev-state
-            :view/prev-children) (j/get $state (name k) not-found)
-           ;; extendable
-           (component-lookup this k not-found))
-         (get (.-props $state) k not-found)))))
-  r/IReadReactively
-  (-invalidate! [this _] (force-update this))
-  INamed
-  (-name [^js this] (.-displayName this))
-  (-namespace [this] nil)
-  IPrintWithWriter
-  (-pr-writer [this writer opts]
-    (-write writer (str "👁[" (name this) "]"))))
+(when Component
+  (extend-type Component
+    ;; for convenience, we allow reading keys from a component's props by looking them up
+    ;; directly on the component. this enables destructuring in lifecycle/render method arglist.
+    ILookup
+    (-lookup
+      ([this k]
+       (-lookup this k nil))
+      ([^js this k not-found]
+       (let [$state (j/get this :state)]
+         (if (= "view" (namespace k))
+           (case k
+             :view/state (get-state! this $state)
+             (:view/props
+              :view/children
+              :view/prev-props
+              :view/prev-state
+              :view/prev-children) (j/get $state (name k) not-found)
+             ;; extendable
+             (component-lookup this k not-found))
+           (get (j/get $state :props) k not-found)))))
+    r/IReadReactively
+    (-invalidate! [this _] (force-update this))
+    INamed
+    (-name [this] (j/get this :displayName))
+    (-namespace [this] nil)
+    IPrintWithWriter
+    (-pr-writer [this writer opts]
+      (-write writer (str "👁[" (name this) "]")))))
 
 (defn swap-silently!
   "Swap a component's state atom without forcing an update (render)"

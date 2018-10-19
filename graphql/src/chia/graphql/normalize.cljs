@@ -3,7 +3,13 @@
             [chia.x-vec :as x]
             [chia.triple-db.core :as d]
             [chia.util :as u]
-            [chia.util.js-interop :as j]))
+            [chia.util.js-interop :as j]
+            [clojure.string :as str]))
+
+(defn req-id [{:as req
+               :keys [query variables]}]
+  (assert query "Must provide :query")
+  {query (or variables {})})
 
 (def ^:dynamic *map->id* :id)
 (def ^:dynamic *fragment-matches?* (constantly true))
@@ -13,12 +19,11 @@
     (-lookup o k nil)
     (j/get o k nil)))
 
-(defn create! [& [{:as options
+#_(defn create! [& [{:as options
                    :keys [fragment-matches?
                           map->id]
                    :or {map->id :id
-                        fragment-matches? (constantly true)}}]]
-  )
+                        fragment-matches? (constantly true)}}]])
 
 (def default-cache (d/create))
 
@@ -41,18 +46,12 @@
 
 (defn ref? [x] (= (type x) EntityRef))
 
-(defn req-id [{:keys [query variables]}]
-  (assert query "Must provide :query")
-  {(name query) (or variables {})})
-
 (defn children [query-form]
   (-> (cond-> query-form
               (satisfies? g/IGraphQL query-form)
               (-> :form (deref)))
       (x/parse-vec)
-      second
-      (u/guard seq)
-      (conj :__typename)))
+      second))
 
 (defn fragment? [query-form]
   (or (and (vector? query-form) (= :... (first query-form)))
@@ -70,9 +69,20 @@
                 (get opts :on))
             (name))))
 
+(defn strip-$ [s]
+  (cond-> s
+          (str/starts-with? s "$") (subs 1)))
+
+(defn resolve-variables [variables props]
+  (reduce-kv (fn [m k v]
+               (if (and (keyword? v)
+                        (str/starts-with? (name v) "$"))
+                 (assoc m k (get variables (keyword (strip-$ (name v)))))
+                 m)) props props))
+
 (defn parse-query-keys*
   "Returns a list of parsed keys, of the form: [req-key, cache-key, child-keys]"
-  [__typename query-form]
+  [__typename variables query-form]
   (let [query-keys (cond-> query-form
                            (satisfies? g/IGraphQL query-form) (children))]
     (->> query-keys
@@ -80,31 +90,28 @@
                    (cond (keyword? k) (conj out [k k nil])
                          (fragment? k) (cond-> out
                                                (*fragment-matches?* __typename (fragment-typename k))
-                                               (into (parse-query-keys* __typename (children k))))
+                                               (into (parse-query-keys* __typename variables (children k))))
 
                          (vector? k) (let [[{:as props
-                                             :keys [gql/alias-of]} children] (x/parse-vec k)
+                                             :keys [gql/alias-of]} child-keys] (x/parse-vec k)
                                            props (-> props
                                                      (dissoc :gql/alias-of)
                                                      (u/guard seq))
                                            req-key (first k)
                                            cache-key (let [simple-k (or alias-of req-key)]
-                                                       (if props [simple-k props]
-                                                                 simple-k))
-                                           child-keys (some-> children
-                                                              (u/guard seq)
-                                                              (conj :__typename))]
-                                       (conj out [req-key cache-key child-keys]))
-                         (seq? query-keys) (into out (mapv #(parse-query-keys* __typename %) query-keys))
+                                                       (if props [simple-k (resolve-variables variables props)]
+                                                                 simple-k))]
+                                       (conj out [req-key cache-key (seq child-keys)]))
+                         (seq? query-keys) (into out (mapv #(parse-query-keys* __typename variables %) query-keys))
                          (nil? k) out
                          :else (throw (ex-info "Invalid key" {:key k}))))
                  []))))
 
 (def parse-query-keys (memoize parse-query-keys*))
 
-(defn read-query* [cache data query-form]
+(defn read-query* [cache variables data query-form]
   (let [__typename (:__typename data)
-        parsed-keys (parse-query-keys (:__typename data) query-form)]
+        parsed-keys (parse-query-keys (:__typename data) variables query-form)]
     (->> parsed-keys
          (reduce (fn [m [req-key
                          cache-key
@@ -113,8 +120,8 @@
                      (assoc m req-key
                               (if child-keys
                                 (if (vector? v)
-                                  (mapv #(read-query* cache % child-keys) v)
-                                  (read-query* cache v child-keys))
+                                  (mapv #(read-query* cache variables % child-keys) v)
+                                  (read-query* cache variables v child-keys))
                                 v)))) {}))))
 
 (defn read-query [cache {:as req
@@ -125,25 +132,30 @@
         query-cache (d/entity cache query-id)
         ;; if id is provided, or if we can derive id from variables,
         ;; then read the normalized entity
-        root-data (if-let [id (or id
-                                  (some-> variables (*map->id*)))]
+        root-data (if id
                     (EntityRef. cache id)
-                    (:async/value query-cache))]
-
-    (cond-> {:async/value (read-query* cache root-data query)}
+                    (:async/value query-cache))
+        value (read-query* cache variables root-data query)]
+    (cond-> {:async/value value}
             (some? query-cache)
             (merge (select-keys root-data [:async/loading?
                                            :async/error])))))
 
-(defn read-keys [cache id-or-query & children]
-  (read-query* cache (EntityRef. cache id-or-query) children))
+(defn read-keys [cache {:as req
+                        :keys [id
+                               query
+                               variables]} & child-keys]
+  (read-query* cache variables
+               (EntityRef. cache (or id (req-id req)))
+               (or (seq child-keys)
+                   (when query (children query)))))
 
 (def ^:dynamic *datoms* nil)
 
-(defn normalize-response* [cache req query-form data]
+(defn normalize-response* [cache variables query-form data]
   (when data
     (let [__typename (j/get data :__typename)
-          parsed-keys (parse-query-keys __typename query-form)
+          parsed-keys (parse-query-keys __typename variables query-form)
           value (->> parsed-keys
                      (reduce
                       (fn [m [req-key
@@ -152,9 +164,9 @@
                         (let [value (get-data* data req-key)
                               normalized-value (if child-keys
                                                  (if (array? value)
-                                                   (mapv #(normalize-response* cache req child-keys %) value)
-                                                   (normalize-response* cache req child-keys value))
-                                                 value)]
+                                                   (mapv #(normalize-response* cache variables child-keys %) value)
+                                                   (normalize-response* cache variables child-keys value))
+                                                 (js->clj value :keywordize-keys true))]
                           (assoc m cache-key normalized-value))) {}))
           id (*map->id* value)
           pointer-or-value (if id (EntityRef. cache id)
@@ -165,7 +177,7 @@
 
 (defn normalize-response-data [cache req data]
   (binding [*datoms* (volatile! [])]
-    (let [root (normalize-response* cache req (:query req) data)]
+    (let [root (normalize-response* cache (:variables req) (:query req) data)]
       {:datoms @*datoms*
        :root root})))
 
@@ -177,7 +189,7 @@
 (defn response-datoms [cache req response]
   (let [id (req-id req)
         {:keys [data
-                errors]} (j/&js response)
+                errors]} (j/lookup response)
         {:keys [datoms
                 root]} (normalize-response-data cache req data)]
     (conj datoms

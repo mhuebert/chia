@@ -3,6 +3,7 @@
             [chia.graphql.cache :as cache]
             [chia.graphql.normalize :as n]
             [chia.graphql :as g]
+            [chia.util :as u]
             [chia.triple-db.core :as d]))
 
 (g/def ^:Fragment parent-fields {:on :Human}
@@ -31,17 +32,23 @@
 (def cache
   (d/create))
 
-(defn round-trip [query data]
+(defn with-req [req data]
   (-> (d/create)
-      (n/cache-response! {:query query}
-                         (clj->js {:data data}))
-      (n/read-query {:query query})
-      :async/value))
+      (n/cache-response! req
+                         (clj->js {:data data}))))
+
+(defn round-trip [req data]
+  (let [req (if (map? req) req
+                           {:query req})
+        cache (with-req req data)]
+    (-> (n/read-query cache req)
+        :async/value)))
+
 
 (test/deftest graphql-cache
 
   (is (-> (round-trip (g/fn ^:Query []
-                            :name)
+                        :name)
                       {:name "Henry"})
           :name
           (= "Henry"))
@@ -49,19 +56,26 @@
 
   (let [cache (d/create)
         _ (n/cache-response! cache
-                             {:query (g/fn ^:Query [] :id :name)}
-                             #js {:data #js {:id "A"
-                                             :name "Henry"}})]
-    (is (-> (n/read-keys cache "A" :name)
-            :name
-            (= "Henry"))
+                             {:query (g/fn ^:Query []
+                                       :id :name
+                                       [:pets
+                                        :id :name])}
+                             (clj->js {:data {:id "A"
+                                              :name "Henry"
+                                              :pets [{:id "B"
+                                                      :name "Bertrand"}]}}))
+        result (n/read-keys cache {:id "A"}
+                            :name
+                            [:pets :name])]
+    (is (and (= (:name result) "Henry")
+             (= (get-in result [:pets 0 :name]) "Bertrand"))
         "Data is normalized by id"))
 
   (let [record-fragment (g/fragment {:on "Person"} :name)
         inline-fragment [:... {:on "Person"} :hobby]]
     (is (-> (round-trip (g/fn ^:Query []
-                              record-fragment
-                              inline-fragment)
+                          record-fragment
+                          inline-fragment)
                         {:name "Henry"
                          :hobby "curling"})
             ((juxt :name :hobby))
@@ -69,9 +83,9 @@
         "Fragments"))
 
   (is (-> (round-trip (g/fn ^:Query []
-                            :name
-                            [:NAME {:gql/alias-of :name
-                                    :other-param "prevents-overwrite"}])
+                        :name
+                        [:NAME {:gql/alias-of :name
+                                :other-param "prevents-overwrite"}])
                       {:name "Henry"
                        :NAME "HENRY"})
           ((juxt :NAME :name))
@@ -79,8 +93,8 @@
       "Alias")
 
   (is (= (->> (round-trip (g/fn ^:Query []
-                                [:pets :id
-                                 [:... {:on "Person"} :name]])
+                            [:pets :id
+                             [:... {:on "Person"} :name]])
                           {:pets [{:id "B"
                                    :name "Bob"}
                                   {:id "C"
@@ -90,5 +104,27 @@
               (mapv :name))
          ["Bob"
           "Candy"])
-      "Plural fields"))
+      "Plural fields")
+
+  (is (-> (round-trip {:query (g/fn ^:Query [{:keys [^string locale]}]
+                                [:label {:locale locale}])
+                       :variables {:locale "en"}}
+                      {:label "Breakfast"})
+          :label
+          (= "Breakfast"))
+      "Root query with parameters")
+
+  (is (let [req {:query (g/fn ^:Query [{:keys [^String! id]
+                                        :as params}]
+                          [:membership @params
+                           :id
+                           :unread-count])
+                 :variables {:id 10}}
+            data {:membership {:id 10
+                               :unread-count 1}}]
+        (-> (round-trip req data)
+            :membership
+            :unread-count
+            (= 1)))
+      "Root query parameters, nested key"))
 

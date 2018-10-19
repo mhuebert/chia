@@ -62,3 +62,6 @@
 (defmacro then [promise arglist & body]
   `(~'.then ~'^js ~promise
     (fn ~arglist ~@body)))
+
+(defn contains? [o k]
+  `(~'goog.object/containsKey o ~(wrap-key k)))

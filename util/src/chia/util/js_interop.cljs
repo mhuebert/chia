@@ -1,5 +1,5 @@
 (ns chia.util.js-interop
-  (:refer-clojure :exclude [get get-in assoc! assoc-in! update! update-in!])
+  (:refer-clojure :exclude [get get-in assoc! assoc-in! update! update-in! select-keys contains?])
   (:require [goog.object :as gobj])
   (:require-macros [chia.util.js-interop :as j]))
 
@@ -44,10 +44,10 @@
         val-at-path (.apply gobj/getValueByKeys nil (to-array (cons obj ks)))]
     (assoc-in! obj ks (apply f (cons val-at-path args)))))
 
-(defn &js
+(defn lookup
   "Allows for single-level destructuring of JS keys
 
-   (let [{:keys [id]} (&js some-obj)]
+   (let [{:keys [id]} (lookup some-obj)]
      ...)"
   [obj]
   (when obj
@@ -60,6 +60,18 @@
       IDeref
       (-deref [o] obj))))
 
+(defn select-keys [o ks]
+  (reduce (fn [m k]
+            (let [k (wrap-key k)]
+              (cond-> m
+                      (gobj/containsKey o k)
+                      (doto
+                        (unchecked-set k
+                                       (gobj/get o k nil)))))) #js {} ks))
+
 (defn push! [^js a v]
   (doto a
     (.push v)))
+
+(defn contains? [o k]
+  (gobj/containsKey o (wrap-key k)))
