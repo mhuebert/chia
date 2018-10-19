@@ -5,6 +5,7 @@
   (:require-macros chia.graphql))
 
 (def ^:dynamic *fragments* nil)
+(def ^:dynamic *add-typename* true)
 
 (def spacer "  ")
 
@@ -46,7 +47,8 @@
     (str " {"
          (str/join
           (let [spacing (depth-spacing)]
-            (for [child children]
+            (for [child (cond-> children
+                                *add-typename* (conj "__typename"))]
               (str \newline spacing child))))
          (str \newline (depth-spacing -1) "}"))))
 

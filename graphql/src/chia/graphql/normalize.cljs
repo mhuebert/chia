@@ -20,10 +20,10 @@
     (j/get o k nil)))
 
 #_(defn create! [& [{:as options
-                   :keys [fragment-matches?
-                          map->id]
-                   :or {map->id :id
-                        fragment-matches? (constantly true)}}]])
+                     :keys [fragment-matches?
+                            map->id]
+                     :or {map->id :id
+                          fragment-matches? (constantly true)}}]])
 
 (def default-cache (d/create))
 
@@ -107,7 +107,10 @@
                          :else (throw (ex-info "Invalid key" {:key k}))))
                  []))))
 
-(def parse-query-keys (memoize parse-query-keys*))
+(def parse-query-keys (memoize
+                       (comp #(when (seq %)
+                                (conj % [:__typename :__typename nil]))
+                             parse-query-keys*)))
 
 (defn read-query* [cache variables data query-form]
   (let [__typename (:__typename data)
@@ -135,7 +138,14 @@
         root-data (if id
                     (EntityRef. cache id)
                     (:async/value query-cache))
-        value (read-query* cache variables root-data query)]
+        value (read-query* cache variables root-data query)
+        flat-value (some-> (dissoc value :__typename)
+                           (u/guard #(= (count %) 1))
+                           (first)
+                           (second))
+        value (cond-> (or flat-value value)
+                      (= 1 (count value)) (-> (first)
+                                              (second)))]
     (cond-> {:async/value value}
             (some? query-cache)
             (merge (select-keys root-data [:async/loading?

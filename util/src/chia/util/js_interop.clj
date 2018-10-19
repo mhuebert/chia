@@ -1,5 +1,5 @@
 (ns chia.util.js-interop
-  (:refer-clojure :exclude [get get-in assoc!])
+  (:refer-clojure :exclude [get get-in assoc! contains?])
   (:require [clojure.core :as core]))
 
 (defn wrap-key [k]

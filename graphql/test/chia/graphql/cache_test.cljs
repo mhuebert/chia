@@ -50,9 +50,8 @@
   (is (-> (round-trip (g/fn ^:Query []
                         :name)
                       {:name "Henry"})
-          :name
           (= "Henry"))
-      "Simple key")
+      "A single key is returned directly")
 
   (let [cache (d/create)
         _ (n/cache-response! cache
@@ -100,7 +99,6 @@
                                   {:id "C"
                                    :name "Candy"}]
                            :__typename "Person"})
-              :pets
               (mapv :name))
          ["Bob"
           "Candy"])
@@ -110,7 +108,6 @@
                                 [:label {:locale locale}])
                        :variables {:locale "en"}}
                       {:label "Breakfast"})
-          :label
           (= "Breakfast"))
       "Root query with parameters")
 
@@ -123,7 +120,6 @@
             data {:membership {:id 10
                                :unread-count 1}}]
         (-> (round-trip req data)
-            :membership
             :unread-count
             (= 1)))
       "Root query parameters, nested key"))
