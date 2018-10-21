@@ -385,16 +385,16 @@
 (defn adapt-react-class
   ([the-class]
    (adapt-react-class nil the-class))
-  ([{:keys [element-keys
-            clj-keys]} the-class]
+  ([{:keys [->element-keys
+            ->js-keys]} the-class]
    (fn [& args]
      (let [[props children] (if (or (map? (first args))
                                     (nil? (first args)))
                               [(first args) (rest args)]
                               [{} args])
            props (-> props
-                     (update-some-keys element-keys to-element)
-                     (update-some-keys clj-keys clj->js))
+                     (update-some-keys ->element-keys to-element)
+                     (update-some-keys ->js-keys clj->js))
            js-form (-> (cons props children)
                        (to-array)
                        (j/unshift! the-class))]

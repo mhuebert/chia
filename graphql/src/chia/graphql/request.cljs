@@ -28,6 +28,8 @@
     :keys [query
            variables
            callback]}]
+  (when callback
+    (throw (ex-info "Did not expect callback" {:req req})))
 
   (cache/merge-query-meta! req {:async/loading? true})
 
@@ -44,13 +46,8 @@
       (p/then (fn [^js res]
                 (.json res)))
       (p/then (fn [^js response]
-                (let [{:keys [async/value
-                              async/error]
+                (let [{:keys [async/error]
                        :as result} (cache/write-response! req response)]
-                  (when callback
-                    (callback error value))
                   result)))
       (p/catch (fn [err]
-                 (handle-error req err)
-                 (when callback
-                   (callback err))))))
+                 (handle-error req err)))))

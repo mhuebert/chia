@@ -44,21 +44,22 @@
         val-at-path (.apply gobj/getValueByKeys nil (to-array (cons obj ks)))]
     (assoc-in! obj ks (apply f (cons val-at-path args)))))
 
+(deftype JSLookup [obj]
+  ILookup
+  (-lookup [_ k]
+    (gobj/get obj (wrap-key k)))
+  (-lookup [_ k not-found]
+    (gobj/get obj (wrap-key k) not-found))
+  IDeref
+  (-deref [o] obj))
+
 (defn lookup
   "Allows for single-level destructuring of JS keys
 
    (let [{:keys [id]} (lookup some-obj)]
      ...)"
   [obj]
-  (when obj
-    (reify
-      ILookup
-      (-lookup [_ k]
-        (gobj/get obj (wrap-key k)))
-      (-lookup [_ k not-found]
-        (gobj/get obj (wrap-key k) not-found))
-      IDeref
-      (-deref [o] obj))))
+  (JSLookup. obj))
 
 (defn select-keys [o ks]
   (reduce (fn [m k]
@@ -75,3 +76,6 @@
 
 (defn contains? [o k]
   (gobj/containsKey o (wrap-key k)))
+
+(defn call [^js o k & args]
+  (.apply (j/get o k) o (to-array args)))

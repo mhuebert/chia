@@ -37,7 +37,7 @@
   [name [argv & body] pure?]
   (assert (vector? argv)
           (str "View " name " is missing an argument vector"))
-  `(~'fn ~(symbol (str name \*)) ~argv
+  `(~'fn ~(symbol (str "__" name)) ~argv
     ~(cond-> (to-element `(do ~@body))
              (not pure?) (wrap-current-view-binding))))
 

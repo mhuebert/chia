@@ -41,8 +41,7 @@
   (let [req (if (map? req) req
                            {:query req})
         cache (with-req req data)]
-    (-> (n/read-query cache req)
-        :async/value)))
+    (n/read-query cache req)))
 
 
 (test/deftest graphql-cache
@@ -50,25 +49,26 @@
   (is (-> (round-trip (g/fn ^:Query []
                         :name)
                       {:name "Henry"})
+          :name
           (= "Henry"))
       "A single key is returned directly")
 
-  (let [cache (d/create)
-        _ (n/cache-response! cache
-                             {:query (g/fn ^:Query []
-                                       :id :name
-                                       [:pets
-                                        :id :name])}
-                             (clj->js {:data {:id "A"
-                                              :name "Henry"
-                                              :pets [{:id "B"
-                                                      :name "Bertrand"}]}}))
-        result (n/read-keys cache {:id "A"}
-                            :name
-                            [:pets :name])]
-    (is (and (= (:name result) "Henry")
-             (= (get-in result [:pets 0 :name]) "Bertrand"))
-        "Data is normalized by id"))
+  (is (let [cache (d/create)
+            _ (n/cache-response! cache
+                                 {:query (g/fn ^:Fragment []
+                                           :id :name
+                                           [:pets
+                                            :id :name])}
+                                 (clj->js {:data {:id "A"
+                                                  :name "Henry"
+                                                  :pets [{:id "B"
+                                                          :name "Bertrand"}]}}))
+            result (n/read-keys cache {:id "A"}
+                                :name
+                                [:pets :name])]
+        (and (= (:name result) "Henry")
+             (= (get-in result [:pets 0 :name]) "Bertrand")))
+      "Data is normalized by id")
 
   (let [record-fragment (g/fragment {:on "Person"} :name)
         inline-fragment [:... {:on "Person"} :hobby]]
@@ -99,6 +99,7 @@
                                   {:id "C"
                                    :name "Candy"}]
                            :__typename "Person"})
+              :pets
               (mapv :name))
          ["Bob"
           "Candy"])
@@ -108,6 +109,7 @@
                                 [:label {:locale locale}])
                        :variables {:locale "en"}}
                       {:label "Breakfast"})
+          :label
           (= "Breakfast"))
       "Root query with parameters")
 
@@ -120,7 +122,23 @@
             data {:membership {:id 10
                                :unread-count 1}}]
         (-> (round-trip req data)
+            :membership
             :unread-count
             (= 1)))
-      "Root query parameters, nested key"))
+      "Root query parameters, nested key")
+
+  (-> (n/read-query cache {:query (g/fn ^:Query [] :name)})
+      :name
+      (= nil)
+      (is "If entity does not exist, don't get keys from it."))
+
+  (-> (round-trip {:query (g/fn ^:Query [] [:person
+                                            [:pets :name]
+                                            [:houses :address]])}
+                  {:person {:pets nil
+                            :houses []}})
+      :person
+      ((juxt :pets :houses))
+      (= [nil []])
+      (is "Nil values and empty vectors handled appropriately")))
 

@@ -11,7 +11,7 @@
    `(~'chia.material-ui/defm ~the-name {}))
   ([the-name options]
    `(def ~the-name (~'chia.view/adapt-react-class (update ~options
-                                                          :clj-keys conj :classes)
+                                                          :->js-keys conj :classes)
                     ~(-> the-name
                          (dashed->camel)
                          (symbol))))))

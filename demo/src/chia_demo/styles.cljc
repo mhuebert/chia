@@ -13,6 +13,14 @@
 (def classes* (jss/make-classes
                (-> (f-styles/base {:unit unit})
                    (update "@global" merge
+                           (f-styles/color-styles {:orange "#fa7921"
+                                                   :light-orange "#fe9920"
+                                                   :green "#2e933c"
+                                                   :dark-green "#306b34"
+                                                   :dark-blue "#0c4767"
+                                                   :white "#ffffff"
+                                                   :black "#000000"
+                                                   :error-pink "#faeaed"})
                            {"body" {:font-family "'IBM Plex Sans', sans-serif"
                                     :font-size 15}
                             "div" {:tap-highlight-color "transparent"

@@ -65,3 +65,7 @@
 
 (defn contains? [o k]
   `(~'goog.object/containsKey o ~(wrap-key k)))
+
+(defmacro call [o k & args]
+  `(let [^js f# (get ~o ~k)]
+     (~'.call f# ~o ~@args)))

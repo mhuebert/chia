@@ -113,19 +113,21 @@
                              parse-query-keys*)))
 
 (defn read-query* [cache variables data query-form]
-  (let [__typename (:__typename data)
-        parsed-keys (parse-query-keys (:__typename data) variables query-form)]
-    (->> parsed-keys
-         (reduce (fn [m [req-key
-                         cache-key
-                         child-keys]]
-                   (let [v (get data cache-key)]
-                     (assoc m req-key
-                              (if child-keys
-                                (if (vector? v)
-                                  (mapv #(read-query* cache variables % child-keys) v)
-                                  (read-query* cache variables v child-keys))
-                                v)))) {}))))
+  (when data
+    (let [__typename (:__typename data)
+          parsed-keys (parse-query-keys (:__typename data) variables query-form)]
+      (->> parsed-keys
+           (reduce (fn [m [req-key
+                           cache-key
+                           child-keys]]
+                     (let [v (get data cache-key)]
+                       (assoc m req-key
+                                (when v
+                                  (if child-keys
+                                    (if (vector? v)
+                                      (mapv #(read-query* cache variables % child-keys) v)
+                                      (read-query* cache variables v child-keys))
+                                    v))))) {})))))
 
 (defn read-query [cache {:as req
                          :keys [id
@@ -137,16 +139,9 @@
         ;; then read the normalized entity
         root-data (if id
                     (EntityRef. cache id)
-                    (:async/value query-cache))
-        value (read-query* cache variables root-data query)
-        flat-value (some-> (dissoc value :__typename)
-                           (u/guard #(= (count %) 1))
-                           (first)
-                           (second))
-        value (cond-> (or flat-value value)
-                      (= 1 (count value)) (-> (first)
-                                              (second)))]
-    (cond-> {:async/value value}
+                    query-cache)
+        value (read-query* cache variables root-data query)]
+    (cond-> value
             (some? query-cache)
             (merge (select-keys root-data [:async/loading?
                                            :async/error])))))
@@ -177,19 +172,18 @@
                                                    (mapv #(normalize-response* cache variables child-keys %) value)
                                                    (normalize-response* cache variables child-keys value))
                                                  (js->clj value :keywordize-keys true))]
-                          (assoc m cache-key normalized-value))) {}))
-          id (*map->id* value)
-          pointer-or-value (if id (EntityRef. cache id)
-                                  value)]
-      (when id
-        (vswap! *datoms* conj (assoc value :db/id id)))
-      pointer-or-value)))
+                          (assoc m cache-key normalized-value))) {}))]
+      (if-let [id (*map->id* value)]
+        (do (vswap! *datoms* conj (assoc value :db/id id))
+            (EntityRef. cache id))
+        value))))
 
-(defn normalize-response-data [cache req data]
+(defn normalize-req-data [cache req data]
   (binding [*datoms* (volatile! [])]
-    (let [root (normalize-response* cache (:variables req) (:query req) data)]
-      {:datoms @*datoms*
-       :root root})))
+    (let [is-query? (query? (:query req))
+          root (normalize-response* cache (:variables req) (:query req) data)]
+      (cond-> @*datoms*
+              is-query? (conj (assoc root :db/id (req-id req)))))))
 
 (defn format-errors [errors]
   (some-> errors
@@ -200,13 +194,11 @@
   (let [id (req-id req)
         {:keys [data
                 errors]} (j/lookup response)
-        {:keys [datoms
-                root]} (normalize-response-data cache req data)]
-    (conj datoms
-          {:db/id id
-           :async/value root
-           :async/error errors
-           :async/loading? false})))
+        datoms (normalize-req-data cache req data)]
+    (-> datoms
+        (conj {:db/id id
+               :async/error errors
+               :async/loading? false}))))
 
 (defn cache-response! [cache req response]
   (d/transact! cache (response-datoms cache req response)))

@@ -66,14 +66,6 @@
              (str ".bg-darken-" n) {:background-color color}
              (str ".darken-" n) {:color color}
              (str ".hover-bg-darken-" n) {"&:hover" {:background-color color}}})
-          (color-styles {:orange "#fa7921"
-                         :light-orange "#fe9920"
-                         :green "#2e933c"
-                         :dark-green "#306b34"
-                         :dark-blue "#0c4767"
-                         :white "#ffffff"
-                         :black "#000000"
-                         :error-pink "#faeaed"})
           (with-breakpoint break-small
             (u/for-map [px (range 8 30)]
               {(str ".text-size-" px) {:font-size (str px "px")}})
