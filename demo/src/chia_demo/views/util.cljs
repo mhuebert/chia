@@ -6,7 +6,7 @@
   ([props k]
    (let [props (if (vector? props) {:classes props} props)]
      [:i.material-icons
-      (v/combine-props props {:classes [:text/darken-5
+      (v/merge-props props {:classes [:text/darken-5
                                         :hover:text/darken-7
                                         :pad/all-2
                                         :cursor/pointer

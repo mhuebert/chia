@@ -314,23 +314,29 @@
            (get class k)))
        not-found)))
 
+(defn merge-props
+  "Merge props, concatenating :class props and merging styles."
+  [m1 m2]
+  (merge m1
+         m2
+         (merge-with #(str %1 " " %2)
+                     (select-keys m1 [:class])
+                     (select-keys m2 [:class]))
+         (merge-with merge
+                     (select-keys m1 [:style])
+                     (select-keys m2 [:style]))))
+
 (defn pass-props
   "Remove prop keys handled by component, useful for passing down unhandled props to a child component.
   By default, removes all keys listed in the component's :spec/props map. Set `:consume false` for props
   that should be passed through."
-  [this]
-  (apply dissoc
-         (get this :view/props)
-         (some-> (class-get this :spec/props)
-                 (get :props/consumed))))
-
-(defn combine-props
-  "Combines props, merging maps and joining collections/strings."
-  [m1 m2]
-  (merge-with (fn [a b]
-                (cond (string? a) (str a " " b)
-                      (coll? a) (into a b)
-                      :else b)) m1 m2))
+  [this & [more-props]]
+  (let [props (apply dissoc
+                     (get this :view/props)
+                     (some-> (class-get this :spec/props)
+                             (get :props/consumed)))]
+    (cond-> props
+            more-props (merge-props more-props))))
 
 (defn to-element [x]
   (hiccup/element {:wrap-props wrap-props} x))
@@ -399,18 +405,6 @@
                        (to-array)
                        (j/unshift! the-class))]
        (to-element js-form)))))
-
-(defn merge-props
-  "Merge props, concatenating :class props and merging styles."
-  [m1 m2]
-  (merge m1
-         m2
-         (merge-with #(str %1 " " %2)
-                     (select-keys m1 [:class])
-                     (select-keys m2 [:class]))
-         (merge-with merge
-                     (select-keys m1 [:style])
-                     (select-keys m2 [:style]))))
 
 (defn partial-props [view initial-props]
   (fn [props & children]
