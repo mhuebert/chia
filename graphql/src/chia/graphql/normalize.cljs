@@ -58,9 +58,10 @@
       (and (satisfies? g/IGraphQL query-form)
            (= "fragment" (get query-form :operation)))))
 
-(defn query? [query-form]
+(defn root? [query-form]
   (and (satisfies? g/IGraphQL query-form)
-       (= "query" (get query-form :operation))))
+       (#{"query"
+          "mutation"} (get query-form :operation))))
 
 (defn fragment-typename [query-form]
   (let [opts (second (cond (vector? query-form) query-form
@@ -180,10 +181,10 @@
 
 (defn normalize-req-data [cache req data]
   (binding [*datoms* (volatile! [])]
-    (let [is-query? (query? (:query req))
+    (let [is-root? (root? (:query req))
           root (normalize-response* cache (:variables req) (:query req) data)]
       (cond-> @*datoms*
-              is-query? (conj (assoc root :db/id (req-id req)))))))
+              is-root? (conj (assoc root :db/id (req-id req)))))))
 
 (defn format-errors [errors]
   (some-> errors

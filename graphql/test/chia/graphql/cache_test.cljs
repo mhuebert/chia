@@ -140,5 +140,18 @@
       :person
       ((juxt :pets :houses))
       (= [nil []])
-      (is "Nil values and empty vectors handled appropriately")))
+      (is "Nil values and empty vectors handled appropriately"))
+
+  (-> (round-trip
+       {:query (g/defn ^:Mutation session-end! []
+                 [:sessionEnd
+                  [:... {:on :BooleanResponse}
+                   :value
+                   :message]])}
+       {:sessionEnd {:value true, :message nil, :__typename "BooleanResponse"}, :__typename "Mutation"})
+      :sessionEnd
+      :value
+      (= true)
+      (is "Mutations work"))
+  )
 
