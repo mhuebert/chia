@@ -59,5 +59,6 @@
   better-cond {:mvn/version "1.0.1"}
 
   ;; graphql
-  funcool/promesa {:mvn/version "1.9.0"}
+  athos/kitchen-async {:git/url "https://github.com/athos/kitchen-async.git"
+                       :sha "5fc0a3065bbbbcc9d828a5bd2392d64170b71f31"}
   }}

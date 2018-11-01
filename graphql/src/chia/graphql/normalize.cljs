@@ -11,8 +11,16 @@
   (assert query "Must provide :query")
   {query (or variables {})})
 
+(def TYPENAME->IMPLEMENTATIONS (atom {}))
+
+(defn register-typename-implementations! [x]
+  (swap! TYPENAME->IMPLEMENTATIONS merge x))
+
 (def ^:dynamic *map->id* :id)
-(def ^:dynamic *fragment-matches?* (constantly true))
+(def ^:dynamic *fragment-matches?* (fn [data-type fragment-type]
+                                     (or (= data-type fragment-type)
+                                         (some-> (get @TYPENAME->IMPLEMENTATIONS fragment-type)
+                                                 (contains? data-type)))))
 
 (defn get-data* [o k]
   (if (satisfies? ILookup o)
@@ -83,15 +91,15 @@
 
 (defn parse-query-keys*
   "Returns a list of parsed keys, of the form: [req-key, cache-key, child-keys]"
-  [__typename variables query-form]
+  [data__typename variables query-form]
   (let [query-keys (cond-> query-form
                            (satisfies? g/IGraphQL query-form) (children))]
     (->> query-keys
          (reduce (fn [out k]
                    (cond (keyword? k) (conj out [k k nil])
                          (fragment? k) (cond-> out
-                                               (*fragment-matches?* __typename (fragment-typename k))
-                                               (into (parse-query-keys* __typename variables (children k))))
+                                               (*fragment-matches?* data__typename (fragment-typename k))
+                                               (into (parse-query-keys* data__typename variables (children k))))
 
                          (vector? k) (let [[{:as props
                                              :keys [gql/alias-of]} child-keys] (x/parse-vec k)
@@ -103,7 +111,7 @@
                                                        (if props [simple-k (resolve-variables variables props)]
                                                                  simple-k))]
                                        (conj out [req-key cache-key (seq child-keys)]))
-                         (seq? query-keys) (into out (mapv #(parse-query-keys* __typename variables %) query-keys))
+                         (seq? query-keys) (into out (mapv #(parse-query-keys* data__typename variables %) query-keys))
                          (nil? k) out
                          :else (throw (ex-info "Invalid key" {:key k}))))
                  []))))

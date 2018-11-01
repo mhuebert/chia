@@ -1,15 +1,26 @@
 (ns chia.graphql.request
+  (:refer-clojure :exclude [catch])
   (:require ["unfetch" :as unfetch]
             [chia.graphql.cache :as cache]
-            [promesa.core :as p]))
+            [chia.util.js-interop :as j]))
 
 (defn promise? [x]
   (= (js/Promise.resolve x) x))
 
+(defn ->promise ^js [x]
+  (cond-> x
+          (not (promise? x)) (js/Promise.resolved)))
+
+(defn then [x f]
+  (.then (->promise x) f))
+
+(defn catch [^js x f]
+  (.catch x f))
+
 (defn get-token [token]
-  (cond (promise? token) (.then token get-token)
+  (cond (promise? token) (then token get-token)
         (fn? token) (get-token (token))
-        :else (p/resolved token)))
+        :else (js/Promise.resolve token)))
 
 (defn handle-error [req error]
   (cache/merge-query-meta! req {:async/error {:message "Error sending GraphQL operation"
@@ -34,7 +45,7 @@
   (cache/merge-query-meta! req {:async/loading? true})
 
   (-> (get-token token)
-      (p/then
+      (then
        (fn [token]
          (fetch url
                 {:method "POST"
@@ -43,11 +54,9 @@
                                   token (assoc :Authorization (str "Bearer: " token)))
                  :body {:query (str query)
                         :variables variables}})))
-      (p/then (fn [^js res]
-                (.json res)))
-      (p/then (fn [^js response]
+      (then #(j/call % :json))
+      (then (fn [response]
                 (let [{:keys [async/error]
                        :as result} (cache/write-response! req response)]
                   result)))
-      (p/catch (fn [err]
-                 (handle-error req err)))))
+      (catch (partial handle-error req))))

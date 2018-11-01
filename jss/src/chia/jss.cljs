@@ -2,6 +2,7 @@
   (:require ["jss" :as jss]
             ["reset-jss" :as reset-jss]
             ["jss-preset-default" :default jss-preset]
+            [chia.view :as v]
             [chia.util.js-interop :as j]
             [chia.view.util :as vu]
             [goog.object :as gobj]))
@@ -37,11 +38,8 @@
       (.createStyleSheet (clj->js styles))
       (str)))
 
-;; if chia.view is present, enable :view/classes
-(when-let [component-lookup (try @(resolve 'chia.view/component-lookup)
-                                 (catch js/Error e nil))]
-  (let [class-get @(resolve 'chia.view/class-get)]
-    (defmethod component-lookup :view/classes
-      [this _ _]
-      (some-> (class-get this :view/classes)
-              (make-classes)))))
+(defn enable-view-jss-classes! []
+  (defmethod v/component-lookup :view/classes
+    [this _ _]
+    (some-> (v/class-get this :view/classes)
+            (make-classes))))
