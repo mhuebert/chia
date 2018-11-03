@@ -1,6 +1,7 @@
 (ns chia.view.hiccup
   (:require [chia.view.hiccup.impl :as hiccup]
-            ["react" :as react]))
+            ["react" :as react]
+            [chia.util.perf :as perf]))
 
 (enable-console-print!)
 (set! *warn-on-infer* true)
@@ -25,9 +26,10 @@
     [tag (hiccup/props->js tag id classes clj-props)]))
 
 (defn make-fragment [children]
-  (.apply react/createElement nil (doto (to-array children)
-                                    (.unshift nil)
-                                    (.unshift react/Fragment))))
+  (.apply react/createElement nil
+          (doto (to-array children)
+            (.unshift nil)
+            (.unshift react/Fragment))))
 
 (defn element-arr [to-element form-vec]
   (reduce (fn [out form]
@@ -38,8 +40,8 @@
     (cond (vector? form)
           (let [tag (form 0)]
             (cond (keyword? tag)
-                  (case tag
-                    :<> (make-fragment (element-arr -to-element (subvec form 1)))
+                  (if (keyword-identical? :<> tag)
+                    (make-fragment (element-arr -to-element (subvec form 1)))
                     (let [[props children] (hiccup/parse-args form)
                           [js-tag js-props] (format-props props (form 0))
                           args (hiccup/reduce-flatten-seqs -to-element [js-tag js-props] conj children)]
