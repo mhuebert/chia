@@ -21,7 +21,7 @@
          "triple-db/test"
          "graphql/test"]
  :deps
- {org.clojure/clojurescript {:mvn/version "1.10.339"}
+ {#_#_org.clojure/clojurescript {:mvn/version "1.10.339"}
   org.clojure/clojure {:mvn/version "1.9.0"}
   org.clojure/test.check {:mvn/version "0.10.0-alpha2"}
 
