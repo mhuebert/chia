@@ -3,7 +3,7 @@
   (:require [clojure.string :as str]
             [chia.view.util :as view-util :refer [camelCase]]
             [clojure.core :as core]
-            [cljs.tagged-literals :as cljs-literals]))
+            #_[cljs.tagged-literals :as cljs-literals]))
 
 (defmacro ^:private apply-fn [f this]
   `(if-let [children# (.. ~this -state -children)]

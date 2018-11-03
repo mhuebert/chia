@@ -1,5 +1,5 @@
 (ns chia.util.js-interop
-  (:refer-clojure :exclude [get get-in assoc! contains?])
+  (:refer-clojure :exclude [get get-in assoc! contains? set!])
   (:require [clojure.core :as core]))
 
 (defn wrap-key [k]
@@ -26,6 +26,9 @@
   [& args]
   (apply get* args))
 
+(defmacro !get [o k]
+  `(core/unchecked-get ~o ~(wrap-key k)))
+
 (defn- get-in*
   ([o path]
    (get-in* o path nil))
@@ -41,7 +44,7 @@
   [& args]
   (apply get-in* args))
 
-(defmacro assoc! [o & pairs]
+(defn doto-pairs [o f pairs]
   `(doto ~o
      ~@(loop [pairs (partition 2 pairs)
               out []]
@@ -49,7 +52,15 @@
            out
            (let [[k v] (first pairs)]
              (recur (rest pairs)
-                    (conj out `(~'goog.object/set ~(wrap-key k) ~v))))))))
+                    (conj out (f (wrap-key k) v))))))))
+
+(defmacro assoc! [o & pairs]
+  (doto-pairs o (fn [k v]
+                  `(~'goog.object/set ~k ~v)) pairs))
+
+(defmacro set! [o & pairs]
+  (doto-pairs o (fn [k v]
+                  `(~'cljs.core/unchecked-set ~k ~v)) pairs))
 
 (defmacro push! [a v]
   `(doto ~a

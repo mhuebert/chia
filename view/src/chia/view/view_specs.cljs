@@ -113,9 +113,8 @@
   (if (nil? value)
     (when required (throw (js/Error (str "Prop is required: " k))))
     (when (and spec (not (spec value)))
-      (throw (js/Error (str "Validation failed: " {:prop k
-                                                   :spec (or spec-name spec)
-                                                   :value value}))))))
+      (throw (js/Error (str "Validation failed: " [k {:should-be (or spec-name spec)
+                                                      :actual-value value}]))))))
 
 (defn validate-props [display-name
                       {:keys [keys-req]

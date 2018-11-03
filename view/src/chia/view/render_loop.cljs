@@ -1,7 +1,8 @@
 (ns chia.view.render-loop
   (:require ["react" :as react]
             ["react-dom" :as react-dom]
-            [chia.util.js-interop :as j]))
+            [chia.util.js-interop :as j]
+            [chia.util :as u]))
 
 (set! *warn-on-infer* true)
 (defonce ^:dynamic *immediate-state-update* false)

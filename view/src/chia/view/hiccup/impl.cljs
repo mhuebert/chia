@@ -1,7 +1,8 @@
 (ns chia.view.hiccup.impl
   (:require [clojure.string :as str]
             ["react" :as react]
-            [chia.util.js-interop :as j]))
+            [chia.util.js-interop :as j]
+            [chia.util.perf :as perf]))
 
 (defn parse-key
   "Parses a hiccup key like :div#id.class1.class2 to return the tag name, id, and classes.
@@ -54,7 +55,7 @@
    - namespaced keywords (:custom/attr => 'custom-attr')"
   [k]
   (cond (string? k) k
-        (keyword-identical? k :for) "htmlFor"
+        (perf/identical? :for k) "htmlFor"
         (and (keyword? k)
              (namespace k)) (str (namespace k) "-" (name k))
         :else
@@ -104,11 +105,11 @@
          (doseq [[k v] props]
            (cond
              ;; convert :style and :dangerouslySetInnerHTML to js objects
-             (or (keyword-identical? k :style)
-                 (keyword-identical? k :dangerouslySetInnerHTML))
+             (or (perf/identical? :style k)
+                 (perf/identical? :dangerouslySetInnerHTML k))
              (unchecked-set prop-js (name k) (map->js v))
              ;; ignore className-related keys
-             (keyword-identical? k :class) nil
+             (perf/identical? :class k) nil
              ;; passthrough all other values
              :else (unchecked-set prop-js (key->react-attr k) v))))
        prop-js))))

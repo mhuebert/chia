@@ -1,10 +1,7 @@
 (ns chia.reactive
   "Central point where reactivity is coordinated"
-  #?(:clj
-     (:require [net.cgrand.macrovich :as macros]))
-  #?(:cljs (:require-macros
-            [chia.reactive :as r]
-            [net.cgrand.macrovich :as macros])))
+  (:require [chia.util.macros :as m])
+  #?(:cljs (:require-macros [chia.reactive :as r])))
 
 (def ^:dynamic *reader*
   "The currently-computing reader"
@@ -68,7 +65,9 @@
 
 (defn invalidate! [reader info]
   (when-not *silent*
-    (-invalidate! reader info)))
+    (if (satisfies? IReadReactively reader)
+      (-invalidate! reader info)
+      (reader info))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -127,32 +126,30 @@
       (update-watch! source reader (get prev-deps source) (get next-deps source)))
     reader))
 
-(macros/deftime
- (defmacro with-dependency-log
-   "Evaluates `body`, returns value and logged dependencies.
 
-    `reader` must satisfy IReadReactively."
-   [reader & body]
-   `(binding [*reader* ~reader
-              *reader-dependency-log* (volatile! {})]
-      (let [value# (do ~@body)]
-        [value# @*reader-dependency-log*]))))
+(m/defmacro with-dependency-log
+  "Evaluates `body`, returns value and logged dependencies.
 
-(macros/deftime
- (defmacro with-dependency-tracking!
-   "Evaluates `body`, creating dependencies for `reader` with arbitrary data sources."
-   [reader & body]
-   `(let [[value# dependencies#] (~'chia.reactive/with-dependency-log
-                                  ~reader
-                                  ~@body)]
-      (update-reader-deps! ~reader dependencies#)
-      value#)))
+   `reader` must satisfy IReadReactively."
+  [reader & body]
+  `(binding [*reader* ~reader
+             *reader-dependency-log* (volatile! {})]
+     (let [value# (do ~@body)]
+       [value# @*reader-dependency-log*])))
 
-(macros/deftime
- (defmacro silently
-   [& body]
-   `(binding [*silent* true]
-      ~@body)))
+(m/defmacro with-dependency-tracking!
+  "Evaluates `body`, creating dependencies for `reader` with arbitrary data sources."
+  [reader & body]
+  `(let [[value# dependencies#] (~'chia.reactive/with-dependency-log
+                                 ~reader
+                                 ~@body)]
+     (update-reader-deps! ~reader dependencies#)
+     value#))
+
+(m/defmacro silently
+  [& body]
+  `(binding [*silent* true]
+     ~@body))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;

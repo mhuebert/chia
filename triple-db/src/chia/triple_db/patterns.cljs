@@ -1,6 +1,7 @@
 (ns chia.triple-db.patterns
   (:require [chia.reactive :as r]
-            [clojure.set :as set]))
+            [clojure.set :as set]
+            [chia.util.perf :as perf]))
 
 (def ^:private empty-pattern-map
   "Map for building sets of patterns."
@@ -62,10 +63,10 @@
 (defn- lookup-ref?
   "Returns true if pattern has lookup ref in id position."
   [kind pattern]
-  (or (and (keyword-identical? kind :e__)
+  (or (and (perf/identical? :e__ kind)
            (vector? pattern)
            pattern)
-      (and (keyword-identical? kind :ea_)
+      (and (perf/identical? :ea_ kind)
            (vector? (first pattern))
            (first pattern))))
 

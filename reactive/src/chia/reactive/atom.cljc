@@ -127,15 +127,21 @@
 ;; Implementation
 ;;
 
+(defn all-readers-at-path [path]
+  (let [index @readers-by-path
+        {value-readers ::value
+         fn-readers ::fns} (core/get-in index path)]
+    (reduce-kv (fn [out _ reader] (conj out reader)) (or value-readers #{}) fn-readers)))
+
 (defn readers-at-path [{value-readers ::value
                         fn-readers ::fns
                         :or {value-readers #{}}} oldval newval]
-  (-> value-readers
-      (cond-> fn-readers
-              (as-> found (reduce-kv (fn [found [f args] readers]
-                                       (cond-> found
-                                               (not= (apply f oldval args) (apply f newval args))
-                                               (into readers))) found fn-readers)))))
+  (if-not fn-readers
+    value-readers
+    (reduce-kv (fn [found [f args] readers]
+                 (cond-> found
+                         (not= (apply f oldval args) (apply f newval args))
+                         (into readers))) value-readers fn-readers)))
 
 (defn- invalidated-readers
   "Traverses `reader-index`, returning readers at paths which differ between `oldval` and `newval`."

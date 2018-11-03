@@ -1,6 +1,7 @@
 (ns chia.util.js-interop
-  (:refer-clojure :exclude [get get-in assoc! assoc-in! update! update-in! select-keys contains?])
-  (:require [goog.object :as gobj])
+  (:refer-clojure :exclude [get unchecked-get get-in assoc! assoc-in! update! update-in! select-keys contains?])
+  (:require [goog.object :as gobj]
+            [cljs.core :as core])
   (:require-macros [chia.util.js-interop :as j]))
 
 (defn wrap-key [k]
@@ -33,6 +34,10 @@
         inner-obj (get-in obj (drop-last ks))]
     (gobj/set inner-obj (last ks) value)
     obj))
+
+(defn set! [obj k val]
+  (core/unchecked-set obj (wrap-key k) val)
+  obj)
 
 (defn update! [obj k f & args]
   (gobj/set obj (wrap-key k)
@@ -79,3 +84,6 @@
 
 (defn call [^js o k & args]
   (.apply (j/get o k) o (to-array args)))
+
+(defn !get [o k]
+  (core/unchecked-get o (wrap-key k)))

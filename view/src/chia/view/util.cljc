@@ -1,10 +1,7 @@
 (ns chia.view.util
   (:refer-clojure :exclude [uuid])
   (:require [clojure.string :as string]
-            #?(:clj
-               [net.cgrand.macrovich :as macros])
-            [chia.util.js-interop :as j])
-  #?(:cljs (:require-macros [net.cgrand.macrovich :as macros])))
+            [chia.util.js-interop :as j]))
 
 (def camelCase
   "Return camelCased string, eg. hello-there to helloThere. Does not modify existing case."
@@ -67,10 +64,10 @@
               (j/assoc! :id (name id))
               (->> (.appendChild (.-body js/document))))))))
 
-#?(:clj
-   (def __deprecated-keys #{:view/will-receive-props
-                            :view/will-update
-                            :view/will-mount}))
+
+(def __deprecated-keys #{:view/will-receive-props
+                         :view/will-update
+                         :view/will-mount})
 
 (def lifecycle-keys
   "Mapping of methods-map keys to React lifecycle keys."

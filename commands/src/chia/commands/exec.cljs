@@ -15,18 +15,18 @@
 
 (defn start-which-key-timeout
   "Starts a which-key timeout, to be called when modifier is pressed. Idempotent."
-  [{:keys [which-key/timeout] :as current-state}]
+  [{:keys [timeout] :as current-state}]
   ;; NOTE: impure, we access the `state` atom inside the setTimeout callback
   (cond-> current-state
-          (nil? timeout) (assoc :which-key/timeout (js/setTimeout (fn []
+          (nil? timeout) (assoc :timeout (js/setTimeout (fn []
                                                                     (swap! state assoc :which-key/active? true)) which-key-time))))
 
 (defn clear-which-key
   "Fn which toggles which-key off, clearing timeout if it exists."
-  [{:keys [modifiers-down which-key/timeout] :as current-state}]
+  [{:keys [modifiers-down timeout] :as current-state}]
   (some-> timeout
           (js/clearTimeout))
-  (dissoc current-state :which-key/timeout :which-key/active?))
+  (dissoc current-state :timeout :which-key/active?))
 
 (defonce _ (do
              (doseq [modifier ["shift"
@@ -35,7 +35,7 @@
                (let [internal-modifier (registry/format-segment :internal modifier)]
                  (.register_combo registry/Keypress
                                   #js {:keys       #js [modifier]
-                                       :on_keydown #(let [{:keys [which-key/timeout]} @state]
+                                       :on_keydown #(let [{:keys [timeout]} @state]
                                                       (reset! state (-> @state
                                                                         (update :modifiers-down conj internal-modifier)
                                                                         (start-which-key-timeout)))

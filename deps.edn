@@ -15,6 +15,7 @@
          "x-vec/src"
          "graphql/src"
          "env/src"
+         "prosemirror/src"
 
          "view/test"
          "triple-db/test"

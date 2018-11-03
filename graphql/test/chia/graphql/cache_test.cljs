@@ -74,12 +74,15 @@
         inline-fragment [:... {:on "Person"} :hobby]]
     (is (-> (round-trip (g/fn ^:Query []
                           record-fragment
-                          inline-fragment)
+                          inline-fragment
+                          [:... {:on "Pet"} :furry?])
                         {:name "Henry"
-                         :hobby "curling"})
-            ((juxt :name :hobby))
-            (= ["Henry" "curling"]))
-        "Fragments"))
+                         :hobby "curling"
+                         :furry? true
+                         :__typename "Person"})
+            ((juxt :name :hobby :furry?))
+            (= ["Henry" "curling" nil]))
+        "Fragments are matched"))
 
   (is (-> (round-trip (g/fn ^:Query []
                         :name
@@ -92,12 +95,15 @@
       "Alias")
 
   (is (= (->> (round-trip (g/fn ^:Query []
-                            [:pets :id
-                             [:... {:on "Person"} :name]])
+                            [:pets
+                             :id
+                             [:... {:on "Pet"} :name]])
                           {:pets [{:id "B"
-                                   :name "Bob"}
+                                   :name "Bob"
+                                   :__typename "Pet"}
                                   {:id "C"
-                                   :name "Candy"}]
+                                   :name "Candy"
+                                   :__typename "Pet"}]
                            :__typename "Person"})
               :pets
               (mapv :name))

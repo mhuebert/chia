@@ -11,10 +11,8 @@
     (is (satisfies? cljs.core/IDeref db)
         "DB is an atom")
 
-    (d/listen db (reify
-                   r/IReadReactively
-                   (-invalidate! [_ {:keys [::d/datoms]}]
-                     (swap! tx-log conj datoms))))
+    (d/listen db (fn [{:keys [::d/datoms]}]
+                   (swap! tx-log conj datoms)))
 
     (d/transact! db [{:db/id "herman"}])
 
@@ -225,7 +223,7 @@
                          (-invoke [this]
                            (swap! state update :renders inc)
                            (r/with-dependency-tracking! this
-                                                        (d/entity db [:person/children "peter"])))))
+                             (d/entity db [:person/children "peter"])))))
             reader-dependencies #(-> @r/dependencies
                                      (get-in [reader-2 db]))
             log! #(prn % {:reader @reader-2

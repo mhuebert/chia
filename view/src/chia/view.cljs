@@ -54,23 +54,23 @@
 (defn get-derived-state-from-props [props $state]
   ;; when a component receives new props, update internal state.
   (j/assoc! $state
-            :prev-props (j/get $state :props)
-            :props (j/get props :props)
-            :prev-children (j/get $state :children)
-            :children (j/get props :children)))
+            :prev-props (j/!get $state :props)
+            :props (j/!get props :props)
+            :prev-children (j/!get $state :children)
+            :children (j/!get props :children)))
 
 (def default-methods
   {:view/should-update
    (fn []
      (this-as this
        (or (true? *reload*)
-           (let [$state (j/get this :state)]
-             (or (not= (j/get $state :props)
-                       (j/get $state :prev-props))
-                 (not= (j/get $state :children)
-                       (j/get $state :prev-children))
-                 (when-let [state (j/get $state :state)]
-                   (not= @state (j/get $state :prev-state))))))))
+           (let [$state (j/!get this :state)]
+             (or (not= (j/!get $state :props)
+                       (j/!get $state :prev-props))
+                 (not= (j/!get $state :children)
+                       (j/!get $state :prev-children))
+                 (when-let [state (j/!get $state :state-atom)]
+                   (not= @state (j/!get $state :prev-state))))))))
    :static/get-derived-state-from-props get-derived-state-from-props
    :view/will-unmount
    (fn []
@@ -81,7 +81,7 @@
        (some-> (:view/state this)
                (remove-watch this))
 
-       (doseq [f (some-> (j/get this :chia$onUnmount)
+       (doseq [f (some-> (j/!get this :chia$onUnmount)
                          (vals))]
          (when f (f this)))
 
@@ -90,11 +90,11 @@
    :view/did-update
    (fn []
      (this-as ^js this
-       (let [$state (.-state this)
-             state-atom (.-state $state)]
+       (let [$state (j/!get this :state)
+             state-atom (j/!get $state :state-atom)]
          (-> $state
-             (j/assoc! :prev-props (.-props $state)
-                       :prev-children (.-children $state))
+             (j/assoc! :prev-props (j/!get $state :props)
+                       :prev-children (j/!get $state :children))
              (cond-> state-atom (j/assoc! :prev-state @state-atom))))))})
 
 (defn wrap-method [k f]
@@ -112,7 +112,7 @@
       (this-as ^js this
         (j/assoc! this :chia$toUpdate false)                ;; avoid double-render in render loop
         (r/with-dependency-tracking! this
-                                     (v/apply-fn f this))))
+          (v/apply-fn f this))))
     :view/did-update
     (fn []
       (this-as ^js this
@@ -147,43 +147,41 @@
 (defn- init-state!
   "Bind a component to an IWatchable/IDeref thing."
   [^js this watchable]
-  (let [$state (.-state this)]
-    (j/assoc! $state
-              :state watchable
-              :prev-state @watchable)
+  (-> (j/!get this :state)
+      (j/assoc! :state-atom watchable
+                :prev-state @watchable))
 
-    (add-watch watchable this
-               (fn [_ _ old-state new-state]
-                 (when (not= old-state new-state)
-                   (j/assoc! $state :prev-state old-state)
-                   (when-let [^js will-receive (j/get this :componentWillReceiveState)]
-                     (.call will-receive this))
-                   (when (and *trigger-state-render*
-                              (if-let [^js should-update (j/get this :shouldComponentUpdate)]
-                                (.call should-update this)
-                                true))
-                     (force-update this))))))
+  (add-watch watchable this
+             (fn [_ _ old-state new-state]
+               (when (not= old-state new-state)
+                 (j/assoc-in! this [:state :prev-state] old-state)
+                 (when-let [^js will-receive (j/!get this :componentWillReceiveState)]
+                   (.call will-receive this))
+                 (when (and *trigger-state-render*
+                            (if-let [^js should-update (j/!get this :shouldComponentUpdate)]
+                              (.call should-update this)
+                              true))
+                   (force-update this)))))
   watchable)
 
 (defn- init-state-atom!
   "Populate initial state for `component`."
   [^js this ^js $props]
-  (when-let [state (when-let [initial-state (j/get this :chia$initialState)]
-                     (let [state-data (if (fn? initial-state)
-                                        (let [$state (.-state this)]
-                                          (set! (.-state this) (get-derived-state-from-props $props $state))
-                                          (.call initial-state this this))
-                                        initial-state)]
-                       (atom state-data)))]
-    (init-state! this state))
+  (when-let [initial-state (j/!get this :chia$initialState)]
+    (let [state-data (if (fn? initial-state)
+                       (let [$state (j/!get this :state)]
+                         (j/set! this :state (get-derived-state-from-props $props $state))
+                         (apply initial-state this (:view/children this)))
+                       initial-state)]
+      (init-state! this (atom state-data))))
   this)
 
 (defn- get-state!
   "Lazily create and bind a state atom for `component`"
   [this $state]
-  (when-not (j/contains? $state :state)
+  (when-not (j/contains? $state :state-atom)
     (init-state! this (atom nil)))
-  (j/get $state :state))
+  (j/!get $state :state-atom))
 
 (defmulti component-lookup (fn [this k not-found] k))
 
@@ -200,22 +198,22 @@
       ([this k]
        (-lookup this k nil))
       ([^js this k not-found]
-       (let [$state (j/get this :state)]
-         (if (= "view" (namespace k))
-           (case k
-             :view/state (get-state! this $state)
-             (:view/props
-              :view/children
-              :view/prev-props
-              :view/prev-state
-              :view/prev-children) (j/get $state (name k) not-found)
+       (let [$state (j/!get this :state)]
+         (case k
+           :view/state (get-state! this $state)
+           (:view/props
+            :view/children
+            :view/prev-props
+            :view/prev-state
+            :view/prev-children) (j/get $state (name k) not-found)
+           (if (= "view" (namespace k))
              ;; extendable
-             (component-lookup this k not-found))
-           (get (j/get $state :props) k not-found)))))
+             (component-lookup this k not-found)
+             (get (j/!get $state :props) k not-found))))))
     r/IReadReactively
     (-invalidate! [this _] (force-update this))
     INamed
-    (-name [this] (j/get this :displayName))
+    (-name [this] (j/!get this :displayName))
     (-namespace [this] nil)
     IPrintWithWriter
     (-pr-writer [this writer opts]
@@ -228,16 +226,13 @@
     (apply swap! args)))
 
 (defn- get-element-key [props children constructor]
-  (let [k (or (get props :key)
-              (when-let [class-react-key (.-key constructor)]
-                (cond (string? class-react-key) class-react-key
-                      (keyword? class-react-key) (get props class-react-key)
-                      (fn? class-react-key) (.apply class-react-key (assoc props :view/children children) (to-array children))
-                      :else (throw (js/Error "Invalid key supplied to component")))))]
-    (if (and k
-             (or (string? k) (keyword? k)))
-      (name k)
-      (.-displayName constructor))))
+  (str (or (get props :key)
+           (when-let [class-react-key (j/get constructor :key)]
+             (cond (string? class-react-key) class-react-key
+                   (keyword? class-react-key) (get props class-react-key)
+                   (fn? class-react-key) (.apply class-react-key (assoc props :view/children children) (to-array children))
+                   :else (throw (js/Error "Invalid key supplied to component"))))
+           (j/!get constructor :displayName))))
 
 (defn- ^:export extend-constructor
   [{:keys [lifecycle-keys
@@ -286,13 +281,13 @@
                                                    (nil? props))
                                              [props children]
                                              [nil (cons props children)])]
-
               (when goog.DEBUG
                 (validate-args! view-base props children))
 
               (react/createElement constructor #js {"key" (str (get-element-key props children constructor))
                                                     "ref" ref
-                                                    "props" (cond-> props ref (dissoc :ref))
+                                                    "props" (some-> props
+                                                                    (dissoc :ref))
                                                     "children" children})))
       (j/assoc! :chia$constructor constructor))))
 
@@ -380,14 +375,6 @@
   [^js this key f]
   (j/update! this :chia$onUnmount assoc key f))
 
-(defn update-keys [m ks f]
-  (reduce (fn [m k] (assoc m k (f (get m k)))) m ks))
-
-(defn update-some-keys [m ks f]
-  (reduce (fn [m k]
-            (cond-> m
-                    (contains? m k) (assoc k (f (get m k))))) m ks))
-
 (defn adapt-react-class
   ([the-class]
    (adapt-react-class nil the-class))
@@ -399,8 +386,8 @@
                               [(first args) (rest args)]
                               [{} args])
            props (-> props
-                     (update-some-keys ->element-keys to-element)
-                     (update-some-keys ->js-keys clj->js))
+                     (u/update-some-keys ->element-keys to-element)
+                     (u/update-some-keys ->js-keys clj->js))
            js-form (-> (cons props children)
                        (to-array)
                        (j/unshift! the-class))]
