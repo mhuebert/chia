@@ -37,7 +37,6 @@
   (aget (ensure-schema state-or-schema) "nodes" (name node-name)))
 
 (defn scroll-into-view [tr]
-  (prn :scroll-into-view)
   (.scrollIntoView tr))
 
 (defn toggle-mark
