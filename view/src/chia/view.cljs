@@ -38,13 +38,16 @@
   "For tracking the order in which components have been constructed (parent components are always constructed before their children)."
   (volatile! 0))
 
+(defn- update-change-prop [props]
+  (cond-> props
+          (contains? props :on-change) (update :on-change render-loop/apply-sync!)))
+
 (defn- wrap-props
   "Wraps :on-change handlers of text inputs to apply changes synchronously."
   [props tag]
   (cond-> props
           (and ^boolean (or (identical? "input" tag)
-                            (identical? "textarea" tag))
-               (contains? props :on-change)) (update :on-change render-loop/apply-sync!)))
+                            (identical? "textarea" tag))) update-change-prop))
 
 (defn- bind [f]
   (fn []
@@ -387,7 +390,8 @@
                               [{} args])
            props (-> props
                      (u/update-some-keys ->element-keys to-element)
-                     (u/update-some-keys ->js-keys clj->js))
+                     (u/update-some-keys ->js-keys clj->js)
+                     (update-change-prop))
            js-form (-> (cons props children)
                        (to-array)
                        (j/unshift! the-class))]
