@@ -14,10 +14,6 @@
   ([n]
    (apply str (take (+ x/*depth* n) (repeat spacer)))))
 
-(defn ensure-prefix [s pfx]
-  (cond->> s
-           (not (str/starts-with? s pfx)) (str pfx)))
-
 (defprotocol IGraphQL)
 
 (defn emit-value [x]

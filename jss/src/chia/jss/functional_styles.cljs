@@ -13,9 +13,9 @@
   (let [m (apply merge ms)]
     (merge m
            {(str "@media (max-width: " breakpoint "px)")
-            (u/update-keys #(append-to-name % "-sm") m)}
+            (u/update-keys m #(append-to-name % "-sm"))}
            {(str "@media (min-width: " (inc breakpoint) "px)")
-            (u/update-keys #(append-to-name % "-lg") m)})))
+            (u/update-keys m #(append-to-name % "-lg"))})))
 
 (defn color-styles [color-map]
   (u/for-map [[n v] color-map

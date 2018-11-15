@@ -3,7 +3,7 @@
   (:require [clojure.string :as str]
             [chia.view.util :as view-util :refer [camelCase]]
             [clojure.core :as core]
-            #_[cljs.tagged-literals :as cljs-literals]))
+   #_[cljs.tagged-literals :as cljs-literals]))
 
 (defmacro ^:private apply-fn [f this]
   `(if-let [children# (.. ~this -state -children)]
@@ -110,6 +110,7 @@
     (if pure? (:view/render lifecycle-keys)
               (let [constructor (make-constructor view-name)]
                 `(~'chia.view/view* ~methods ~constructor)))))
+
 (defmacro defview
   "Define a view function.
 
@@ -128,6 +129,31 @@
     (~'goog.object/getValueByKeys ~view "chia$constructor" "prototype")
     ~@args))
 
+(defmacro once
+  "Evaluates `body` once per component mount or, if :key is provided, once per unique key (per component mount).
+
+  :on-unmount - will be called with [component, value] when component unmounts."
+  ([body]
+   `(once {} ~body))
+  ([{:keys [key
+            on-unmount]} body]
+   (let [gname (name (gensym "once"))
+         js-get 'chia.util.js-interop/get
+         js-assoc! 'chia.util.js-interop/assoc!
+         this-sym (gensym "this")
+         key-sym (gensym "key")
+         val-sym (gensym "val")]
+     `(let [~key-sym ~(if key `(str ~gname "/" ~key)
+                              gname)
+            ~this-sym ~'chia.view/*current-view*]
+        (or (~js-get ~this-sym ~key-sym)
+            (let [~val-sym ~body]
+              (~js-assoc! ~this-sym ~key-sym ~val-sym)
+              ~(when on-unmount
+                 `(~'chia.view/on-unmount! ~this-sym ~key-sym
+                   (fn [this#] (~on-unmount this# ~val-sym))))
+              ~val-sym))))))
+
 (comment
  (assert (= (parse-view-args '(name "a" {:b 1} [c] 1 2))
             '[name "a" {:b 1} ([c] 1 2)]))
@@ -143,32 +169,3 @@
 
  (assert (= (parse-view-args '(name []))
             '[name nil nil ([])])))
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;; Helpful macros
-;; - inspired by https://gist.github.com/rauhs/d49d6f8a6f5fbb8230647c5b2ac210b2
-
-(defmacro for
-  "Simplified `for`, acts on a single collection; returns array and wraps with hiccup."
-  [[x coll] body]
-  `(reduce (fn [a# ~x]
-             (.push a# ~(to-element body))
-             a#)
-           (cljs.core/array) ~coll))
-
-(defmacro for-indexed
-  "Simplified `for` with index, acts on a single collection; returns array and wraps with hiccup.
-
-   (for-indexed [[index item] coll] body)"
-  [[[idx item] coll] body]
-  `(let [coll# ~coll
-         a# (cljs.core/array)]
-     (reduce (fn [~idx ~item]
-               (.push a# ~(to-element body))
-               (inc ~idx))
-             0 coll#)
-     a#))
-
-#_(def js-value-type (type (cljs-literals/->JSValue [])))

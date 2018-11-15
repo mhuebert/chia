@@ -38,7 +38,7 @@
             :class "pointer"}
            :rotate-right)
 
-   (v/for [child-id (t/get id :children)]
+   (for [child-id (t/get id :children)]
      (color-box {:id child-id}
                 (-> (:angle @state 0)
                     (+ parent-angle))))

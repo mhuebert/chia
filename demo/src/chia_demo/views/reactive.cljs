@@ -51,7 +51,7 @@
             :class "pointer"}
            :rotate-right)
 
-   (v/for [k (db/keys-in path)]
+   (for [k (db/keys-in path)]
      (when (not= :color k)
        (color-box {:path (conj path k)} (+ (:angle @state 0)
                                            (or parent-angle 0)))))

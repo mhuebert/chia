@@ -1,7 +1,8 @@
 (ns chia.util
   (:require #?(:cljs [chia.util.js-interop])
             [chia.util.macros :as m]
-            [chia.util.js-interop :as j])
+            [chia.util.js-interop :as j]
+            [clojure.string :as str])
   #?(:cljs (:require-macros [chia.util])))
 
 (defn guard [x f]
@@ -44,18 +45,20 @@
         (dissoc m k)
         (assoc m k new-set)))))
 
-(defn update-keys [f m]
+(defn update-map-entries [m key-f val-f]
   (persistent!
-   (reduce-kv (fn [m k v] (assoc! m (f k) v)) (transient (empty m)) m)))
+   (reduce-kv (fn [m k v] (assoc! m (key-f k) (val-f v))) (transient (empty m)) m)))
+
+(defn update-keys [m f]
+  (update-map-entries m f identity))
+
+(defn update-vals [m f]
+  (update-map-entries m identity f))
 
 (defn update-some-keys [m ks f]
   (reduce (fn [m k]
             (cond-> m
                     (contains? m k) (assoc k (f (get m k))))) m ks))
-
-(defn update-vals [f m]
-  (persistent!
-   (reduce-kv (fn [m k v] (assoc! m k (f v))) (transient (empty m)) m)))
 
 (defn find-first [pred coll]
   (first (filter pred coll)))
@@ -64,7 +67,6 @@
   (if (fn? f)
     (apply f args)
     f))
-
 
 (m/defmacro for-map [& body]
   `(->> (for ~@body)
@@ -151,3 +153,7 @@
       (~@expr (fn [err# result#]
                 (if err# (reject# err#)
                          (resolve# result#)))))))
+
+(defn ensure-prefix [s pfx]
+  (cond->> s
+           (not (str/starts-with? s pfx)) (str pfx)))

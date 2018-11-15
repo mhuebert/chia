@@ -2,27 +2,23 @@
   (:refer-clojure :exclude [munge defn fn let def])
   (:require [clojure.set :as set]
             [clojure.core :as core]
-            [clojure.string :as string]
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            [chia.util :as u]))
 
 (core/defn munge [s]
-  (string/replace (if (keyword? s) (subs (str s) 1) s) #"[^a-zA-Z_0-9]+" "_"))
+  (str/replace (if (keyword? s) (subs (str s) 1) s) #"[^a-zA-Z_0-9]+" "_"))
 
 (core/defn namespace-segment []
-  (string/replace (str *ns*) #"^[^.]+\." ""))
+  (str/replace (str *ns*) #"^[^.]+\." ""))
 
 (core/defn op-name [the-name]
   (when the-name
     (munge (str (namespace-segment) "__" (name the-name)))))
 
-(core/defn ensure-prefix [s pfx]
-  (cond->> s
-           (not (str/starts-with? s pfx)) (str pfx)))
-
 (core/defn prefix-var-name [v]
   (-> v
       (name)
-      (ensure-prefix "$")))
+      (u/ensure-prefix "$")))
 
 (defmacro operation*
   ([operation-name the-name {:as options
@@ -52,7 +48,7 @@
                                             ~'ILookup
                                             (~'-lookup [_# k#]
                                               (-> (name k#)
-                                                  (~'chia.graphql/ensure-prefix "$")
+                                                  (u/ensure-prefix "$")
                                                   (keyword)))
                                             (~'-lookup [o# k# not-found#]
                                               (throw (ex-info "lookup with not-found not supported" {:k k#})))
