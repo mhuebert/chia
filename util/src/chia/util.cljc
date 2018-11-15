@@ -45,15 +45,15 @@
         (dissoc m k)
         (assoc m k new-set)))))
 
-(defn update-map-entries [m key-f val-f]
+(defn update-map [m key-f val-f]
   (persistent!
    (reduce-kv (fn [m k v] (assoc! m (key-f k) (val-f v))) (transient (empty m)) m)))
 
 (defn update-keys [m f]
-  (update-map-entries m f identity))
+  (update-map m f identity))
 
 (defn update-vals [m f]
-  (update-map-entries m identity f))
+  (update-map m identity f))
 
 (defn update-some-keys [m ks f]
   (reduce (fn [m k]
@@ -93,6 +93,24 @@
                  (some-> (namespace k)
                          (str "__")))
                (name k)))))
+
+(defn memoize-by
+  "Like memoize, but uses `key-f` to compute the memoization key from passed-in args."
+  [f key-f]
+  (let [mem (atom {})]
+    (fn [& args]
+      (let [args-key (key-f args)]
+        #?(:clj  (if-let [e (find @mem args-key)]
+                   (val e)
+                   (let [ret (apply f args)]
+                     (swap! mem assoc args-key ret)
+                     ret))
+           :cljs (let [v (get @mem args-key lookup-sentinel)]
+                   (if (identical? v lookup-sentinel)
+                     (let [ret (apply f args)]
+                       (swap! mem assoc args-key ret)
+                       ret)
+                     v)))))))
 
 (m/defmacro memoized-on [o k & body]
   (let [k (munged-key k)]
