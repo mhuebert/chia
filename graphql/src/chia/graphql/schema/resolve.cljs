@@ -114,7 +114,7 @@
   (reduce-kv (fn [m k v]
                (if (map? v)
                  (reduce-kv (fn [m child-k v]
-                              (assoc m (schema/inherit-typespace k child-k) v)) m v)
+                              (assoc m (schema/inherit-typespace child-k k) v)) m v)
                  (assoc m k v))) {} m))
 
 (defn with-resolvers [registry resolvers]
@@ -139,7 +139,7 @@
     :keys [registry
            resolvers
            wrap-resolver]
-    :or {registry @schema/*registry*}}]
+    :or {registry @schema/*registry-ref*}}]
   (-> (register-toplevel registry fields)
       (with-resolvers (some-> resolvers
                               (flatten-resolver-map)
@@ -148,3 +148,33 @@
       (get-top-level)
       (clj->js)
       (->> (new types/Schema))))
+
+;;;;;;;;;;;;;;;;;;;
+;;
+;;
+
+(comment
+
+ (defn get-field [parent k]
+   (if (satisfies? ILookup parent)
+     (get parent (keyword k))
+     (j/get parent k)))
+
+ (defn default-field-resolver [[parent params context ^js info]]
+   (get-field parent (.-fieldName info)))
+
+ (defn resolve-data [registry data params context]
+   ;; NOTE
+   ;; we _do_ need to take into account the current fragment/query here --
+   ;; because we only want to resolve keys that have been requested.
+
+   ;; resolve - [parent params context info]
+   (let [type-key (get-field data :__typename)
+         ks (get-in registry [type-key :field-keys])]
+     (u/for-map [k ks
+                 :let [k-map (get registry k)
+                       resolver (or (get k-map :resolver)
+                                    (when-let [i-key (:implementation-of k-map)]
+                                      (get-in registry [i-key :resolver]))
+                                    default-field-resolver)]]
+       {(schema/typekey k) (resolver [data params context #js {:fieldName (schema/typename k)}])}))))

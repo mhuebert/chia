@@ -3,33 +3,10 @@
             [chia.util.macros :as m])
   #?(:cljs (:require-macros [chia.graphql.schema])))
 
-(m/defn ^:private parse-args [[name & args]]
-  (let [[doc args] (if (string? (first args))
-                     [(first args) (rest args)]
-                     [nil args])
-        [params type-key] (if (vector? (first args))
-                            [(ffirst args) (second args)]
-                            [nil (first args)])]
-    {:name (str name)
-     :description doc
-     :args (some-> params
-                   (u/update-keys keyword))
-     :type-key type-key}))
+(defonce ^:dynamic *registry-ref* (atom {}))
 
-(m/defn ^:private def-field [[name & args]]
-  (let [type-map (parse-args (cons name args))]
-    `(def ~name ~type-map)))
-
-(m/defmacro query [name & [doc params return-type]]
-  (def-field [name doc params return-type]))
-
-(m/defmacro mutation [name & [doc params return-type]]
-  (def-field [name doc params return-type]))
-
-(m/defmacro subscription [name & [doc params return-type]]
-  (def-field [name doc params return-type]))
-
-(defonce ^:dynamic *registry* (atom {:gql/implementors {}}))
+(defn get-key [k]
+  (get @*registry-ref* k))
 
 (defn- typespace [k]
   (keyword (namespace k)
@@ -49,8 +26,8 @@
   (keyword-append typespace (str "." (name k))))
 
 (defn- inherit-typespace
-  "Join unqualified child key to a parent typespace"
-  [typespace child-k]
+  "Adds/replaces typespace of `child-k`"
+  [child-k typespace]
   (typekey-append typespace (typekey child-k)))
 
 (defn- external-keys
@@ -60,18 +37,16 @@
                       (map typespace)) ks)
       (disj parent-typespace)))
 
+(defn- external? [child-k object-typespace]
+  (and (namespace child-k)
+       (not= (typespace child-k)
+             object-typespace)))
+
 (defn- as-type-map [t]
   (cond (map? t) t
         (or (keyword? t)
             (vector? t)) {:type-key t}
         :else (throw (ex-info (str "Invalid type: " t) {:t t}))))
-
-
-(comment
- (assert (= (external-keys ::Thread [::Entity.x
-                                     ::Thread.y
-                                     :z])
-            '(::Entity))))
 
 (defn field-entries
   ([object-typespace data]
@@ -79,14 +54,16 @@
   ([m object-typespace data]
    (->> data
         (reduce-kv
-         (fn [entries k v]
-           (assoc entries (inherit-typespace object-typespace k) (as-type-map v)))
+         (fn [entries child-k v]
+           (assoc entries (inherit-typespace child-k object-typespace)
+                          (cond-> (as-type-map v)
+                                  (external? child-k object-typespace) (assoc :implementation-of child-k))))
          m))))
 
 (defn- fields-entry [parent-key]
-  (fn [m {:keys [type-key
-                 data]
-          description :doc}]
+  (fn [registry {:keys [type-key
+                        data]
+                 description :doc}]
     (let [object-typespace (typespace type-key)
           fields (field-entries object-typespace data)
           field-keys (set (keys fields))
@@ -96,7 +73,7 @@
                         :description description
                         :interfaces interface-ks
                         :field-keys field-keys}]
-      (-> m
+      (-> registry
           (merge fields)
           (update :gql/implementors (fn [m]
                                       (->> interface-ks
@@ -140,29 +117,39 @@
 ;; Public API for defining types
 
 (defn object [key & [doc fields]]
-  (swap! *registry* register-type
+  "Registers a GraphQL Object type."
+  (swap! *registry-ref* register-type
          (fields-entry :Object)
-         (args->map key doc fields)))
+         (args->map key doc fields))
+  key)
 
 (defn input [key & [doc fields]]
-  (swap! *registry* register-type
+  "Registers a GraphQL InputObject type."
+  (swap! *registry-ref* register-type
          (fields-entry :InputObject)
-         (args->map key doc fields)))
+         (args->map key doc fields))
+  key)
 
 (defn interface [key & [doc fields]]
-  (swap! *registry* register-type
+  "Registers a GraphQL Interface type."
+  (swap! *registry-ref* register-type
          (fields-entry :Interface)
-         (args->map key doc fields)))
+         (args->map key doc fields))
+  key)
 
 (defn union [key & [doc type-keys]]
-  (swap! *registry* register-type
+  "Registers a GraphQL Union type."
+  (swap! *registry-ref* register-type
          union-entry
-         (args->map key doc type-keys)))
+         (args->map key doc type-keys))
+  key)
 
 (defn enum [key & [doc values]]
-  (swap! *registry* register-type
+  "Registers a GraphQL Enum type."
+  (swap! *registry-ref* register-type
          enum-entry
-         (args->map key doc values)))
+         (args->map key doc values))
+  key)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -193,13 +180,32 @@
         (keyword? t) (keyword-append t "!")
         (map? t) (assoc t :required true)))
 
+;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Macros
 
+(m/defn ^:private parse-args [[name & args]]
+  (let [[doc args] (if (string? (first args))
+                     [(first args) (rest args)]
+                     [nil args])
+        [params type-key] (if (vector? (first args))
+                            [(ffirst args) (second args)]
+                            [nil (first args)])]
+    {:name (str name)
+     :description doc
+     :args (some-> params
+                   (u/update-keys keyword))
+     :type-key type-key}))
 
-(comment
- (assert (= (typespace ::A.b) ::A))
- (assert (= (typespace ::A) ::A))
- (assert (= (typekey ::A.b) :b))
- (assert (= (keyword-append ::A.b "!")
-            ::A.b!))
- (assert (= (typekey-append ::A.b "c")
-            ::A.b.c)))
+(m/defn ^:private def-field [[name & args]]
+  (let [type-map (parse-args (cons name args))]
+    `(def ~name ~type-map)))
+
+(m/defmacro query [name & [doc params return-type]]
+  (def-field [name doc params return-type]))
+
+(m/defmacro mutation [name & [doc params return-type]]
+  (def-field [name doc params return-type]))
+
+(m/defmacro subscription [name & [doc params return-type]]
+  (def-field [name doc params return-type]))
