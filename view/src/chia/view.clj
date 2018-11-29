@@ -1,7 +1,8 @@
 (ns chia.view
   (:refer-clojure :exclude [for])
   (:require [clojure.string :as str]
-            [chia.view.util :as view-util :refer [camelCase]]
+            [chia.util :as u]
+            [chia.view.util :as view-util]
             [clojure.core :as core]
    #_[cljs.tagged-literals :as cljs-literals]))
 
@@ -65,7 +66,7 @@
 (defn- ->js-with-camelCase [m]
   `(~'js-obj ~@(->> m
                     (reduce-kv (fn [out k v]
-                                 (into out [(camelCase (name k)) v])) []))))
+                                 (into out [(u/camel-case (name k)) v])) []))))
 
 (defn- bind-vals [m]
   (reduce-kv (fn [m k v]

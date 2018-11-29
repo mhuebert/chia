@@ -22,6 +22,7 @@
     "react": "^16.4.0",
     "react-dom": "^16.4.0",
     "reset-jss": "^1.0.0",
-    "serviceworker-cache-polyfill": "^4.0.0"
+    "serviceworker-cache-polyfill": "^4.0.0",
+    "unfetch": "^4.0.1"
   }
 }

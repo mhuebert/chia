@@ -46,4 +46,3 @@
     nil))
 
 (def type? graphql/isType)
-

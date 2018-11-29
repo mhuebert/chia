@@ -1,15 +1,14 @@
 (ns chia.graphql.request
   (:refer-clojure :exclude [catch])
   (:require ["unfetch" :as unfetch]
-            [chia.graphql.cache :as cache]
-            [chia.util.js-interop :as j]))
-
-(defn promise? [x]
-  (= (js/Promise.resolve x) x))
+            [chia.graphql.string :as string]
+            [chia.util.js-interop :as j]
+            [chia.util :as u]
+            [cljs.spec.alpha :as s]))
 
 (defn ->promise ^js [x]
   (cond-> x
-          (not (promise? x)) (js/Promise.resolved)))
+          (not (u/promise? x)) (js/Promise.resolved)))
 
 (defn then [x f]
   (.then (->promise x) f))
@@ -18,13 +17,9 @@
   (.catch x f))
 
 (defn get-token [token]
-  (cond (promise? token) (then token get-token)
+  (cond (u/promise? token) (then token get-token)
         (fn? token) (get-token (token))
         :else (js/Promise.resolve token)))
-
-(defn handle-error [req error]
-  (cache/merge-query-meta! req {:async/error {:message "Error sending GraphQL operation"
-                                              :error error}}))
 
 (defn fetch [url options]
   (unfetch url (-> options
@@ -32,31 +27,34 @@
                    (clj->js))))
 
 (defn post!
-  [{:as api-params
+  [{:as options
     :keys [token
-           url]}
-   {:as req
-    :keys [query
-           variables
-           callback]}]
-  (when callback
-    (throw (ex-info "Did not expect callback" {:req req})))
+           url]} form variables]
+  (let [query-string (-> (string/emit form)
+                         :string+)]
+    (assert (string? query-string))
+    (-> (get-token token)
+        (then
+         (fn [token]
+           (fetch url
+                  {:method "POST"
+                   :credentials "include"
+                   :headers (cond-> {:Content-Type "application/json"}
+                                    token (assoc :Authorization (str "Bearer: " token)))
+                   :body {:query query-string
+                          :variables variables}})))
+        (then #(j/call % :json)))))
 
-  (cache/merge-query-meta! req {:async/loading? true})
+(s/def ::token (s/or :string string?
+                     :fn fn?
+                     :promise u/promise?))
 
-  (-> (get-token token)
-      (then
-       (fn [token]
-         (fetch url
-                {:method "POST"
-                 :credentials "include"
-                 :headers (cond-> {:Content-Type "application/json"}
-                                  token (assoc :Authorization (str "Bearer: " token)))
-                 :body {:query (str query)
-                        :variables variables}})))
-      (then #(j/call % :json))
-      (then (fn [response]
-                (let [{:keys [async/error]
-                       :as result} (cache/write-response! req response)]
-                  result)))
-      (catch (partial handle-error req))))
+(s/def ::url string?)
+
+(s/def ::api-options (s/keys :req-un [::token
+                                      ::url]))
+
+(s/fdef post!
+        :args (s/cat :options ::api-options
+                     :form :graphql/xvec
+                     :variables (s/nilable map?)))

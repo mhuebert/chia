@@ -1,14 +1,6 @@
 (ns chia.view.util
   (:refer-clojure :exclude [uuid])
-  (:require [clojure.string :as string]
-            [chia.util.js-interop :as j]))
-
-(def camelCase
-  "Return camelCased string, eg. hello-there to helloThere. Does not modify existing case."
-  (memoize
-   (fn [s]
-     (string/replace (name s) #"-(.)" (fn [[_ match]] (string/upper-case match))))))
-
+  (:require [chia.util.js-interop :as j]))
 
 (defn update-attrs [el f & args]
   (if-not (vector? el)

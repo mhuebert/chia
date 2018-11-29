@@ -1,10 +1,6 @@
 (ns chia.material-ui
-  (:require [clojure.string :as str]))
-
-(defn dashed->camel [s]
-  (-> (name s)
-      (str/capitalize)
-      (str/replace #"\-(\w)" (fn [[_ letter]] (str/upper-case letter)))))
+  (:require [clojure.string :as str]
+            [chia.util :as u]))
 
 (defmacro defm
   ([the-name]
@@ -13,5 +9,7 @@
    `(def ~the-name (~'chia.view/adapt-react-class (update ~options
                                                           :->js-keys conj :classes)
                     ~(-> the-name
-                         (dashed->camel)
+                         (name)
+                         (str/capitalize)
+                         (u/camel-case)
                          (symbol))))))

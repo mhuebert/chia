@@ -4,7 +4,8 @@
             [chia.graphql.schema :as schema]
             [chia.graphql.types :as types]
             [chia.util :as u]
-            [chia.util.js-interop :as j]))
+            [chia.util.js-interop :as j]
+            [clojure.spec.alpha :as s]))
 
 (declare type-key-terminal resolve-type-map)
 
@@ -90,22 +91,24 @@
        :type))
 
 (defn resolve-types [{:as registry
-                      :keys [:gql/implementors]}]
+                      :keys [:schema/implementors]}]
   (-> registry
-      (dissoc :gql/implementors)
+      (dissoc :schema/implementors)
       (u/update-vals (partial resolve-type-map registry))
       (as-> registry
             (let [implementors (u/update-vals implementors #(mapv (partial type-key-terminal registry) %))
                   types (reduce into #{} (vals implementors))]
-              (assoc registry :gql/implementors implementors
+              (assoc registry :schema/implementors implementors
                               :types types)))))
 
-(defn register-toplevel [registry fields]
+(defn register-root [registry fields]
   (->> ["query" "mutation" "subscription"]
        (reduce (fn [registry field-name]
-                 (let [fields (get fields (keyword field-name))]
+                 (let [fields (some-> (get fields (keyword field-name))
+                                      (u/update-vals :schema/type-map))
+                       make-entry (schema/fields-entry :Object)]
                    (cond-> registry
-                           fields ((schema/fields-entry :Object)
+                           fields (make-entry
                                    (schema/args->map (keyword (str/capitalize field-name))
                                                      fields)))))
                registry)))
@@ -140,7 +143,8 @@
            resolvers
            wrap-resolver]
     :or {registry @schema/*registry-ref*}}]
-  (-> (register-toplevel registry fields)
+
+  (-> (register-root registry fields)
       (with-resolvers (some-> resolvers
                               (flatten-resolver-map)
                               (u/update-vals wrap-resolver)))
@@ -148,6 +152,14 @@
       (get-top-level)
       (clj->js)
       (->> (new types/Schema))))
+
+(s/def ::registry
+  (s/map-of keyword? (s/or :type-map ::schema/type-map
+                           :root #(instance? schema/Root %))))
+
+(s/fdef make-schema
+        :args (s/cat :fields (s/keys
+                              :opt-un [::registry])))
 
 ;;;;;;;;;;;;;;;;;;;
 ;;
@@ -178,3 +190,10 @@
                                       (get-in registry [i-key :resolver]))
                                     default-field-resolver)]]
        {(schema/typekey k) (resolver [data params context #js {:fieldName (schema/typename k)}])}))))
+
+(s/def ::terminal-type types/type?)
+
+(s/fdef type-map-terminal
+        :ret ::terminal-type)
+(s/fdef type-key-terminal
+        :ret ::terminal-type)

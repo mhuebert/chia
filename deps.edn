@@ -62,4 +62,6 @@
   ;; graphql
   athos/kitchen-async {:git/url "https://github.com/athos/kitchen-async.git"
                        :sha "5fc0a3065bbbbcc9d828a5bd2392d64170b71f31"}
+
+  expound {:mvn/version "0.7.1"}
   }}

@@ -1,9 +1,31 @@
 (ns chia.graphql.schema
   (:require [chia.util :as u]
-            [chia.util.macros :as m])
+            [chia.util.macros :as m]
+            [clojure.spec.alpha :as s]
+            [clojure.spec.test.alpha :as st]
+            [expound.alpha :as expound])
   #?(:cljs (:require-macros [chia.graphql.schema])))
 
 (defonce ^:dynamic *registry-ref* (atom {}))
+
+(def built-ins #{:String
+                 :Int
+                 :Float
+                 :Boolean
+                 :ID
+                 :NonNull
+                 :Object
+                 :InputObject
+                 :Interface
+                 :Union
+                 :Enum
+                 :List
+                 :Schema})
+
+
+(defn registered-type? [k]
+  (or (contains? built-ins k)
+      (contains? @*registry-ref* k)))
 
 (defn get-key [k]
   (get @*registry-ref* k))
@@ -12,11 +34,12 @@
   (keyword (namespace k)
            (re-find #"^[^.]+" (name k))))
 
-(defn- typekey [k]
-  (some-> (re-find #"[^.]+$" (name k))
-          (keyword)))
+(defn- typename [k]
+  (re-find #"[^.]+$" (name k)))
 
-(def ^:private typename (comp name typekey))
+(defn- typekey [k]
+  (some-> (typename k)
+          (keyword)))
 
 (defn- keyword-append [k s]
   (keyword (namespace k)
@@ -32,21 +55,31 @@
 
 (defn- external-keys
   "Keys which cannot inherit from parent typespace (g. interfaces)"
-  [parent-typespace ks]
+  [operation ks]
   (-> (into #{} (comp (filter namespace)
                       (map typespace)) ks)
-      (disj parent-typespace)))
+      (disj operation)))
 
 (defn- external? [child-k object-typespace]
   (and (namespace child-k)
        (not= (typespace child-k)
              object-typespace)))
 
+
+(s/fdef typespace
+        :args (s/cat :key keyword?))
+
+(s/fdef typekey
+        :args (s/cat :key keyword?))
+
+#_(s/fdef external?
+          :args)
+
 (defn- as-type-map [t]
   (cond (map? t) t
         (or (keyword? t)
             (vector? t)) {:type-key t}
-        :else (throw (ex-info (str "Invalid type: " t) {:t t}))))
+        :else (throw (ex-info (str "Invalid type: " t) {:type t}))))
 
 (defn field-entries
   ([object-typespace data]
@@ -75,11 +108,11 @@
                         :field-keys field-keys}]
       (-> registry
           (merge fields)
-          (update :gql/implementors (fn [m]
-                                      (->> interface-ks
-                                           (reduce
-                                            (fn [m interface-k]
-                                              (update m interface-k (fnil conj #{}) type-key)) m))))
+          (update :schema/implementors (fn [m]
+                                         (->> interface-ks
+                                              (reduce
+                                               (fn [m interface-k]
+                                                 (update m interface-k (fnil conj #{}) type-key)) m))))
           (assoc type-key parent-entry)))))
 
 (defn- union-entry [m {:as type-map
@@ -90,7 +123,7 @@
   (-> m
       (assoc type-key (-> type-map
                           (assoc :type-key :Union)))
-      (update-in [:gql/implementors type-key] (fnil into #{}) types)))
+      (update-in [:schema/implementors type-key] (fnil into #{}) types)))
 
 (defn- enum-entry [m {:as type-map
                       :keys [type-key]}]
@@ -111,6 +144,12 @@
      :type-key type-key
      :description description
      :data data}))
+
+(def implementors-simple
+  (memoize
+   (fn [{:as registry
+         :keys [schema/implementors]}]
+     (u/update-map implementors typename #(into #{} (map typename) %)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -180,6 +219,8 @@
         (keyword? t) (keyword-append t "!")
         (map? t) (assoc t :required true)))
 
+(defrecord Root [])
+
 ;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;; Macros
@@ -188,24 +229,123 @@
   (let [[doc args] (if (string? (first args))
                      [(first args) (rest args)]
                      [nil args])
-        [params type-key] (if (vector? (first args))
-                            [(ffirst args) (second args)]
-                            [nil (first args)])]
-    {:name (str name)
-     :description doc
-     :args (some-> params
-                   (u/update-keys keyword))
-     :type-key type-key}))
+        [options args] (if (map? (first args))
+                         [(first args) (rest args)]
+                         [nil args])
+        [arglist body-1] (if (vector? (first args))
+                           [(first args) (second args)]
+                           [nil (first args)])]
+    [name doc options arglist body-1]))
 
-(m/defn ^:private def-field [[name & args]]
-  (let [type-map (parse-args (cons name args))]
-    `(def ~name ~type-map)))
+(m/defn ^:private field [operation [name & args]]
+  (let [[name doc options arglist body-1] (parse-args (cons name args))
+        type-map (-> {:name (str name)
+                      :description doc
+                      :args (or (some-> (first arglist)
+                                        (u/update-keys keyword))
+                                {})
+                      :type-key body-1}
+                     (assoc :operation operation))]
+    `(merge (new Root)
+            {:schema/type-map ~type-map
+             :root/variables {}
+             :root/options {}}
+            ~options)))
 
-(m/defmacro query [name & [doc params return-type]]
-  (def-field [name doc params return-type]))
+(m/defmacro query [name & [doc options arglist return-type]]
+  (field :query [name doc options arglist return-type]))
 
-(m/defmacro mutation [name & [doc params return-type]]
-  (def-field [name doc params return-type]))
+(m/defmacro mutation [name & [doc options arglist return-type]]
+  (field :mutation [name doc options arglist return-type]))
 
-(m/defmacro subscription [name & [doc params return-type]]
-  (def-field [name doc params return-type]))
+(m/defmacro subscription [name & [doc options arglist return-type]]
+  (field :subscription [name doc options arglist return-type]))
+
+(m/defmacro defquery [name & [doc options arglist return-type]]
+  `(def ~name ~(field :query [name doc options arglist return-type])))
+
+(m/defmacro defmutation [name & [doc options arglist return-type]]
+  `(def ~name ~(field :mutation [name doc options arglist return-type])))
+
+(m/defmacro defsubscription [name & [doc options arglist return-type]]
+  `(def ~name ~(field :subscription [name doc options arglist return-type])))
+
+(s/def ::name string?)
+(s/def ::type-key (s/and keyword?
+                         registered-type?))
+(s/def ::type-key+ (s/or :type-key keyword?
+                         :type-key-plural (s/and vector?
+                                                 (s/coll-of keyword? :count 1))))
+(s/def ::type-args vector?)
+(s/def ::operation keyword?)
+(s/def ::description string?)
+(s/def ::implementation-of keyword?)
+(s/def ::fields-map (s/map-of keyword? ::type-key+))
+(s/def ::type-keys (s/coll-of ::type-key))
+(s/def ::enum-values (s/coll-of (s/or :string string?
+                                      :keyword keyword?)))
+
+(s/def ::type-map
+  (s/keys :req-un [::name
+                   ::type-key
+                   ::data
+                   ::implementation-of
+                   ::type-args]
+          :opt-un [::description
+                   ::operation]))
+
+(defn type-args [data-type]
+  (s/cat :type-key keyword?
+         :doc (s/? ::description)
+         :data data-type))
+
+(s/fdef object
+        :args (type-args ::fields-map)
+        :ret ::type-key)
+(s/fdef input
+        :args (type-args ::fields-map)
+        :ret ::type-key)
+(s/fdef interface
+        :args (type-args ::fields-map)
+        :ret ::type-key)
+(s/fdef union
+        :args (type-args ::type-keys)
+        :ret ::type-key)
+(s/fdef enum
+        :args (type-args ::enum-values)
+        :ret ::type-key)
+
+(s/def :graphql/cache
+  #?(:cljs #(satisfies? IDeref %)
+     :clj  #(instance? clojure.lang.Atom %)))
+
+(s/def :graphql/xvec
+  (s/and vector?
+         (s/cat :tag keyword?
+                :props (s/? map?)
+                :xkeys (s/* :graphql/xkey))))
+
+(s/def :graphql/xkey
+  (s/or :simple-key keyword?
+        :xvec-key :graphql/xvec
+        :splice (s/and seq?
+                       (s/coll-of :graphql/xkey))))
+
+
+
+(s/def :graphql/xkeys (s/coll-of :graphql/xkey))
+
+(s/def :root/xkeys :graphql/xkeys)
+
+(comment
+ (s/valid? :graphql/xkey (list :a [:b {}]))
+ (s/valid? :graphql/xkeys (list
+                           :a
+                           [:b {} :c]
+                           (map keyword ["d" "e"])
+                           )))
+
+#?(:cljs
+   (when goog/DEBUG
+     (set! s/*explain-out* expound/printer)
+     (st/instrument)))

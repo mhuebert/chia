@@ -6,6 +6,7 @@
 (def ^:dynamic *parse-tag* identity)
 (def ^:dynamic *emit-list* identity)
 (def ^:dynamic *emit-nonvec* identity)
+(def ^:dynamic *splice?* seq?)
 
 (defn ^:dynamic *emit-vec*
   "default implementation of `*emit-vec*` simply"
@@ -27,13 +28,17 @@
 (defn parse-vec
   "Return props and children for a hiccup form. If the second element is not a map, supplies an empty map as props."
   [form]
-  (let [len (count form)]
-    (cond (= len 1) [{} []]
-          (let [first-child (form 1)]
-            (or (nil? first-child)
-                (instance? PersistentArrayMap first-child)
-                (instance? PersistentHashMap first-child))) [(form 1) (if (> len 2) (subvec form 2 len) [])]
-          :else [{} (subvec form 1 len)])))
+  (try
+    (let [len (count form)]
+      (cond (= len 1) [{} []]
+            (let [first-child (form 1)]
+              (or (nil? first-child)
+                  #?(:cljs (instance? PersistentArrayMap first-child))
+                  (instance? PersistentHashMap first-child))) [(form 1) (if (> len 2) (subvec form 2 len) [])]
+            :else [{} (subvec form 1 len)]))
+    (catch js/Error e
+      (prn :error/parse-vec form)
+      (throw e))))
 
 (defn flatten-seqs
   "Recursively apply f to nested vectors, unwrapping seqs. Similar to recursive `mapcat` but returns a vector."
@@ -56,10 +61,11 @@
 
             (*emit-vec* tag props children))
 
-          (catch js/Error e
+          (catch #?(:cljs js/Error
+                    :clj Exception) e
             (println "Error in render-hiccup-node:")
             (println form)
-            (.error js/console e)))
+            #?(:cljs (.error js/console e))))
 
 
         (satisfies? IElement form)

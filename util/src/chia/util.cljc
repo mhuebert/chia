@@ -172,6 +172,15 @@
                 (if err# (reject# err#)
                          (resolve# result#)))))))
 
+(defn promise? [x]
+  #?(:cljs (= (js/Promise.resolve x) x)
+     :clj false))
+
 (defn ensure-prefix [s pfx]
   (cond->> s
            (not (str/starts-with? s pfx)) (str pfx)))
+
+(defn camel-case* [s]
+  (str/replace s #"-(.)" (fn [[_ s]] (str/upper-case s))))
+
+(def camel-case (memoize camel-case*))

@@ -10,7 +10,8 @@
             [cljs.js :as cljsjs]
             [chia.view.util :as util]
             [cljs.analyzer :as ana]
-            [cljs.env :as env]))
+            [cljs.env :as env]
+            [chia.util :as u]))
 
 (defonce compiler (cljsjs/empty-state))
 
@@ -155,7 +156,7 @@
                 :flex/row
                 :text/size-6]}
      [:div.text-nowrap.pad-right-2
-       (name var-name)]
+      (name var-name)]
      (doc-line doc)]))
 
 (v/defview ^:lark/egg view-namespace
@@ -175,13 +176,13 @@
                                 (get-in [::ana/namespaces ns-name])
                                 (select-keys [:defs :macros])
                                 (->> (sequence (comp (mapcat (comp vals second))
-                                                   (map #(assoc % :ns the-ns)))))
+                                                     (map #(assoc % :ns the-ns)))))
                                 (seq)
                                 (->> (group-by (fn [{:keys [meta doc macro]}]
-                                               (cond macro :macros
-                                                     (or (:lark/egg meta)
-                                                         doc) :defs-with-doc
-                                                     :else :defs-bare)))))]
+                                                 (cond macro :macros
+                                                       (or (:lark/egg meta)
+                                                           doc) :defs-with-doc
+                                                       :else :defs-bare)))))]
     (list [:div
            [:div {:classes [:flex/row.items-center
                             :margin/v-2
@@ -237,7 +238,7 @@
                          :subtree map?))
 
 (s/fdef view-tree
-        :args (s/cat :options map?
-                     :entry vector?))
+        :args (s/cat :map map?
+                     :vector vector?))
 
 (st/instrument)

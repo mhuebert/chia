@@ -16,10 +16,9 @@
   [expr set]
   (s/with-gen expr #(s/gen set)))
 
-(s/def ::primitive (s/or :string string?
-                         :number number?
-                         :nil nil?
-                         :boolean boolean?))
+(s/def ::primitive (s/nilable (s/or :string string?
+                                    :number number?
+                                    :boolean boolean?)))
 
 (s/def ::fn (-> fn?
                 (gen-set #{identity})))

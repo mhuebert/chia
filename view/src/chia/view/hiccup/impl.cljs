@@ -2,7 +2,8 @@
   (:require [clojure.string :as str]
             ["react" :as react]
             [chia.util.js-interop :as j]
-            [chia.util.perf :as perf]))
+            [chia.util.perf :as perf]
+            [chia.util :as u]))
 
 (defn parse-key
   "Parses a hiccup key like :div#id.class1.class2 to return the tag name, id, and classes.
@@ -44,9 +45,6 @@
            (assoc props attr (apply f (get form attr) args))]
           children)))
 
-(def camelCase
-  (memoize (fn [s] (str/replace s #"-([a-z])" (fn [[_ s]] (str/upper-case s))))))
-
 (defn key->react-attr
   "CamelCase react keys.
 
@@ -63,14 +61,14 @@
           (if (or (str/starts-with? s "data-")
                   (str/starts-with? s "aria-"))
             s
-            (camelCase s)))))
+            (u/camel-case s)))))
 
 (defn map->js
   "Return javascript object with camelCase keys. Not recursive."
   [style]
   (let [style-js (js-obj)]
     (doseq [[k v] style]
-      (aset style-js (camelCase (name k)) v))
+      (aset style-js (u/camel-case (name k)) v))
     style-js))
 
 (defn merge-classes
