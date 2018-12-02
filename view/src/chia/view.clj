@@ -4,7 +4,17 @@
             [chia.util :as u]
             [chia.view.util :as view-util]
             [clojure.core :as core]
+            [clojure.spec.alpha :as s]
    #_[cljs.tagged-literals :as cljs-literals]))
+
+(s/conform (s/cat :name (s/? symbol?)
+                  :doc (s/? string?)
+                  :options (s/? map?)
+                  :body (s/+ any?))
+           ['hello
+            ;"doc"
+            {:a 1}
+            "YO"])
 
 (defmacro ^:private apply-fn [f this]
   `(if-let [children# (.. ~this -state -children)]
@@ -35,9 +45,7 @@
 
 (defn- wrap-render-body
   "Wrap body in anonymous function form."
-  [name [argv & body] pure?]
-  (assert (vector? argv)
-          (str "View " name " is missing an argument vector"))
+  [name argv body pure?]
   `(~'fn ~(symbol (str "__" name)) ~argv
     ~(cond-> (to-element `(do ~@body))
              (not pure?) (wrap-current-view-binding))))
@@ -89,19 +97,32 @@
                                         :else :qualified-keys)) k] v)) {} methods)
       (update :unqualified-keys (comp ->js-with-camelCase bind-vals))))
 
+(defn parse-view-args [args]
+  (let [view-map (s/conform (s/cat :name (s/? symbol?)
+                                   :doc (s/? string?)
+                                   :view/options (s/? map?)
+                                   :view/arglist vector?
+                                   :view/body (s/+ any?))
+                            args)]
+    (assoc view-map :view/name
+                    (symbol (name (ns-name *ns*))
+                            (name (:name view-map))))))
 
-(defmacro view
-  [& args]
-  (let [[view-name docstring methods body] (view-util/parse-opt-args [symbol? string? map?] args)
-        display-name (get-display-name *ns* view-name)
-        {pure? :pure} (meta view-name)
+(defn- make-view [{:keys [name
+                          doc
+                          view/options
+                          view/arglist
+                          view/body]
+                   view-name :view/name}]
+  (let [display-name (get-display-name *ns* name)
+        {pure? :pure} (meta name)
         {:as methods
-         :keys [lifecycle-keys]} (-> methods
+         :keys [lifecycle-keys]} (-> options
                                      (merge (cond-> {;; TODO
                                                      ;; keep track of dev- vs prod-time, elide display-name and docstring in prod
                                                      :display-name display-name
-                                                     :view/render (wrap-render-body view-name body pure?)}
-                                                    docstring (assoc :docstring docstring)))
+                                                     :view/render (wrap-render-body name arglist body pure?)}
+                                                    doc (assoc :doc doc)))
                                      (group-methods))]
 
     (when (and pure? (seq (dissoc lifecycle-keys :view/render)))
@@ -109,8 +130,12 @@
                                                                                           :methods methods})))
 
     (if pure? (:view/render lifecycle-keys)
-              (let [constructor (make-constructor view-name)]
+              (let [constructor (make-constructor name)]
                 `(~'chia.view/view* ~methods ~constructor)))))
+
+(defmacro view
+  [& args]
+  (make-view (parse-view-args args)))
 
 (defmacro defview
   "Define a view function.
@@ -119,11 +144,18 @@
     the argslist and body for the render function, which should
     return a Hiccup vector or React element."
   [& args]
-  (let [[view-name docstring _] (view-util/parse-opt-args [symbol? string?] args)
-        _ (assert (symbol? view-name))]
-
-    `(def ~view-name ~@(some-> docstring (list))
-       (~'chia.view/view ~@args))))
+  (let [{:as view-map
+         :keys [name]
+         view-name :view/name} (parse-view-args args)]
+    `(do
+       (def ~(with-meta name
+                        (select-keys view-map [:doc
+                                               :view/arglist
+                                               :view/name]))
+         ~(make-view view-map))
+       (when ~'js/goog.DEBUG
+         (~'chia.view.registry/register-view! (var ~view-name)))
+       ~name)))
 
 (defmacro extend-view [view & args]
   `(clojure.core/specify!
@@ -170,3 +202,13 @@
 
  (assert (= (parse-view-args '(name []))
             '[name nil nil ([])])))
+
+(defmacro defspec [kw doc & args]
+  (let [[doc args] (if (string? doc)
+                     [doc args]
+                     [nil (cons doc args)])]
+    `(do
+       ~(when doc
+          `(when ~'js/goog.DEBUG
+             (swap! ~'chia.view.view-specs/spec-meta assoc ~kw {:doc ~doc})))
+       (clojure.spec.alpha/def ~kw ~@args))))

@@ -6,7 +6,8 @@
             ["prosemirror-state" :as state :refer [EditorState]]
             [chia.view :as v]
             [chia.util.js-interop :as j]
-            [chia.prosemirror.core :as pm]))
+            [chia.prosemirror.core :as pm]
+            [cljs.spec.alpha :as s]))
 
 ;; todo
 ;; Editor accepts :default-value and :value but is not an ordinary controlled component.
@@ -15,31 +16,58 @@
 ;; *INTERIM MEASURE* - a CHANGED :value prop will replace the current editor state, but
 ;; passing the same value does not prevent edits to the local editor state.
 
+(s/def ::input-rules vector?)
+
+(v/defspec ::doc
+           "A prosemirror doc"
+           object?)
+
+(v/defspec ::serialize
+           "Should convert a ProseMirror doc to Markdown."
+           fn?)
+
+(v/defspec ::parse
+           "Should convert a Markdown string ot a ProseMirror doc."
+           fn?)
+
+(v/defspec ::schema
+           "a ProseMirror schema"
+           #(and (j/contains? % :nodes)
+                 (j/contains? % :marks)))
+
+(v/defspec ::on-dispatch
+           "(this, EditorView) - called after every update."
+           fn?)
+
+(v/defspec ::editor-view-props
+           "Passed to the EditorView constructor."
+           map?)
+
+(v/defspec ::keymap
+           "Merged as the highest-priority keymap (http://prosemirror.net/docs/ref/#keymap)."
+           map?)
+
+(v/defspec ::default-value
+           "the initial editor state."
+           string?)
+
+(v/defspec ::value
+           "Behaves differently from ordinary React controlled inputs. When a *new/different* :value is passed, it replaces the current doc, but continuing to pass the same :value does not freeze local state."
+           string?)
 
 (v/defview Editor
   "A ProseMirror editor view."
-  {:spec/props {:input-rules :Vector
-                :doc {:spec object?
-                      :doc "A prosemirror doc"}
-                :serialize {:spec :Function
-                            :doc "Should convert a ProseMirror doc to Markdown."}
-                :parse {:spec :Function
-                        :doc "Should convert a Markdown string ot a ProseMirror doc."}
-                :schema {:spec #(and (j/contains? % :nodes)
-                                     (j/contains? % :marks))
-                         :doc "a ProseMirror schema"}
-                :on-dispatch {:spec :Function
-                              :doc "(this, EditorView) - called after every update."}
-                :editor-view-props {:spec :Map
-                                    :doc "Passed to the EditorView constructor."}
-                :keymap {:spec :Map
-                         :doc "Merged as the highest-priority keymap (http://prosemirror.net/docs/ref/#keymap)."}
-                :default-value {:spec :String
-                                :doc "Parsed as the initial editor state."
-                                :pass true}
-                :value {:spec :String
-                        :doc "Behaves differently from ordinary React controlled inputs. When a *new/different* :value is passed, it replaces the current doc, but continuing to pass the same :value does not freeze local state."
-                        :pass true}}
+  {:spec/props (s/keys :opt-un
+                       [::input-rules
+                        ::doc
+                        ::serialize
+                        ::parse
+                        ::schema
+                        ::on-dispatch
+                        ::editor-view-props
+                        ::keymap
+                        ::default-value
+                        ::value])
    :view/did-mount (fn [{:keys [value
                                 default-value
                                 on-dispatch
@@ -92,7 +120,8 @@
                         (pm/destroy! (:pm-view @state)))}
   [this]
   [:.prosemirror-content
-   (-> (v/pass-props this)
+   (-> (:view/props this)
+       (select-keys [:class :style])
        (assoc :dangerouslySetInnerHTML {:__html ""}))])
 
 (v/extend-view Editor

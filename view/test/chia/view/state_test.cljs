@@ -41,7 +41,7 @@
 
     (let [log (atom [])
           el (get-el)
-          view (v/view [{:keys [db/id]}]
+          view (v/view x [{:keys [db/id]}]
                  (swap! log conj (d/get id :name))
                  [:div "hello"])
           render #(v/render-to-dom (view {:db/id %}) el)]

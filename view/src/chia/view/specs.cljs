@@ -2,12 +2,12 @@
   (:require [cljs.spec.alpha :as s :include-macros true]
             [cljs.spec.gen.alpha :as gen]
             [chia.view.hiccup.spec]
-            [chia.view :include-macros true]))
+            [chia.view :as v :include-macros true]))
 
 
-(s/fdef chia.view/defview
+(s/fdef v/defview
         :args (s/cat :name symbol?
-                     :docstring (s/? string?)
+                     :doc (s/? string?)
                      :methods (s/? (s/map-of keyword? any?))
                      :args vector?
                      :body (s/cat :side-effects (s/* any?)

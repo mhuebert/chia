@@ -10,7 +10,9 @@
             ["react-dom" :as react-dom]
             ["react" :as react]
             [clojure.core :as core]
-            [chia.util.js-interop :as j])
+            [chia.util.js-interop :as j]
+            [chia.view.registry :as registry]
+            [clojure.spec.alpha :as s])
   (:require-macros [chia.view :as v]))
 
 (def Component react/Component)
@@ -261,31 +263,27 @@
 
   constructor)
 
-(defn normalize-spec-keys [{:keys [spec/props
-                                   spec/children]
-                            :as m}]
-  (cond-> m
-          props (update :spec/props vspec/normalize-props-map)
-          children (update :spec/children vspec/resolve-spec-vector)))
-
-(defn validate-args! [{:keys [unqualified-keys qualified-keys]} props children]
-  (let [display-name (j/get unqualified-keys :displayName)]
-    (vspec/validate-props display-name (get qualified-keys :spec/props) props)
-    (vspec/validate-children display-name (get qualified-keys :spec/children) children)))
+(defn validate-specs [{prop-spec :spec/props
+                       children-spec :spec/children} props children]
+  (some-> prop-spec
+          (s/explain-data props)
+          (js/console.warn))
+  (some-> children-spec
+          (s/explain-data children)
+          (js/console.warn)))
 
 (defn- view*
   "Return a React element factory."
   [view-base constructor]
-  (let [view-base (update view-base :qualified-keys normalize-spec-keys)
-        constructor (extend-constructor view-base constructor)]
+  (let [constructor (extend-constructor view-base constructor)]
     (doto (fn [props & children]
             (let [[{:as props
                     :keys [ref]} children] (if (or (map? props)
                                                    (nil? props))
                                              [props children]
                                              [nil (cons props children)])]
-              (when goog.DEBUG
-                (validate-args! view-base props children))
+              (when js/goog.DEBUG
+                (validate-specs (:qualified-keys view-base) props children))
 
               (react/createElement constructor #js {"key" (str (get-element-key props children constructor))
                                                     "ref" ref
