@@ -1,10 +1,9 @@
 (ns chia.graphql.request
   (:refer-clojure :exclude [catch])
   (:require ["unfetch" :as unfetch]
-            [chia.graphql.string :as string]
+            [chia.graphql.printer :as string]
             [chia.util.js-interop :as j]
-            [chia.util :as u]
-            [cljs.spec.alpha :as s]))
+            [chia.util :as u]))
 
 (defn ->promise ^js [x]
   (cond-> x
@@ -27,7 +26,7 @@
                    (clj->js))))
 
 (defn post!
-  [{:as options
+  [{:as   options
     :keys [token
            url]} form variables]
   (let [query-string (-> (string/emit form)
@@ -37,24 +36,11 @@
         (then
          (fn [token]
            (fetch url
-                  {:method "POST"
+                  {:method      "POST"
                    :credentials "include"
-                   :headers (cond-> {:Content-Type "application/json"}
-                                    token (assoc :Authorization (str "Bearer: " token)))
-                   :body {:query query-string
-                          :variables variables}})))
+                   :headers     (cond-> {:Content-Type "application/json"}
+                                        token (assoc :Authorization (str "Bearer: " token)))
+                   :body        {:query     query-string
+                                 :variables variables}})))
         (then #(j/call % :json)))))
 
-(s/def ::token (s/or :string string?
-                     :fn fn?
-                     :promise u/promise?))
-
-(s/def ::url string?)
-
-(s/def ::api-options (s/keys :req-un [::token
-                                      ::url]))
-
-(s/fdef post!
-        :args (s/cat :options ::api-options
-                     :form :graphql/xvec
-                     :variables (s/nilable map?)))

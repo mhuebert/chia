@@ -7,7 +7,7 @@
             [chia.view :as v]
             [chia.util.js-interop :as j]
             [chia.prosemirror.core :as pm]
-            [cljs.spec.alpha :as s]))
+            [clojure.spec.alpha :as s]))
 
 ;; todo
 ;; Editor accepts :default-value and :value but is not an ordinary controlled component.

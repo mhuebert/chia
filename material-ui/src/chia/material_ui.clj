@@ -6,8 +6,9 @@
   ([the-name]
    `(~'chia.material-ui/defm ~the-name {}))
   ([the-name options]
-   `(def ~the-name (~'chia.view/adapt-react-class (update ~options
-                                                          :->js-keys conj :classes)
+   `(def ~the-name (~'chia.view/adapt-react-class (-> ~options
+                                                      (update :->js-keys conj :classes)
+                                                      (update :lift-nses (fnil conj #{}) "material"))
                     ~(-> the-name
                          (name)
                          (str/capitalize)

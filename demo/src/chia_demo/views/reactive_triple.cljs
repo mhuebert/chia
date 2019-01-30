@@ -18,8 +18,7 @@
   {:key :id
    :props/consumed #{:path}}
   [{:keys [id
-           view/state
-           view/classes] :as this} parent-angle]
+           view/state] :as this} parent-angle]
   [:div.bg-darken-1.b--darken-4.ma1.flex.flex-row.items-center.justify-center.flex-wrap.relative.br3.overflow-hidden.ba
    {:style {:background-color (t/get id :color)
             :margin 10

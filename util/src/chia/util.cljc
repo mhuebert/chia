@@ -60,6 +60,11 @@
             (cond-> m
                     (contains? m k) (assoc k (f (get m k))))) m ks))
 
+(defn update-some [m updaters]
+  (reduce-kv (fn [m k update-f]
+               (cond-> m
+                       (contains? m k) (update k update-f))) m updaters))
+
 (defn find-first [pred coll]
   (first (filter pred coll)))
 
@@ -147,10 +152,10 @@
 
 (comment
  (= (user-bindings '[a 4
-                     {:as m
+                     {:as   m
                       :keys [b :c ::d x/e]
-                      [f] :n
-                      g :o} {}])
+                      [f]   :n
+                      g     :o} {}])
     '[a m b :c ::d x/e f g]))
 
 (defmacro log-let [bindings & body]
@@ -174,13 +179,82 @@
 
 (defn promise? [x]
   #?(:cljs (= (js/Promise.resolve x) x)
-     :clj false))
+     :clj  false))
 
 (defn ensure-prefix [s pfx]
   (cond->> s
            (not (str/starts-with? s pfx)) (str pfx)))
 
+(defn strip-prefix [s prefix]
+  (cond-> s
+          (str/starts-with? s prefix) (subs (count prefix))))
+
 (defn camel-case* [s]
   (str/replace s #"-(.)" (fn [[_ s]] (str/upper-case s))))
 
 (def camel-case (memoize camel-case*))
+
+(defn simplify-keyword [k]
+  (keyword (name k)))
+
+(defn merge-maps [x y]
+  (if (and (map? y)
+           (or (map? x)
+               (nil? x)))
+    (merge x y)
+    y))
+
+(defn deep-merge-maps [& ms]
+  (apply merge-with merge-maps ms))
+
+(defn update-first [coll pred update-f]
+  (let [end (count coll)]
+    (loop [i 0]
+      (cond (>= i end) (do (prn [:update-first/not-found pred])
+                           coll)
+
+            (pred (nth coll i))
+            (assoc coll i (update-f (nth coll i)))
+
+            :else
+            (recur (inc i))))))
+
+(defn dissoc-ns [m ns-key]
+  (let [ns (name ns-key)]
+    (->> (keys m)
+         (reduce (fn [m k]
+                   (cond-> m
+                           (= ns (namespace k)) (dissoc k))) m))))
+
+(defn group-ns [m & {:keys [lift?]}]
+  (reduce-kv (fn [m k v]
+               (let [path (if (keyword? k)
+                            (if-let [ns (namespace k)]
+                              [ns (if lift?
+                                    (keyword (name k))
+                                    k)]
+                              [:_ k])
+                            [:_ k])]
+                 (assoc-in m path v))) {} m))
+
+(defn select-ns
+  [m ns-key & {:keys [lift?]}]
+  (let [ns (case ns-key
+             :_ nil
+             ns-key)]
+    (->> m
+         (reduce-kv (fn [m k v]
+                      (cond-> m
+                              (and (keyword? k)
+                                   (= ns (namespace k))) (assoc (if lift?
+                                                                  (keyword (name k))
+                                                                  k) v))) {}))))
+
+(defn lift-nses [m nses]
+  (reduce-kv (fn [m k v]
+               (if (and (keyword? k)
+                        (contains? nses (namespace k)))
+                 (-> m
+                     (dissoc k)
+                     (assoc (keyword (name k)) v))
+                 m)) m m))

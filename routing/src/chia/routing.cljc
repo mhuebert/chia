@@ -41,9 +41,9 @@
   "Returns map of parsed location information for path."
   [path]
   (let [uri (uri/uri path)]
-    {:path (:path uri)
+    {:path     (:path uri)
      :segments (segments (:path uri))
-     :query (query uri)
+     :query    (query uri)
      :fragment (:fragment uri)}))
 
 ;; From http://www.lispcast.com/mastering-client-side-routing-with-secretary-and-goog-history
@@ -115,9 +115,9 @@
      "Navigates to current route with query-string replaced by the provided `query` map."
      [query]
      (let [location (.-location js/window)]
-       (-> (uri/map->URI {:path (.-pathname location)
+       (-> (uri/map->URI {:path     (.-pathname location)
                           :fragment (.-hash location)
-                          :query (query-string query)})
+                          :query    (query-string query)})
            (str)
            (nav!)))))
 
@@ -147,28 +147,39 @@
    (def ^:dynamic *click-event* nil))
 
 #?(:cljs
+   (defn external? [link-element]
+     (let [^js location (.-location js/window)]
+       (or (not= (.-host location) (.-host link-element))
+           (not= (.-protocol location) (.-protocol link-element))))))
+
+#?(:cljs
+   (defn valid-anchor? [link-element]
+     (let [^js location (.-location js/window)]
+       (and (.-hash link-element)
+            (= (.-pathname location) (.-pathname link-element))
+            (not= (.-hash location) (.-hash link-element))
+            (.getElementById js/document (subs (.-hash link-element) 1))))))
+
+#?(:cljs
    (defn click-event-handler
      "Intercept clicks on links with valid pushstate hrefs. Callback is passed the link's href value."
-     [callback e]
-     (when-let [link (closest (.-target e) link?)]
-       (let [location ^js (.-location js/window)
-             ;; in IE/Edge, link elements do not expose an `origin` attribute
-             origin (str (.-protocol location)
-                         "//"
-                         (.-host location))
-             ;; check to see if we should let the browser handle the link
-             ;; (eg. external link, or valid hash reference to an element on the page)
-             handle-natively? (or (not= (.-host location) (.-host link))
-                                  (not= (.-protocol location) (.-protocol link))
-                                  ;; if only the hash has changed, & element exists on page, allow browser to scroll there
-                                  (and (.-hash link)
-                                       (= (.-pathname location) (.-pathname link))
-                                       (not= (.-hash location) (.-hash link))
-                                       (.getElementById js/document (subs (.-hash link) 1))))]
-         (when-not handle-natively?
+     [callback ^js e]
+     (when-let [link-element (closest (.-target e) link?)]
+       (let [ignore-click? (or (external? link-element)
+                               (valid-anchor? link-element)
+                               (.-defaultPrevented e))]
+         (when-not ignore-click?
            (.preventDefault e)
            (binding [*click-event* e]
-             (callback (str/replace (.-href link) origin ""))))))))
+             (let [location ^js (.-location js/window)
+                   ;; in IE/Edge, link elements do not expose an `origin` attribute
+                   origin (str (.-protocol location)
+                               "//"
+                               (.-host location))]
+               (callback (str/replace (.-href link-element) origin "")))))))))
+
+#?(:cljs
+   (def root-click-listener (partial click-event-handler nav!)))
 
 #?(:cljs
    (def intercept-clicks
@@ -180,7 +191,7 @@
            (intercept js/document)))
         ([element]
          (when browser?
-           (.addEventListener element "click" (partial click-event-handler nav!))))))))
+           (.addEventListener element "click" root-click-listener)))))))
 
 #?(:cljs
    (defn listen
@@ -194,8 +205,8 @@
       (listen listener {}))
      ([listener {:keys [fire-now?
                         intercept-clicks?]
-                 :or {fire-now? true
-                      intercept-clicks? true}}]
+                 :or   {fire-now?         true
+                        intercept-clicks? true}}]
       (when intercept-clicks? (intercept-clicks))
       (when fire-now? (listener (parse-path (get-route))))
       (let [cb (fn [e]

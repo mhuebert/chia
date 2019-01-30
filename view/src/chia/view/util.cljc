@@ -2,7 +2,7 @@
   (:refer-clojure :exclude [uuid])
   (:require [chia.util.js-interop :as j]))
 
-(defn update-attrs [el f & args]
+(defn update-props [el f & args]
   (if-not (vector? el)
     el
     (let [attrs? (map? (second el))]
@@ -11,7 +11,7 @@
 
 (defn ensure-keys [forms]
   (let [seen #{}]
-    (map-indexed #(update-attrs %2 update :key (fn [k]
+    (map-indexed #(update-props %2 update :key (fn [k]
                                                  (if (or (nil? k) (contains? seen k))
                                                    %1
                                                    (do (swap! seen conj k)
@@ -44,11 +44,6 @@
           (-> (.createElement js/document (name tag))
               (j/assoc! :id (name id))
               (->> (.appendChild (.-body js/document))))))))
-
-
-(def __deprecated-keys #{:view/will-receive-props
-                         :view/will-update
-                         :view/will-mount})
 
 (def lifecycle-keys
   "Mapping of methods-map keys to React lifecycle keys."

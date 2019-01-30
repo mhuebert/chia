@@ -1,10 +1,12 @@
 (ns chia-demo.views.context
   (:require [chia.view :as v]
-            [chia.view.context :as c]))
+            [chia.view.context :as c]
+            [chia.reactive :as r]))
 
 (defn counter []
   (let [{:keys [view/state]} v/*current-view*]
-    (v/swap-silently! state update :count (fnil inc 0))
+    (r/silently
+     (swap! state update :count (fnil inc 0)))
     [:div (str "Renders:" (:count @state 0))]))
 
 (defn clicks []

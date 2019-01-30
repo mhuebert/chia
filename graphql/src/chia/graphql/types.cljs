@@ -19,24 +19,16 @@
 (def List graphql/GraphQLList)
 (def Schema graphql/GraphQLSchema)
 
-(defn primitive [k]
+(defn scalar [k]
   (case k
     :String String
     :Int Int
     :Float Float
     :Boolean Boolean
     :ID ID
-    :NonNull NonNull
-    :Object Object
-    :InputObject InputObject
-    :Interface Interface
-    :Union Union
-    :Enum Enum
-    :List List
-    :Schema Schema
     nil))
 
-(defn constructors [k]
+(defn composite [k]
   (case k
     :Object Object
     :InputObject InputObject
@@ -44,5 +36,9 @@
     :Union Union
     :Enum Enum
     nil))
+
+(defn builtin [k]
+  (or (scalar k)
+      (composite k)))
 
 (def type? graphql/isType)

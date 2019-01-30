@@ -10,7 +10,7 @@
 
 (defonce base (f-styles/base {:unit unit}))
 
-(def classes* (jss/make-classes
+(def classes* (jss/classes!
                (-> (f-styles/base {:unit unit})
                    (update "@global" merge
                            (f-styles/color-styles {:orange "#fa7921"

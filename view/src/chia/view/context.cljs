@@ -15,9 +15,9 @@
 (defonce lookup-context
          (memoize
           (fn ^js [k]
-            (if (keyword? k)
-              (create-context (munge (str k)))
-              k))))
+            (if (object? k)
+              k
+              (create-context)))))
 
 (defn provide
   "Adds React contexts to the component tree.
@@ -48,7 +48,6 @@
       (j/get :Consumer)
       (create-element #js {} #(context-observer {:view-fn f
                                                  :context-value %}))))
-
 
 (comment
 

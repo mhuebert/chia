@@ -1,7 +1,6 @@
 (ns chia.triple-db
   (:refer-clojure :exclude [get get-in contains? select-keys namespace])
-  (:require [chia.triple-db.core :as d])
-  (:require-macros [chia.triple-db]))
+  (:require [chia.triple-db.core :as d]))
 
 (defonce ^:dynamic *db* (d/create {}))
 

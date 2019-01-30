@@ -1,7 +1,7 @@
-(ns chia.graphql.string-test
-  (:require [chia.graphql.string :as string]
+(ns chia.graphql.printer-test
+  (:require [chia.graphql.printer :as string]
             [cljs.test :as t :refer [is are]]
-            [clojure.string :as str]))
+            [chia.graphql.specs]))
 
 (t/deftest emit
 

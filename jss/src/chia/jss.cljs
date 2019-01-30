@@ -2,10 +2,9 @@
   (:require ["jss" :as jss]
             ["reset-jss" :as reset-jss]
             ["jss-preset-default" :default jss-preset]
-            [chia.view :as v]
             [chia.util.js-interop :as j]
-            [chia.view.util :as vu]
-            [goog.object :as gobj]))
+            [chia.view.util :as vu]))
+
 
 (def JSS
   (memoize
@@ -17,14 +16,22 @@
      ([presets]
       (jss/create presets)))))
 
-(def global-reset!
-  (memoize
-   (fn []
-     (-> ^js (JSS)
-         (.createStyleSheet reset-jss)
-         (.attach)))))
+(defonce global-reset!
+         (memoize
+          (fn []
+            (-> ^js (JSS)
+                (.createStyleSheet reset-jss)
+                (.attach)))))
 
-(def make-classes
+(defonce ^js page-styles
+         (memoize
+          (fn []
+            (when (exists? js/window)
+              (-> (JSS)
+                  (j/call :createStyleSheet #js {})
+                  (j/call :attach))))))
+
+(def classes!
   (memoize
    (fn [styles]
      (-> ^js (JSS)
@@ -33,13 +40,15 @@
          (j/get :classes)
          (js->clj :keywordize-keys true)))))
 
+(def class!
+  (memoize
+   (fn [styles]
+     (-> (classes! {:inline styles})
+         :inline)
+     #_(let [^js rule (.addRule (page-styles) (clj->js styles))]
+         (.-className rule)))))
+
 (defn to-string [styles]
   (-> ^js (JSS)
       (.createStyleSheet (clj->js styles))
       (str)))
-
-(defn enable-view-jss-classes! []
-  (defmethod v/component-lookup :view/classes
-    [this _ _]
-    (some-> (v/class-get this :view/classes)
-            (make-classes))))

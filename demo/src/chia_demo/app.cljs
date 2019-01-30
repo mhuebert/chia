@@ -22,7 +22,7 @@
 
 (v/defview show-section
   {:key (fn [_ handler] (v/class-get handler :demo/title))}
-  [{:keys [view/classes]} handler & args]
+  [_ handler & args]
   (let [label (v/class-get handler :demo/title)
         expanded? (db/get-in [:section label :expanded?] true)]
     (cond-> [:div.pa2.bg-darken-2.hover-bg-darken-3.pointer.flex.flex-row.items-center.bt.bw1.b--darken-4

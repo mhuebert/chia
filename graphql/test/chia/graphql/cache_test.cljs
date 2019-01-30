@@ -3,7 +3,9 @@
             [chia.graphql.normalize :as n]
             [chia.graphql.schema :as schema]
             [chia.triple-db.core :as d]
-            [chia.graphql.root :as root]))
+            [chia.graphql.root :as root]
+            [chia.graphql.specs]
+            [cljs.pprint :as pp]))
 
 (def parent-fields
   [:.../parent-fields {:on :Human}
@@ -21,7 +23,7 @@
    :name
    [:NAME {:graphql/alias-of :name}]
 
-   [:photo {:width 10
+   [:photo {:width  10
             :height 10}]
    [:pets pet-fields]])
 
@@ -46,12 +48,18 @@
                   (root/add-to-cache! request
                                       (clj->js {:data data})))]
     (root/read-root cache request)))
-
+(-> (round-trip
+     (schema/query me
+       {:root/xkeys [:name]} [] :_)
+     {:me {:name "Henry"}})
+    :me
+    :name
+    (= "Henry"))
 (test/deftest graphql-cache
 
   (is (-> (round-trip
            (schema/query me
-             {:root/xkeys [:name]} [])
+             {:root/xkeys [:name]} [] :_)
            {:me {:name "Henry"}})
           :me
           :name
@@ -60,7 +68,7 @@
 
   (is (-> (round-trip
            (schema/mutation me
-             {:root/xkeys [:name]} [])
+             {:root/xkeys [:name]} [] :_)
            {:me {:name "Henry"}})
           :me
           :name
@@ -71,9 +79,9 @@
             _ (root/add-to-cache! cache
                                   [:... :id :name
                                    [:pets :id :name]]
-                                  (clj->js {:data {:id "A"
+                                  (clj->js {:data {:id   "A"
                                                    :name "Henry"
-                                                   :pets [{:id "B"
+                                                   :pets [{:id   "B"
                                                            :name "Bertrand"}]}}))
             result (n/read-keys cache "A"
                                 :id
@@ -89,14 +97,14 @@
         anonymous-fragment [:... :happy?]]
     (is (-> (round-trip (-> (schema/query me
                               {:root/xkeys [named-fragment
-                                               inline-fragment
-                                               anonymous-fragment
-                                               [:... {:on "Pet"} :furry?]]}
-                              []))
-                        {:me {:name "Henry"
-                              :hobby "curling"
-                              :furry? true
-                              :happy? true
+                                            inline-fragment
+                                            anonymous-fragment
+                                            [:... {:on "Pet"} :furry?]]}
+                              [] :_))
+                        {:me {:name       "Henry"
+                              :hobby      "curling"
+                              :furry?     true
+                              :happy?     true
                               :__typename "Person"}})
             :me
             ((juxt :name :hobby :furry? :happy?))
@@ -106,9 +114,9 @@
   (is (-> (round-trip
            (schema/query me
              {:root/xkeys [:name
-                              [:NAME {:graphql/alias-of :name
-                                      :other-param "prevents-overwrite"}]]}
-             [])
+                           [:NAME {:graphql/alias-of :name
+                                   :other-param      "prevents-overwrite"}]]}
+             [] :_)
            {:me {:name "Henry"
                  :NAME "HENRY"}})
           :me
@@ -119,15 +127,15 @@
   (is (= (->> (round-trip
                (schema/query me
                  {:root/xkeys [[:pets
-                                   :id
-                                   [:... {:on "Pet"} :name]]]}
-                 [])
-               {:me {:pets [{:id "B"
-                             :name "Bob"
-                             :__typename "Pet"}
-                            {:id "C"
-                             :name "Candy"
-                             :__typename "Pet"}]
+                                :id
+                                [:... {:on "Pet"} :name]]]}
+                 [] :_)
+               {:me {:pets       [{:id         "B"
+                                   :name       "Bob"
+                                   :__typename "Pet"}
+                                  {:id         "C"
+                                   :name       "Candy"
+                                   :__typename "Pet"}]
                      :__typename "Person"}})
               :me
               :pets
@@ -138,9 +146,9 @@
 
   (is (-> (round-trip
            (schema/query me
-             {:root/xkeys [[:label {:locale :$locale}]]
+             {:root/xkeys     [[:label {:locale :$locale}]]
               :root/variables {:locale "en"}}
-             [{locale :String}])
+             [{locale :String}] :_)
            {:me {:label "Breakfast"}})
           :me
           :label
@@ -148,12 +156,12 @@
       "Root query with parameters")
 
   (is (let [req (schema/query membership
-                  {:root/xkeys [:id
-                                   :unread-count]
-                   :root/variables {:id 10
-                                       :unread-count 1}}
-                  [{id :String!}])
-            data {:membership {:id 10
+                  {:root/xkeys     [:id
+                                    :unread-count]
+                   :root/variables {:id           10
+                                    :unread-count 1}}
+                  [{id :String!}] :_)
+            data {:membership {:id           10
                                :unread-count 1}}]
         (-> (round-trip req data)
             :membership
@@ -162,7 +170,7 @@
       "Root query parameters, nested key")
 
   (-> (root/read-root cache
-                      (schema/query me {:root/xkeys [:name]} []))
+                      (schema/query me {:root/xkeys [:name]} [] :_))
       :me
       :name
       (= nil)
@@ -170,9 +178,9 @@
 
   (-> (round-trip (schema/query person
                     {:root/xkeys [[:pets :name]
-                                     [:houses :address]]}
-                    [])
-                  {:person {:pets nil
+                                  [:houses :address]]}
+                    [] :_)
+                  {:person {:pets   nil
                             :houses []}})
       :person
       ((juxt :pets :houses))
@@ -182,12 +190,42 @@
   (-> (round-trip
        (schema/mutation sessionEnd
          {:root/xkeys [[:... {:on :BooleanResponse}
-                           :value
-                           :message]]}
-         [])
+                        :value
+                        :message]]}
+         [] :_)
        {:sessionEnd {:value true, :message nil, :__typename "BooleanResponse"}, :__typename "Mutation"})
       :sessionEnd
       :value
       (= true)
-      (is "Mutations work")))
+      (is "Mutations work"))
+
+  (let [q1 (schema/query person {:root/xkeys [:id
+                                              [:name :first]]} [] :_)
+        q2 (schema/query person {:root/xkeys [:id
+                                              [:name :last]]} [] :_)
+        cache (d/create)]
+    (root/add-to-cache! cache q1
+                        (clj->js {:data {:person {:id   1
+                                                  :name {:first "Herman"}}}}))
+
+    (root/add-to-cache! cache q2
+                        (clj->js {:data {:person {:id   1
+                                                  :name {:last "Hesse"}}}}))
+    (let [whole-name (-> (n/read-keys cache 1 {} :id [:name :first :last])
+                         :name)]
+
+      (is (= ((juxt :first :last) whole-name)
+             ["Herman" "Hesse"])
+          "Maps are merged when adding keys to the cache")
+
+      (root/add-to-cache! cache q1
+                          (clj->js {:data {:person {:id 1
+                                                    :name nil}}}))
+
+      (-> (n/read-keys cache 1 {} :id [:name :first :last])
+          :name
+          (nil?)
+          (is "Map can be removed")))
+
+    #_(pp/pprint (:eav @cache))))
 

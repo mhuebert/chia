@@ -1,11 +1,9 @@
 (ns chia.view
-  (:refer-clojure :exclude [for])
   (:require [clojure.string :as str]
             [chia.util :as u]
             [chia.view.util :as view-util]
             [clojure.core :as core]
-            [clojure.spec.alpha :as s]
-   #_[cljs.tagged-literals :as cljs-literals]))
+            [clojure.spec.alpha :as s]))
 
 (s/conform (s/cat :name (s/? symbol?)
                   :doc (s/? string?)
@@ -52,21 +50,22 @@
 
 
 
-(defn- make-constructor [the-name]
+(defn- make-constructor [the-name initial-state]
   (let [this-name (gensym)
-        fn-name (gensym the-name)]
-    `(fn ~fn-name [$props#]
+        fn-name (gensym the-name)
+        props-sym (gensym "props")]
+    `(fn ~fn-name [~props-sym]
        (core/this-as ~this-name
                      ;; super()
-                     (~'.call ~'chia.view/Component ~this-name $props#)
+                     (~'.call ~'chia.view/Component ~this-name ~props-sym)
                      ;; init internal state
                      (set! (~'.-state ~this-name) (~'js-obj))
                      ;; add count
                      (-> ~this-name
                          (~'goog.object/set "chia$order" (~'vswap! ~'chia.view/instance-counter inc)))
 
-                     ;; init state atom
-                     (~'chia.view/init-state-atom! ~this-name $props#)
+                     ~(when initial-state
+                        `(~'chia.view/populate-initial-state! ~this-name ~props-sym ~initial-state))
 
                      ;; return component
                      ~this-name))))
@@ -85,16 +84,25 @@
                                   (apply v# this# args#)))
                                v#)))) {} m))
 
+(def __deprecated-keys #{:view/will-receive-props
+                         :view/will-update
+                         :view/will-mount})
+
 (defn- group-methods
   "Groups methods by role in a React component."
   [methods]
   (-> (reduce-kv (fn [m k v]
-                   (assoc-in m [(let [the-ns (namespace k)]
-                                  (cond (= the-ns "static") :static-keys
-                                        (contains? view-util/lifecycle-keys k) :lifecycle-keys
-                                        (contains? view-util/__deprecated-keys k) (throw (ex-info "Deprecated React lifecycle key" {:key k}))
-                                        (nil? the-ns) :unqualified-keys
-                                        :else :qualified-keys)) k] v)) {} methods)
+                   (when (__deprecated-keys k)
+                     (throw (ex-info "Deprecated lifecycle key" {:key k})))
+                   (let [[group-k v] (case (namespace k)
+                                       "static" [:static-keys v]
+                                       "spec" [:spec-keys `(when ~'js/goog.DEBUG ~v)]
+                                       "view" (do (assert (view-util/lifecycle-keys k)
+                                                          (str "Unknown chia/view key: " k))
+                                                  [:lifecycle-keys v])
+                                       nil [:unqualified-keys v]
+                                       [:qualified-keys v])]
+                     (assoc-in m [group-k k] v))) {} methods)
       (update :unqualified-keys (comp ->js-with-camelCase bind-vals))))
 
 (defn parse-view-args [args]
@@ -108,7 +116,7 @@
                     (symbol (name (ns-name *ns*))
                             (name (:name view-map))))))
 
-(defn- make-view [{:keys [name
+(defn- field-view [{:keys [name
                           doc
                           view/options
                           view/arglist
@@ -118,6 +126,7 @@
         {pure? :pure} (meta name)
         {:as methods
          :keys [lifecycle-keys]} (-> options
+                                     (dissoc :view/initial-state)
                                      (merge (cond-> {;; TODO
                                                      ;; keep track of dev- vs prod-time, elide display-name and docstring in prod
                                                      :display-name display-name
@@ -130,12 +139,12 @@
                                                                                           :methods methods})))
 
     (if pure? (:view/render lifecycle-keys)
-              (let [constructor (make-constructor name)]
+              (let [constructor (make-constructor name (:view/initial-state options))]
                 `(~'chia.view/view* ~methods ~constructor)))))
 
 (defmacro view
   [& args]
-  (make-view (parse-view-args args)))
+  (field-view (parse-view-args args)))
 
 (defmacro defview
   "Define a view function.
@@ -146,15 +155,15 @@
   [& args]
   (let [{:as view-map
          :keys [name]
-         view-name :view/name} (parse-view-args args)]
+         view-name :view/name} (parse-view-args args)
+        name (with-meta name (merge
+                              (meta name)
+                              (select-keys view-map [:doc
+                                                     :view/arglist
+                                                     :view/name])))]
     `(do
-       (def ~(with-meta name
-                        (select-keys view-map [:doc
-                                               :view/arglist
-                                               :view/name]))
-         ~(make-view view-map))
-       (when ~'js/goog.DEBUG
-         (~'chia.view.registry/register-view! (var ~view-name)))
+       (def ~name ~(field-view view-map))
+       (~'chia.view.registry/register-view! (var ~view-name))
        ~name)))
 
 (defmacro extend-view [view & args]
@@ -187,28 +196,10 @@
                    (fn [this#] (~on-unmount this# ~val-sym))))
               ~val-sym))))))
 
-(comment
- (assert (= (parse-view-args '(name "a" {:b 1} [c] 1 2))
-            '[name "a" {:b 1} ([c] 1 2)]))
-
- (assert (= (parse-view-args '(name {} [] 1 2))
-            '[name nil {} ([] 1 2)]))
-
- (assert (= (parse-view-args '(name "a" [] 1 2))
-            '[name "a" nil ([] 1 2)]))
-
- (assert (= (parse-view-args '(name [] 1 2))
-            '[name nil nil ([] 1 2)]))
-
- (assert (= (parse-view-args '(name []))
-            '[name nil nil ([])])))
-
 (defmacro defspec [kw doc & args]
   (let [[doc args] (if (string? doc)
                      [doc args]
                      [nil (cons doc args)])]
-    `(do
-       ~(when doc
-          `(when ~'js/goog.DEBUG
-             (swap! ~'chia.view.view-specs/spec-meta assoc ~kw {:doc ~doc})))
+    `(when ~'js/goog.DEBUG
+       (swap! ~'chia.view.view-specs/spec-meta assoc ~kw {:doc ~doc})
        (clojure.spec.alpha/def ~kw ~@args))))

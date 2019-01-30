@@ -1,6 +1,7 @@
 (ns chia.graphql
   (:require [chia.util :as u]
-            [chia.x-vec :as x]))
+            [chia.x-vec :as x]
+            [clojure.string :as str]))
 
 (defn options [form]
   (some-> (second form)
@@ -9,14 +10,16 @@
 (defn get-operation [form]
   (some-> (first form)
           (namespace)
+          (as-> x ({"..." "fragment"} x x))
+          (str/lower-case)
           (u/guard #{"query"
                      "mutation"
                      "fragment"
                      "..."})
-          (as-> x (get {"..." "fragment"} x x))
           (keyword)))
 
-(defn children [form]
+(defn children
+  [form]
   (-> (x/parse-vec form)
       second))
 

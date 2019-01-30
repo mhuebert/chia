@@ -46,16 +46,15 @@
           children)))
 
 (defn key->react-attr
-  "CamelCase react keys.
+  "Return js (react) key for keyword/string.
 
-  Exceptions:
-   - aria- and data- attributes
-   - namespaced keywords (:custom/attr => 'custom-attr')"
+  - Namespaced keywords are ignored
+  - area- and data- prefixed keys are not camelCased
+  - other keywords are camelCased"
   [k]
   (cond (string? k) k
+        (namespace k) nil
         (perf/identical? :for k) "htmlFor"
-        (and (keyword? k)
-             (namespace k)) (str (namespace k) "-" (name k))
         :else
         (let [s (name k)]
           (if (or (str/starts-with? s "data-")
@@ -99,17 +98,12 @@
            prop-js (cond-> (js-obj)
                            k-id (j/assoc! :id k-id)
                            className (j/assoc! :className className))]
-       (when props
-         (doseq [[k v] props]
-           (cond
-             ;; convert :style and :dangerouslySetInnerHTML to js objects
-             (or (perf/identical? :style k)
-                 (perf/identical? :dangerouslySetInnerHTML k))
-             (unchecked-set prop-js (name k) (map->js v))
-             ;; ignore className-related keys
-             (perf/identical? :class k) nil
-             ;; passthrough all other values
-             :else (unchecked-set prop-js (key->react-attr k) v))))
+       (doseq [[k v] (dissoc props :class)]
+         (when-let [js-key (key->react-attr k)]
+           (unchecked-set prop-js js-key (cond-> v
+                                                 (perf/keyword-in? [:style
+                                                                    :dangerouslySetInnerHTML] k)
+                                                 (map->js)))))
        prop-js))))
 
 (defn js-conj [ar x]

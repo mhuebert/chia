@@ -5,9 +5,10 @@
             [chia.graphql.types :as types]
             [chia.util :as u]
             [chia.util.js-interop :as j]
-            [clojure.spec.alpha :as s]))
+            [cljs.pprint :as pp]))
 
-(declare type-key-terminal resolve-type-map)
+(declare type-key-terminal
+         resolve-type-map)
 
 (defn- enum-name [x]
   (if (number? x)
@@ -24,60 +25,56 @@
   (->> entries
        (reduce-kv (fn [obj k v]
                     (j/assoc! obj
-                              (schema/typename k)
+                              (name k)
                               (-> (resolve-type-map registry v)
                                   (clj->js)))) #js {})))
 
 (def ^:private type-map-terminal
-  (u/memoize-by
-   (fn [registry {:as type-map
-                  :keys [type-key]}]
+  (-> (fn [registry {:as   type-map
+                     :keys [schema/type-key
+                            terminal]}]
+        (if-let [constructor (some-> terminal
+                                     (types/builtin))]
+          (new constructor
+               (-> (case terminal
+                     :Union (-> type-map
+                                (set/rename-keys {:data :types})
+                                (update :types #(->> (mapv (partial type-key-terminal registry) %)
+                                                     (to-array))))
+                     :Enum (-> type-map
+                               (set/rename-keys {:data :values})
+                               (update :values #(->> (mapv enum-name %)
+                                                     (reduce
+                                                      (fn [m enum]
+                                                        (j/assoc! m enum #js {:value enum})) #js {}))))
+                     (:Object
+                      :InputObject
+                      :Interface) (-> type-map
+                                      (update :interfaces #(some->> (mapv (partial type-key-terminal registry) %)
+                                                                    (to-array)))
+                                      (assoc :fields #(->> (select-keys registry (:field-keys type-map))
+                                                           (fields->js registry)))))
+                   (dissoc :schema/type-key)
+                   (assoc :name (name type-key))
+                   (clj->js)))
+          (if-let [scalar (types/scalar type-key)]
+            scalar
+            (:type (resolve-type-map registry (registered-entry registry type-key))))))
+      (u/memoize-by
+       (fn [[_ type-map]] (select-keys type-map [:schema/type-key
+                                                 :args
+                                                 :data
+                                                 :field-keys])))))
 
-     (if-let [constructor (types/constructors type-key)]
-       (new constructor
-            (-> (case type-key
-                  :Union (-> type-map
-                             (set/rename-keys {:data :types})
-                             (update :types #(->> (mapv (partial type-key-terminal registry) %)
-                                                  (to-array))))
-                  :Enum (-> type-map
-                            (set/rename-keys {:data :values})
-                            (update :values #(->> (mapv enum-name %)
-                                                  (reduce
-                                                   (fn [m enum]
-                                                     (j/assoc! m enum #js {:value enum})) #js {}))))
-                  (:Object
-                   :InputObject
-                   :Interface) (-> type-map
-                                   (update :interfaces #(some->> (mapv (partial type-key-terminal registry) %)
-                                                                 (to-array)))
-                                   (assoc :fields #(->> (select-keys registry (:field-keys type-map))
-                                                        (fields->js registry)))))
-                (dissoc :type-key)
-                (clj->js)))
-       (if-let [primitive (types/primitive type-key)]
-         primitive
-         (:type (resolve-type-map registry (registered-entry registry type-key))))))
-   (fn [[_ type-map]] (select-keys type-map [:type-key
-                                             :args
-                                             :data
-                                             :field-keys]))))
-
-(defn resolve-type-map [registry {type-key :type-key
-                                  :as type-map}]
-  (let [[List? k] (if (vector? type-key)
-                    [true (first type-key)]
-                    [false type-key])
-        required-outer? (and List?
-                             (:required (meta type-key)))
-        [kw required-inner?] (let [[_ kw-name required-inner?] (re-find #"([^!]+)(!)?$" (name k))]
-                               [(if required-inner?
-                                  (keyword (namespace k) kw-name)
-                                  k)
-                                required-inner?])
-        the-type (cond-> (type-map-terminal registry (assoc type-map :type-key kw))
+(defn resolve-type-map [registry {type-key :schema/type-key
+                                  :as      type-map}]
+  (let [{:keys [schema/base-key
+                schema/is-list?
+                schema/required-outer?
+                schema/required-inner?]} (schema/parse-type-key type-key)
+        the-type (cond-> (type-map-terminal registry (assoc type-map :schema/type-key base-key))
                          required-inner? (types/NonNull)
-                         List? (types/List)
+                         is-list? (types/List)
                          required-outer? (types/NonNull))]
     (-> type-map
         (assoc :type the-type)
@@ -90,44 +87,7 @@
        (resolve-type-map registry)
        :type))
 
-(defn resolve-types [{:as registry
-                      :keys [:schema/implementors]}]
-  (-> registry
-      (dissoc :schema/implementors)
-      (u/update-vals (partial resolve-type-map registry))
-      (as-> registry
-            (let [implementors (u/update-vals implementors #(mapv (partial type-key-terminal registry) %))
-                  types (reduce into #{} (vals implementors))]
-              (assoc registry :schema/implementors implementors
-                              :types types)))))
-
-(defn register-root [registry fields]
-  (->> ["query" "mutation" "subscription"]
-       (reduce (fn [registry field-name]
-                 (let [fields (some-> (get fields (keyword field-name))
-                                      (u/update-vals :schema/type-map))
-                       make-entry (schema/fields-entry :Object)]
-                   (cond-> registry
-                           fields (make-entry
-                                   (schema/args->map (keyword (str/capitalize field-name))
-                                                     fields)))))
-               registry)))
-
-(defn- flatten-resolver-map [m]
-  (reduce-kv (fn [m k v]
-               (if (map? v)
-                 (reduce-kv (fn [m child-k v]
-                              (assoc m (schema/inherit-typespace child-k k) v)) m v)
-                 (assoc m k v))) {} m))
-
-(defn with-resolvers [registry resolvers]
-  (->> resolvers
-       (reduce-kv (fn [m k v]
-                    (when-not (get m k)
-                      (prn :NO_REGISTRY_VALUE k v))
-                    (assoc-in m [k :resolve] v)) registry)))
-
-(defn get-top-level [registry]
+(defn select-root [registry]
   (-> registry
       (select-keys [:Query
                     :Mutation
@@ -136,34 +96,33 @@
                     :type)
       (assoc :types (:types registry))))
 
-(defn make-schema
+(defn resolve-js-types [{:as   registry
+                         :keys [:schema/implementors]}]
+  (-> registry
+      (dissoc :schema/implementors)
+      (u/update-vals (partial resolve-type-map registry))
+      (as-> registry
+            (let [implementors (u/update-vals implementors #(mapv (partial type-key-terminal registry) %))
+                  types (reduce into #{} (vals implementors))]
+              (assoc registry :schema/implementors implementors
+                              :types types)))
+      (select-root)))
+
+(defn js-schema
   "Return a graphql-js Schema for the given fields."
-  [{:as fields
-    :keys [registry
-           resolvers
-           wrap-resolver]
-    :or {registry @schema/*registry-ref*}}]
+  ([] (js-schema {}))
+  ([options] (js-schema @schema/*schema-ref* options))
+  ([registry {:as   options
+              :keys [resolvers
+                     wrap-resolver]}]
+   (new types/Schema
+        (-> registry
+            (schema/register-resolvers resolvers)
+            (cond-> wrap-resolver
+                    (u/update-vals #(u/update-some-keys % [:resolve] wrap-resolver)))
+            (resolve-js-types)
+            (clj->js)))))
 
-  (-> (register-root registry fields)
-      (with-resolvers (some-> resolvers
-                              (flatten-resolver-map)
-                              (u/update-vals wrap-resolver)))
-      (resolve-types)
-      (get-top-level)
-      (clj->js)
-      (->> (new types/Schema))))
-
-(s/def ::registry
-  (s/map-of keyword? (s/or :type-map ::schema/type-map
-                           :root #(instance? schema/Root %))))
-
-(s/fdef make-schema
-        :args (s/cat :fields (s/keys
-                              :opt-un [::registry])))
-
-;;;;;;;;;;;;;;;;;;;
-;;
-;;
 
 (comment
 
@@ -185,15 +144,10 @@
          ks (get-in registry [type-key :field-keys])]
      (u/for-map [k ks
                  :let [k-map (get registry k)
-                       resolver (or (get k-map :resolver)
-                                    (when-let [i-key (:implementation-of k-map)]
-                                      (get-in registry [i-key :resolver]))
+                       resolver (or (get-in registry [k :resolve])
+                                    (when-let [interface (get-in registry [k :of-interface])]
+                                      (get-in registry [interface k :resolve]))
                                     default-field-resolver)]]
-       {(schema/typekey k) (resolver [data params context #js {:fieldName (schema/typename k)}])}))))
+       {(schema/typekey k) (resolver [data params context #js {:fieldName (name k)}])}))))
 
-(s/def ::terminal-type types/type?)
 
-(s/fdef type-map-terminal
-        :ret ::terminal-type)
-(s/fdef type-key-terminal
-        :ret ::terminal-type)

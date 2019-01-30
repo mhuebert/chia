@@ -41,7 +41,10 @@
            :.display-link {:text-decoration "none"
                            :cursor "pointer"
                            "&:hover" {:text-decoration "underline"}}
-           :.pre-wrap {:whitespace "pre-wrap"}}
+           :.pre-wrap {:whitespace "pre-wrap"}
+           :.material-icons {:font-size 24}}
+          (u/for-map [n [18 24 36 48]]
+            {(str ".md-" n) {:font-size n}})
           (u/for-map [[key weight] (seq {"thin" 100
                                          "extra-light" 200
                                          "light" 300
@@ -68,6 +71,4 @@
              (str ".hover-bg-darken-" n) {"&:hover" {:background-color color}}})
           (with-breakpoint break-small
             (u/for-map [px (range 8 30)]
-              {(str ".text-size-" px) {:font-size (str px "px")}})
-            (u/for-map [n [18 24 36 48]]
-              {(str ".md-" n) {:font-size n}})))})
+              {(str ".text-size-" px) {:font-size (str px "px")}})))})

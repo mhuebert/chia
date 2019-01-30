@@ -32,8 +32,7 @@
   {:key :path
    :props/consumed #{:path}}
   [{:keys [path
-           view/state
-           view/classes] :as this} parent-angle]
+           view/state] :as this} parent-angle]
   [:div.bg-darken-1.b--darken-4.ma1.flex.flex-row.items-center.justify-center.flex-wrap.relative.br3.overflow-hidden.ba.bw1.ma2
    {:style {:background-color (db/get-in (conj path :color) "#fff")
             :min-width 50
