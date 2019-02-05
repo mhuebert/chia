@@ -13,7 +13,6 @@
             [cljs.pprint :as pp]))
 
 (defonce cache (d/create))
-@cache
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -218,6 +217,7 @@
                   result)))
       (p/catch* (fn [error]
                   (js/console.error error)
+                  (prn :error-in-root root)
                   (merge-root-meta! root
                                     {:async/error {:message "Error sending GraphQL operation"
                                                    :error   error}})))))

@@ -7,7 +7,7 @@
             [chia.util.js-interop :as j])
   (:require-macros [chia.view.context]))
 
-(j/assoc! js/window :React react)
+(goog/exportSymbol "React" react)
 
 (def create-element react/createElement)
 (def create-context react/createContext)

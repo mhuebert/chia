@@ -4,7 +4,8 @@
    [lambdaisland.uri :as uri]
    [chia.routing.util :as u]
    #?(:cljs
-      [goog.dom :as gdom]))
+      [goog.dom :as gdom])
+   [chia.util.js-interop :as j])
   #?(:cljs (:import
             [goog History]
             [goog.history Html5History]
@@ -148,9 +149,14 @@
 
 #?(:cljs
    (defn external? [link-element]
-     (let [^js location (.-location js/window)]
-       (or (not= (.-host location) (.-host link-element))
-           (not= (.-protocol location) (.-protocol link-element))))))
+     (let [{current-host     :host
+            current-protocol :protocol} (j/lookup (.-location js/window))
+           {link-host     :host
+            link-protocol :protocol
+            link-path     :pathname} (j/lookup link-element)]
+       (or (not= current-host link-host)
+           (not= current-protocol link-protocol)
+           (re-find #"\.[^/]+$" link-path)))))
 
 #?(:cljs
    (defn valid-anchor? [link-element]
