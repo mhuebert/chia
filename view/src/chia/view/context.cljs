@@ -11,6 +11,7 @@
 
 (def create-element react/createElement)
 (def create-context react/createContext)
+(def use-context react/useContext)
 
 (defonce lookup-context
          (memoize
@@ -46,7 +47,7 @@
   [^js ctx f]
   (-> ctx
       (j/get :Consumer)
-      (create-element #js {} #(context-observer {:view-fn f
+      (create-element #js {} #(context-observer {:view-fn       f
                                                  :context-value %}))))
 
 (comment
@@ -58,11 +59,11 @@
                  (str "Hello, " @first-name)])))
 
  (provide {::first-name (r/atom "Herman")
-           my-theme #js {:color "pink"}}
+           my-theme     #js {:color "pink"}}
    (c/consume [first-name ::first-name
                theme my-theme]
               [:div
-               {:style {:color (.-color theme)}
+               {:style    {:color (.-color theme)}
                 :on-click #(swap! first-name str "+")}
                (str "Hello, " @first-name)]))
  (provide {:a 10

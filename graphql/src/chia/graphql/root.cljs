@@ -81,7 +81,8 @@
                              (vals))]
         (assert (fn? on-unmount))
         (on-unmount root))
-      (d/transact! cache [[:db/retract-entity (root-id root)]]))))
+      ;; keep cache around
+      #_(d/transact! cache [[:db/retract-entity (root-id root)]]))))
 
 (defn- unmount-view! [root view]
   (vswap! root-listeners update-in [(root-id root) :views] disj view)
@@ -101,12 +102,14 @@
   (let [mount-root? (-> (root-entry root)
                         :views
                         (empty?))]
-    (vswap! root-listeners update-in [(root-id root) :views] (fnil conj #{}) view)
 
-    (when-not (keyword? view)
-      (v/on-unmount! view root #(unmount-view! root view)))
+    (assert view)
+
+    (vswap! root-listeners update-in [(root-id root) :views] (fnil conj #{}) view)
+    (v/on-unmount! view root #(unmount-view! root view))
 
     (when mount-root?
+
       (doseq [f [(:on-unmount options)
                  (:on-unmount (:root/options root))]]
         (when f
@@ -156,8 +159,9 @@
                  :schema/type-key type-key})))
 
 (defn root-datoms [cache root payload]
-  (let [data (exec/get-field payload :data)
-        errors (exec/get-field payload :errors)
+  (let [{:keys [data
+                errors
+                time]} (j/lookup payload)
         form (form root)
         variables (:root/variables root {})
         lookup-keys (->> (g/children form)
@@ -168,9 +172,13 @@
     (when errors
       (let [{:keys [message path]} (j/lookup (aget errors 0))]
         (js/console.error (str "GraphQL: " (js->clj path) " " message))))
+
+    (prn :gql/request time `(~(keyword (get-name root)) ~variables) (root-id root))
+
     (conj datoms {:db/id                    (root-id root)
                   :async/error              (js->clj errors :keywordize-keys true)
                   :async/loading?           false
+                  :async/time               time
                   :graphql.root/lookup-keys lookup-keys
                   :graphql.root/variables   variables})))
 
@@ -243,8 +251,8 @@
 (defmethod invoke-root :Mutation
   [root]
 
-  (listen root {} (or v/*current-view*
-                      ::static-listener))
+  (when-let [view v/*current-view*]
+    (listen root {} view))
 
   (assoc (read-root root)
     :gql/mutate! (partial mutate! root)))
@@ -252,9 +260,9 @@
 (defmethod invoke-root :Query
   [root]
 
-  (listen root {:on-mount resolve!}
-          (or v/*current-view*
-              ::static-listener))
+  (if-let [view v/*current-view*]
+    (listen root {:on-mount resolve!} v/*current-view*)
+    (resolve! root))
 
   ;; handle cache policies - :network-only, :cache-only, :cache-and-network, :cache-or-network
   (read-root root))

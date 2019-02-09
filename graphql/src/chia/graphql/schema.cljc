@@ -184,8 +184,8 @@
             [:String! :String]))
  (assert (= (path-keys [:spark-gql.schema.entities/Board :actions :view :public])
             [:Boolean! :Boolean]))
- (assert (= (path-keys [:spark-gql.schema.entities/Board :roles])
-            [[:spark-gql.schema.entities/Role] :Enum]))
+ (assert (= (path-keys [:spark-gql.schema.entities/Board :membership :roles])
+            [[:spark-gql.schema.accounts/Role] :Enum]))
  (assert (= (path-keys [:spark-gql.schema.entities/Board :images :logo])
             [:String :String])))
 
