@@ -1,9 +1,11 @@
 (ns chia.view
+  (:refer-clojure :exclude [defn])
   (:require [clojure.string :as str]
             [chia.util :as u]
             [chia.view.util :as view-util]
             [clojure.core :as core]
-            [clojure.spec.alpha :as s]))
+            [clojure.spec.alpha :as s]
+            [chia.util.js-interop :as j]))
 
 (s/conform (s/cat :name (s/? symbol?)
                   :doc (s/? string?)
@@ -19,7 +21,7 @@
      (.apply ~f ~this (to-array (cons ~this children#)))
      (.call ~f ~this ~this)))
 
-(defn- get-display-name
+(core/defn- get-display-name
   "Generate a meaningful name to identify React components while debugging"
   [ns given-name]
   (let [segments (->> (str/split (name (ns-name ns)) #"\.")
@@ -30,18 +32,18 @@
          (or given-name
              (gensym "view")))))
 
-(defn to-element [x]
+(core/defn to-element [x]
   ;; TODO
   ;; upgrade hiccup/element to work partly at macroexpansion time
   `(~'chia.view.hiccup/element {:wrap-props ~'chia.view/wrap-props}
     ~x))
 
-(defn wrap-current-view-binding [body]
+(core/defn wrap-current-view-binding [body]
   `(~'this-as this#
     (binding [*current-view* this#]
       ~body)))
 
-(defn- wrap-render-body
+(core/defn- wrap-render-body
   "Wrap body in anonymous function form."
   [name argv body pure?]
   `(~'fn ~(symbol (str "__" name)) ~argv
@@ -50,7 +52,7 @@
 
 
 
-(defn- make-constructor [the-name initial-state]
+(core/defn- make-constructor [the-name initial-state]
   (let [this-name (gensym)
         fn-name (gensym the-name)
         props-sym (gensym "props")]
@@ -70,12 +72,12 @@
                      ;; return component
                      ~this-name))))
 
-(defn- ->js-with-camelCase [m]
+(core/defn- ->js-with-camelCase [m]
   `(~'js-obj ~@(->> m
                     (reduce-kv (fn [out k v]
                                  (into out [(u/camel-case (name k)) v])) []))))
 
-(defn- bind-vals [m]
+(core/defn- bind-vals [m]
   (reduce-kv (fn [m k v]
                (assoc m k `(let [v# ~v]
                              (if (fn? v#)
@@ -88,7 +90,7 @@
                          :view/will-update
                          :view/will-mount})
 
-(defn- group-methods
+(core/defn- group-methods
   "Groups methods by role in a React component."
   [methods]
   (-> (reduce-kv (fn [m k v]
@@ -105,7 +107,7 @@
                      (assoc-in m [group-k k] v))) {} methods)
       (update :unqualified-keys (comp ->js-with-camelCase bind-vals))))
 
-(defn parse-view-args [args]
+(core/defn parse-view-args [args]
   (let [view-map (s/conform (s/cat :name (s/? symbol?)
                                    :doc (s/? string?)
                                    :view/options (s/? map?)
@@ -116,26 +118,26 @@
                     (symbol (name (ns-name *ns*))
                             (name (:name view-map))))))
 
-(defn- field-view [{:keys [name
-                          doc
-                          view/options
-                          view/arglist
-                          view/body]
-                   view-name :view/name}]
+(core/defn- field-view [{:keys     [name
+                                    doc
+                                    view/options
+                                    view/arglist
+                                    view/body]
+                         view-name :view/name}]
   (let [display-name (get-display-name *ns* name)
         {pure? :pure} (meta name)
-        {:as methods
+        {:as   methods
          :keys [lifecycle-keys]} (-> options
                                      (dissoc :view/initial-state)
                                      (merge (cond-> {;; TODO
                                                      ;; keep track of dev- vs prod-time, elide display-name and docstring in prod
                                                      :display-name display-name
-                                                     :view/render (wrap-render-body name arglist body pure?)}
+                                                     :view/render  (wrap-render-body name arglist body pure?)}
                                                     doc (assoc :doc doc)))
                                      (group-methods))]
 
     (when (and pure? (seq (dissoc lifecycle-keys :view/render)))
-      (throw (ex-info "Warning: lifecycle methods are not supported on pure components." {:name view-name
+      (throw (ex-info "Warning: lifecycle methods are not supported on pure components." {:name    view-name
                                                                                           :methods methods})))
 
     (if pure? (:view/render lifecycle-keys)
@@ -153,8 +155,8 @@
     the argslist and body for the render function, which should
     return a Hiccup vector or React element."
   [& args]
-  (let [{:as view-map
-         :keys [name]
+  (let [{:as       view-map
+         :keys     [name]
          view-name :view/name} (parse-view-args args)
         name (with-meta name (merge
                               (meta name)
@@ -203,3 +205,23 @@
     `(when ~'js/goog.DEBUG
        (swap! ~'chia.view.view-specs/spec-meta assoc ~kw {:doc ~doc})
        (clojure.spec.alpha/def ~kw ~@args))))
+
+(defmacro defn [& args]
+  (let [{:keys     [name
+                    doc
+                    view/options
+                    view/arglist
+                    view/body]
+         view-name :view/name} (parse-view-args args)]
+    `(do
+       (core/defn ~name ~@(when options [options]) [props#]
+         (let [entry# (~'chia.view/use-chia ~(str name))]
+           (binding [~'chia.view/*current-view* entry#]
+             (~'chia.reactive/with-dependency-tracking! (j/get entry# :chia$forceUpdate)
+              (let [~arglist (j/get props# :children)]
+                ~@(drop-last body)
+                (~'chia.view.hiccup/element {:wrap-props ~'chia.view/wrap-props}
+                 ~(last body)))))))
+       (-> ~name
+           ;; mark component for special handling in hiccup
+           (~'chia.util.js-interop/assoc! :chia$functionalComponent true)))))

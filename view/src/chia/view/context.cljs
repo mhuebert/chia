@@ -1,4 +1,5 @@
 (ns chia.view.context
+  (:refer-clojure :exclude [use])
   (:require ["react" :as react]
             [chia.view :as v]
             [chia.view.hiccup :as hiccup]
@@ -7,11 +8,8 @@
             [chia.util.js-interop :as j])
   (:require-macros [chia.view.context]))
 
-(goog/exportSymbol "React" react)
-
 (def create-element react/createElement)
 (def create-context react/createContext)
-(def use-context react/useContext)
 
 (defonce lookup-context
          (memoize
@@ -49,6 +47,9 @@
       (j/get :Consumer)
       (create-element #js {} #(context-observer {:view-fn       f
                                                  :context-value %}))))
+
+(defn use-context [context-k]
+  (react/useContext (lookup-context context-k)))
 
 (comment
 

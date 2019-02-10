@@ -15,6 +15,9 @@
             [goog.object :as gobj])
   (:require-macros [chia.view :as v]))
 
+(goog/exportSymbol "React" react)
+(goog/exportSymbol "ReactDOM" react-dom)
+
 (def Component react/Component)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -395,3 +398,58 @@
                                               :chia$class]))]
            (get class k)))
        not-found)))
+
+;; Hooks
+;;
+;; exploring functional components and hooks,
+;; experimental / not stable
+
+(def use-state react/useState)
+(def use-effect react/useEffect)
+(def use-context react/useContext)
+(def use-reducer react/useReducer)
+(def use-callback react/useCallback)
+(def use-memo react/useMemo)
+(def use-ref react/useRef)
+(def use-imperative-handle react/useImperativeHandle)
+(def use-layout-effect react/useLayoutEffect)
+(def useDebugValue react/use-debug-value)
+
+(def count-monotonic (volatile! 0))
+(defn next-count! [] (vswap! count-monotonic inc))
+(def view-registry (volatile! {}))
+
+(defn use-force-update! []
+  (let [update-state! (-> (use-state 0)
+                          (unchecked-get 1))]
+    (use-callback #(update-state! (next-count!))
+                  #js [])))
+
+(defn use-chia [view-name]
+  (let [force-update! (use-force-update!)
+        entry (-> (use-ref #js {:chia$forceUpdate force-update!
+                                :chia$onUnmount   {:chia.reactive #(r/dispose-reader! force-update!)}})
+                  (j/get :current))]
+    (use-effect (constantly
+                 #(doseq [f (some-> (j/get entry :chia$onUnmount)
+                                    (vals))]
+                    (f))) #js [])
+    entry))
+
+(defn use-atom
+  ([] (use-atom nil))
+  ([initial-state]
+   (let [force-update! (use-force-update!)
+         ref (use-memo #(let [ref (cond-> initial-state
+                                          (not (satisfies? IDeref initial-state))
+                                          (atom))]
+                          (add-watch ref :atom-hook
+                                     (fn [_ _ old-state new-state]
+                                       (when (not= old-state new-state)
+                                         (force-update!))))
+
+                          ref) #js [])]
+     (use-effect (constantly
+                  #(remove-watch ref :atom-hook))
+                 #js [])
+     ref)))
