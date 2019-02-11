@@ -4,6 +4,7 @@
             [chia.util.perf :as perf]
             [chia.util.js-interop :as j]))
 
+
 (enable-console-print!)
 (set! *warn-on-infer* true)
 
@@ -49,9 +50,7 @@
                           [js-tag js-props] (format-props props (form 0))
                           args (hiccup/reduce-flatten-seqs -to-element [js-tag js-props] conj children)]
                       (apply react/createElement args)))
-                  (fn? tag) (if (j/get tag :chia$functionalComponent)
-                              (.call react/createElement nil tag nil (subvec form 1))
-                              (-to-element (apply tag (rest form))))
+                  (fn? tag) (-to-element (apply tag (rest form)))
                   :else (make-fragment (element-arr -to-element form))))
 
           (satisfies? IElement form)

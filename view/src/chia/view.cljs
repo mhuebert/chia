@@ -18,6 +18,9 @@
 (goog/exportSymbol "React" react)
 (goog/exportSymbol "ReactDOM" react-dom)
 
+(def create-element react/createElement)
+(def is-valid-element? react/isValidElement)
+
 (def Component react/Component)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -280,11 +283,11 @@
                                              [nil (cons props children)])]
               (validate-specs (:spec-keys view-base) props children)
 
-              (react/createElement constructor #js {"key"      (str (element-key props children constructor))
-                                                    "ref"      ref
-                                                    "props"    (some-> props
-                                                                       (dissoc :ref))
-                                                    "children" children})))
+              (create-element constructor #js {"key"      (str (element-key props children constructor))
+                                               "ref"      ref
+                                               "props"    (some-> props
+                                                                  (dissoc :ref))
+                                               "children" children})))
       (j/assoc! :chia$constructor constructor))))
 
 
@@ -295,7 +298,7 @@
   (hiccup/element {:wrap-props wrap-props} x))
 
 (defn element? [x]
-  (and x (react/isValidElement x)))
+  (and x (is-valid-element? x)))
 
 (defn component? [x]
   (identical? Component x))
@@ -338,7 +341,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn on-unmount!
-  "Register an unmount callback for `component`."
+  "Register an unmount callback for `component`. This is not a hook - can be used anywhere/anytime."
   [^js this key f]
   (j/update! this :chia$onUnmount assoc key f))
 
@@ -404,7 +407,7 @@
 ;; exploring functional components and hooks,
 ;; experimental / not stable
 
-(def use-state react/useState)
+(def use-state* react/useState)
 (def use-effect react/useEffect)
 (def use-context react/useContext)
 (def use-reducer react/useReducer)
@@ -413,43 +416,37 @@
 (def use-ref react/useRef)
 (def use-imperative-handle react/useImperativeHandle)
 (def use-layout-effect react/useLayoutEffect)
-(def useDebugValue react/use-debug-value)
-
-(def count-monotonic (volatile! 0))
-(defn next-count! [] (vswap! count-monotonic inc))
-(def view-registry (volatile! {}))
+(def use-debug-value react/use-debug-value)
 
 (defn use-force-update! []
-  (let [update-state! (-> (use-state 0)
-                          (unchecked-get 1))]
-    (use-callback #(update-state! (next-count!))
-                  #js [])))
+  (-> (use-reducer inc 0)
+      (unchecked-get 1)))
+
+(defn use-on-unmount [f]
+  (use-effect (constantly f) #js []))
 
 (defn use-chia [view-name]
   (let [force-update! (use-force-update!)
-        entry (-> (use-ref #js {:chia$forceUpdate force-update!
-                                :chia$onUnmount   {:chia.reactive #(r/dispose-reader! force-update!)}})
-                  (j/get :current))]
-    (use-effect (constantly
-                 #(doseq [f (some-> (j/get entry :chia$onUnmount)
-                                    (vals))]
-                    (f))) #js [])
-    entry))
+        chia$state (-> (use-ref #js {:chia$forceUpdate force-update!})
+                       (j/get :current))]
+    (use-on-unmount
+     (fn []
+       (r/dispose-reader! force-update!)
+       (doseq [f (some-> (j/get chia$state :chia$onUnmount)
+                         (vals))]
+         (f))))
+    chia$state))
 
-(defn use-atom
-  ([] (use-atom nil))
+(defn use-state
+  ([] (use-state nil))
   ([initial-state]
    (let [force-update! (use-force-update!)
-         ref (use-memo #(let [ref (cond-> initial-state
-                                          (not (satisfies? IDeref initial-state))
-                                          (atom))]
-                          (add-watch ref :atom-hook
-                                     (fn [_ _ old-state new-state]
-                                       (when (not= old-state new-state)
-                                         (force-update!))))
-
-                          ref) #js [])]
-     (use-effect (constantly
-                  #(remove-watch ref :atom-hook))
-                 #js [])
-     ref)))
+         state-atom (-> (use-ref (atom initial-state))
+                        (j/get :current))]
+     (use-effect (fn []
+                   (add-watch state-atom :atom-hook
+                              (fn [_ _ old-state new-state]
+                                (when (not= old-state new-state)
+                                  (force-update!))))
+                   #(remove-watch state-atom :atom-hook)) #js [])
+     state-atom)))

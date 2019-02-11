@@ -212,16 +212,22 @@
                     view/options
                     view/arglist
                     view/body]
-         view-name :view/name} (parse-view-args args)]
-    `(do
-       (core/defn ~name ~@(when options [options]) [props#]
-         (let [entry# (~'chia.view/use-chia ~(str name))]
-           (binding [~'chia.view/*current-view* entry#]
-             (~'chia.reactive/with-dependency-tracking! (j/get entry# :chia$forceUpdate)
-              (let [~arglist (j/get props# :children)]
-                ~@(drop-last body)
-                (~'chia.view.hiccup/element {:wrap-props ~'chia.view/wrap-props}
-                 ~(last body)))))))
-       (-> ~name
-           ;; mark component for special handling in hiccup
-           (~'chia.util.js-interop/assoc! :chia$functionalComponent true)))))
+         view-name :view/name} (parse-view-args args)
+        view-fn-sym (symbol (str "-" name))
+        key-fn-sym (gensym "key")
+        key-fn (:key options)]
+    `(let [~key-fn-sym ~key-fn
+           ~view-fn-sym
+           (core/fn ~view-fn-sym [props#]
+             (let [args# (j/get props# :children)
+                   chia$state# (~'chia.view/use-chia ~(str name))]
+               (binding [~'chia.view/*current-view* chia$state#]
+                 (~'chia.reactive/with-dependency-tracking! (j/get chia$state# :chia$forceUpdate)
+                  (let [~arglist args#]
+                    ~@(drop-last body)
+                    (~'chia.view.hiccup/element {:wrap-props ~'chia.view/wrap-props}
+                     ~(last body)))))))]
+       (core/defn ~name [& args#]
+         (let [props# (when ~key-fn-sym
+                        (~'js-obj :key (apply ~key-fn-sym args#)))]
+           (.call ~'chia.view/create-element nil ~view-fn-sym props# args#))))))
