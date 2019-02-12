@@ -347,27 +347,24 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn adapt-react-class
-  ([the-class]
-   (adapt-react-class nil the-class))
-  ([{:keys [->element-keys
-            ->js-keys
-            lift-nses]} the-class]
-   (fn [& args]
-     (let [[props children] (if (or (map? (first args))
-                                    (nil? (first args)))
-                              [(first args) (rest args)]
-                              [{} args])
-           props (-> props
-                     (u/update-some-keys ->element-keys to-element)
-                     (u/update-some-keys ->js-keys clj->js)
-                     (cond-> (seq lift-nses) (u/lift-nses lift-nses))
-                     (update-change-prop)
-                     (hiccup-impl/props->js))
-           js-form (-> (cons props children)
-                       (to-array)
-                       (j/unshift! the-class))]
-       (to-element js-form)))))
+(defn adapt-props
+  [{:keys [->element-keys
+           ->js-keys
+           lift-nses
+           wrap-props]} props]
+  (-> props
+      (cond-> ->element-keys (u/update-some-keys ->element-keys to-element)
+              ->js-keys (u/update-some-keys ->js-keys clj->js)
+              lift-nses (u/lift-nses lift-nses)
+              wrap-props (wrap-props))
+      (update-change-prop)
+      (hiccup-impl/props->js)))
+
+(defn parse-args [args]
+  (if (or (map? (first args))
+          (nil? (first args)))
+    [(first args) (rest args)]
+    [{} args]))
 
 (defn merge-props
   "Merge props, concatenating :class props and merging styles."
@@ -450,3 +447,27 @@
                                   (force-update!))))
                    #(remove-watch state-atom :atom-hook)) #js [])
      state-atom)))
+
+(defn adapt-react-class
+  ([the-class]
+   (adapt-react-class nil the-class))
+  ([{:keys [->element-keys
+            ->js-keys
+            lift-nses
+            wrap-props]} the-class]
+   (fn [& args]
+     (let [[props children] (if (or (map? (first args))
+                                    (nil? (first args)))
+                              [(first args) (rest args)]
+                              [{} args])
+           props (-> props
+                     (cond-> ->element-keys (u/update-some-keys ->element-keys to-element)
+                             ->js-keys (u/update-some-keys ->js-keys clj->js)
+                             lift-nses (u/lift-nses lift-nses)
+                             wrap-props (wrap-props))
+                     (update-change-prop)
+                     (hiccup-impl/props->js))
+           js-form (-> (cons props children)
+                       (to-array)
+                       (j/unshift! the-class))]
+       (to-element js-form)))))

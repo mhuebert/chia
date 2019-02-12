@@ -91,20 +91,22 @@
   ([props] (props->js "" "" nil props))
   ([tag k-id k-classes props]
    (when (or props k-id k-classes)
-     (let [{:keys [class] :as props} (cond-> props
-                                             (boolean *wrap-props*)
-                                             (*wrap-props* tag))
-           className (merge-classes k-classes class)
-           prop-js (cond-> (js-obj)
-                           k-id (j/assoc! :id k-id)
-                           className (j/assoc! :className className))]
-       (doseq [[k v] (dissoc props :class)]
-         (when-let [js-key (key->react-attr k)]
-           (unchecked-set prop-js js-key (cond-> v
-                                                 (perf/keyword-in? [:style
-                                                                    :dangerouslySetInnerHTML] k)
-                                                 (map->js)))))
-       prop-js))))
+     (if (map? props)
+       (let [{:keys [class] :as props} (cond-> props
+                                               (boolean *wrap-props*)
+                                               (*wrap-props* tag))
+             className (merge-classes k-classes class)
+             prop-js (cond-> (js-obj)
+                             k-id (j/assoc! :id k-id)
+                             className (j/assoc! :className className))]
+         (doseq [[k v] (dissoc props :class)]
+           (when-let [js-key (key->react-attr k)]
+             (unchecked-set prop-js js-key (cond-> v
+                                                   (perf/keyword-in? [:style
+                                                                      :dangerouslySetInnerHTML] k)
+                                                   (map->js)))))
+         prop-js)
+       props))))
 
 (defn js-conj [ar x]
   (doto ar
