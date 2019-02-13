@@ -3,7 +3,8 @@
             ["reset-jss" :as reset-jss]
             ["jss-preset-default" :default jss-preset]
             [chia.util.js-interop :as j]
-            [chia.view.util :as vu]))
+            [chia.view.util :as vu]
+            [chia.util :as u]))
 
 
 (def JSS
@@ -23,30 +24,35 @@
                 (.createStyleSheet reset-jss)
                 (.attach)))))
 
-(defonce ^js page-styles
-         (memoize
-          (fn []
-            (when (exists? js/window)
-              (-> (JSS)
-                  (j/call :createStyleSheet #js {})
-                  (j/call :attach))))))
+(def ^js page-styles
+  (when (exists? js/window)
+    (-> ^js (JSS)
+        (.createStyleSheet #js {})
+        (doto (j/call :attach)))))
 
 (def classes!
   (memoize
    (fn [styles]
      (-> ^js (JSS)
          (.createStyleSheet (clj->js styles))
-         (.attach)
+         (doto (j/call :attach))
          (j/get :classes)
          (js->clj :keywordize-keys true)))))
 
+(def counter (volatile! 0))
+
 (def class!
   (memoize
-   (fn [styles]
-     (-> (classes! {:inline styles})
-         :inline)
-     #_(let [^js rule (.addRule (page-styles) (clj->js styles))]
-         (.-className rule)))))
+   (fn class!
+     ([selector styles]
+      (.addRule page-styles selector (clj->js styles))
+      nil)
+     ([styles]
+      (some-> (.addRule page-styles
+                        (str "inline-" (vswap! counter inc))
+                        (clj->js styles))
+              (j/get :selectorText)
+              (subs 1))))))
 
 (defn to-string [styles]
   (-> ^js (JSS)
