@@ -4,7 +4,7 @@
             ["prosemirror-history" :as history]
             ["prosemirror-commands" :as commands]
             ["prosemirror-inputrules" :as input-rules]
-            [chia.util.js-interop :as j]))
+            [applied-science.js-interop :as j]))
 
 (def chain commands/chainCommands)
 

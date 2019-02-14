@@ -1,7 +1,7 @@
 (ns chia.graphql.types
   (:refer-clojure :exclude [List Object type])
   (:require ["graphql/type" :as graphql]
-            [chia.util.js-interop :as j]
+            [applied-science.js-interop :as j]
             [chia.util :as u]
             [cljs.core :as core]))
 

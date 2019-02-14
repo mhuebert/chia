@@ -3,7 +3,7 @@
   #_(:require ["graphql/language/parser" :as parser]
             ["graphql/utilities/concatAST" :refer [concatAST]]
             [chia.graphql :as g]
-            [chia.util.js-interop :as j]
+            [applied-science.js-interop :as j]
             [chia.util :as u]))
 
 (comment

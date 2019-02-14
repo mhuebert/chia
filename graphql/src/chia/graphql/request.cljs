@@ -2,7 +2,7 @@
   (:refer-clojure :exclude [catch])
   (:require ["unfetch" :as unfetch]
             [chia.graphql.printer :as string]
-            [chia.util.js-interop :as j]
+            [applied-science.js-interop :as j]
             [chia.util :as u]))
 
 (defn ->promise ^js [x]

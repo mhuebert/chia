@@ -4,7 +4,7 @@
             [chia.graphql.schema :as schema]
             [chia.graphql.types :as types]
             [chia.util :as u]
-            [chia.util.js-interop :as j]
+            [applied-science.js-interop :as j]
             [cljs.pprint :as pp]))
 
 (declare type-key-terminal

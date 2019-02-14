@@ -9,7 +9,7 @@
             ["prosemirror-model" :as prosemirror-model]
             ["prosemirror-commands" :as prosemirror-commands]
             ["prosemirror-history" :as prosemirror-history]
-            [chia.util.js-interop :as j]))
+            [applied-science.js-interop :as j]))
 
 ;; javacript interop with the Prosemirror bundle
 ;; (type hints for externs inference)

@@ -2,7 +2,7 @@
   (:require [chia.view.hiccup.impl :as hiccup]
             ["react" :as react]
             [chia.util.perf :as perf]
-            [chia.util.js-interop :as j]))
+            [applied-science.js-interop :as j]))
 
 
 (enable-console-print!)

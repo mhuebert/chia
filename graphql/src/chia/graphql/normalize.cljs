@@ -3,7 +3,7 @@
             [chia.x-vec :as x]
             [chia.triple-db.core :as d]
             [chia.util :as u]
-            [chia.util.js-interop :as j]
+            [applied-science.js-interop :as j]
             [clojure.string :as str]
             [chia.graphql.schema :as schema]
             [cljs.pprint :as pp]))

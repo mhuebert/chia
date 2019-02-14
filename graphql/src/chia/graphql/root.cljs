@@ -3,7 +3,7 @@
             [chia.graphql.schema :as schema]
             [chia.util :as u]
             [chia.triple-db.core :as d]
-            [chia.util.js-interop :as j]
+            [applied-science.js-interop :as j]
             [chia.graphql.normalize :as n]
             [chia.graphql.request :as request]
             [kitchen-async.promise :as p]

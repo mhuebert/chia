@@ -5,7 +5,7 @@
    [chia.routing.util :as u]
    #?(:cljs
       [goog.dom :as gdom])
-   [chia.util.js-interop :as j])
+   [applied-science.js-interop :as j])
   #?(:cljs (:import
             [goog History]
             [goog.history Html5History]

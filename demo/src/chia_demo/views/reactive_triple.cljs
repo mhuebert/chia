@@ -4,7 +4,7 @@
             [chia.triple-db :as t]
             [chia-demo.views.util :as u]
             [cljs.pprint :as pp]
-            [chia.util.js-interop :as j]))
+            [applied-science.js-interop :as j]))
 
 (def last-color (atom 0))
 

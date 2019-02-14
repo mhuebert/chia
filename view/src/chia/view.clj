@@ -5,7 +5,7 @@
             [chia.view.util :as view-util]
             [clojure.core :as core]
             [clojure.spec.alpha :as s]
-            [chia.util.js-interop :as j]))
+            [applied-science.js-interop :as j]))
 
 (s/conform (s/cat :name (s/? symbol?)
                   :doc (s/? string?)
@@ -182,8 +182,8 @@
   ([{:keys [key
             on-unmount]} body]
    (let [gname (name (gensym "once"))
-         js-get 'chia.util.js-interop/get
-         js-assoc! 'chia.util.js-interop/assoc!
+         js-get 'applied-science.js-interop/get
+         js-assoc! 'applied-science.js-interop/assoc!
          this-sym (gensym "this")
          key-sym (gensym "key")
          val-sym (gensym "val")]

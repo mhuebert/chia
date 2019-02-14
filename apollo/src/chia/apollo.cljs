@@ -8,7 +8,7 @@
             ["apollo-cache-inmemory" :refer [InMemoryCache IntrospectionFragmentMatcher]]
             ["apollo-cache-persist" :refer [persistCache]]
 
-            [chia.util.js-interop :as j]
+            [applied-science.js-interop :as j]
             [clojure.string :as str]))
 
 (defn data->clj

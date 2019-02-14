@@ -5,7 +5,7 @@
             [chia.view.hiccup :as hiccup]
             [clojure.core :as core]
             [goog.object :as gobj]
-            [chia.util.js-interop :as j])
+            [applied-science.js-interop :as j])
   (:require-macros [chia.view.context]))
 
 (def create-element react/createElement)

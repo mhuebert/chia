@@ -1,6 +1,6 @@
 (ns chia.view.util
   (:refer-clojure :exclude [uuid])
-  (:require [chia.util.js-interop :as j]))
+  (:require [applied-science.js-interop :as j]))
 
 (defn update-props [el f & args]
   (if-not (vector? el)

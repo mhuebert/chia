@@ -1,6 +1,6 @@
 (ns chia.graphql.exec
   (:require [chia.graphql.schema :as schema]
-            [chia.util.js-interop :as j]
+            [applied-science.js-interop :as j]
             [chia.x-vec :as x]
             [chia.graphql.normalize :as n]
             [goog.Promise :as promise]

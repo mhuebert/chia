@@ -2,7 +2,7 @@
   (:require [goog.object :as gobj]
             [chia.prosemirror.core :as pm]
             [clojure.string :as string]
-            [chia.util.js-interop :as j]))
+            [applied-science.js-interop :as j]))
 
 (defn add-schema-nodes [schema]
   (let [table-nodes {:table        {:toDOM   #(to-array ["table" 0])

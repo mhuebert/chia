@@ -5,7 +5,7 @@
             [chia.graphql.request :as request]
             [chia.util :as u]
             [chia.graphql.root :as root]
-            [chia.util.js-interop :as j]
+            [applied-science.js-interop :as j]
             [clojure.spec.alpha :as s]
             [clojure.spec.test.alpha :as st]))
 

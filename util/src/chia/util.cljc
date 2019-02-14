@@ -1,7 +1,7 @@
 (ns chia.util
-  (:require #?(:cljs [chia.util.js-interop])
+  (:require #?(:cljs [applied-science.js-interop])
             [chia.util.macros :as m]
-            [chia.util.js-interop :as j]
+            [applied-science.js-interop :as j]
             [clojure.string :as str])
   #?(:cljs (:require-macros [chia.util])))
 
@@ -119,9 +119,9 @@
 
 (m/defmacro memoized-on [o k & body]
   (let [k (munged-key k)]
-    `(or (~'chia.util.js-interop/get ~o ~k)
+    `(or (~'applied-science.js-interop/get ~o ~k)
          (doto->> (do ~@body)
-                  (~'chia.util.js-interop/assoc! ~o ~k)))))
+                  (~'applied-science.js-interop/assoc! ~o ~k)))))
 
 (defn user-bindings
   "Returns all user-assigned bindings resulting from a let binding."

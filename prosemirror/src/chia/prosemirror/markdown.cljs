@@ -6,8 +6,8 @@
             [goog.object :as gobj]
             ["prosemirror-markdown" :as pm-md]))
 
-(def *tables?* false)
-(def *fenced-code-blocks?* true)
+(def ^:dynamic *tables?* false)
+(def ^:dynamic *fenced-code-blocks?* true)
 
 (def markdown-schema pm-md/schema)
 (def defaultMarkdownSerializer pm-md/defaultMarkdownSerializer)

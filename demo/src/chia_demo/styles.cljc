@@ -1,6 +1,6 @@
 (ns chia-demo.styles
   (:require [chia.material-ui :as m]
-            [chia.util.js-interop :as j]
+            [applied-science.js-interop :as j]
             [chia.jss :as jss]
             [chia.jss.functional-styles :as f-styles]))
 

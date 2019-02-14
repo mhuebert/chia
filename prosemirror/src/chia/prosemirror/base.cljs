@@ -5,7 +5,7 @@
             ["prosemirror-commands" :as commands]
             ["prosemirror-state" :as state :refer [EditorState]]
             [chia.view :as v]
-            [chia.util.js-interop :as j]
+            [applied-science.js-interop :as j]
             [chia.prosemirror.core :as pm]
             [clojure.spec.alpha :as s]))
 
@@ -57,17 +57,17 @@
 
 (v/defview Editor
   "A ProseMirror editor view."
-  {:spec/props (s/keys :opt-un
-                       [::input-rules
-                        ::doc
-                        ::serialize
-                        ::parse
-                        ::schema
-                        ::on-dispatch
-                        ::editor-view-props
-                        ::keymap
-                        ::default-value
-                        ::value])
+  {#_#_:spec/props (s/keys :opt-un
+                           [::input-rules
+                            ::doc
+                            ::serialize
+                            ::parse
+                            ::schema
+                            ::on-dispatch
+                            ::editor-view-props
+                            ::keymap
+                            ::default-value
+                            ::value])
    :view/did-mount (fn [{:keys [value
                                 default-value
                                 on-dispatch

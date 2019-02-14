@@ -2,7 +2,7 @@
   (:require ["jss" :as jss]
             ["reset-jss" :as reset-jss]
             ["jss-preset-default" :default jss-preset]
-            [chia.util.js-interop :as j]
+            [applied-science.js-interop :as j]
             [chia.view.util :as vu]
             [chia.util :as u]))
 

@@ -1,7 +1,7 @@
 (ns chia.view.hiccup.impl
   (:require [clojure.string :as str]
             ["react" :as react]
-            [chia.util.js-interop :as j]
+            [applied-science.js-interop :as j]
             [chia.util.perf :as perf]
             [chia.util :as u]))
 

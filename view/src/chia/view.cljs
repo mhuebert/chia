@@ -8,7 +8,7 @@
             [chia.view.view-specs]
             [chia.view.util :as view-util]
             [chia.util :as u]
-            [chia.util.js-interop :as j]
+            [applied-science.js-interop :as j]
             [chia.view.registry :as registry]
             [clojure.core :as core]
             [clojure.spec.alpha :as s]
@@ -67,23 +67,23 @@
 (defn get-derived-state-from-props [props $state]
   ;; when a component receives new props, update internal state.
   (j/assoc! $state
-            :prev-props (j/!get $state :props)
-            :props (j/!get props :props)
-            :prev-children (j/!get $state :children)
-            :children (j/!get props :children)))
+            :prev-props (j/unchecked-get $state :props)
+            :props (j/unchecked-get props :props)
+            :prev-children (j/unchecked-get $state :children)
+            :children (j/unchecked-get props :children)))
 
 (def default-methods
   {:view/should-update
                                         (fn []
                                           (this-as this
                                             (or (true? *reload*)
-                                                (let [$state (j/!get this :state)]
-                                                  (or (not= (j/!get $state :props)
-                                                            (j/!get $state :prev-props))
-                                                      (not= (j/!get $state :children)
-                                                            (j/!get $state :prev-children))
-                                                      (when-let [state (j/!get $state :state-atom)]
-                                                        (not= @state (j/!get $state :prev-state))))))))
+                                                (let [$state (j/unchecked-get this :state)]
+                                                  (or (not= (j/unchecked-get $state :props)
+                                                            (j/unchecked-get $state :prev-props))
+                                                      (not= (j/unchecked-get $state :children)
+                                                            (j/unchecked-get $state :prev-children))
+                                                      (when-let [state (j/unchecked-get $state :state-atom)]
+                                                        (not= @state (j/unchecked-get $state :prev-state))))))))
    :static/get-derived-state-from-props get-derived-state-from-props
    :view/will-unmount
                                         (fn []
@@ -94,7 +94,7 @@
                                             (some-> (:view/state this)
                                                     (remove-watch this))
 
-                                            (doseq [f (some-> (j/!get this :chia$onUnmount)
+                                            (doseq [f (some-> (j/unchecked-get this :chia$onUnmount)
                                                               (vals))]
                                               (when f (f this)))
 
@@ -103,11 +103,11 @@
    :view/did-update
                                         (fn []
                                           (this-as ^js this
-                                            (let [$state (j/!get this :state)
-                                                  state-atom (j/!get $state :state-atom)]
+                                            (let [$state (j/unchecked-get this :state)
+                                                  state-atom (j/unchecked-get $state :state-atom)]
                                               (-> $state
-                                                  (j/assoc! :prev-props (j/!get $state :props)
-                                                            :prev-children (j/!get $state :children))
+                                                  (j/assoc! :prev-props (j/unchecked-get $state :props)
+                                                            :prev-children (j/unchecked-get $state :children))
                                                   (cond-> state-atom (j/assoc! :prev-state @state-atom))))))})
 
 (defn wrap-method [k f]
@@ -158,7 +158,7 @@
 (defn- init-state!
   "Bind a component to an IWatchable/IDeref thing."
   [^js this watchable]
-  (-> (j/!get this :state)
+  (-> (j/unchecked-get this :state)
       (j/assoc! :state-atom watchable
                 :prev-state @watchable))
 
@@ -166,10 +166,10 @@
              (fn [_ _ old-state new-state]
                (when (not= old-state new-state)
                  (j/assoc-in! this [:state :prev-state] old-state)
-                 (when-let [^js will-receive (j/!get this :componentWillReceiveState)]
+                 (when-let [^js will-receive (j/unchecked-get this :componentWillReceiveState)]
                    (.call will-receive this))
                  (when (and (not r/*silent*)
-                            (if-let [^js should-update (j/!get this :shouldComponentUpdate)]
+                            (if-let [^js should-update (j/unchecked-get this :shouldComponentUpdate)]
                               (.call should-update this)
                               true))
                    (force-update this)))))
@@ -179,8 +179,8 @@
   "Populate initial state for `component`."
   [^js this ^js $props initial-state]
   (let [state-data (if (fn? initial-state)
-                     (let [$state (j/!get this :state)]
-                       (j/set! this :state (get-derived-state-from-props $props $state))
+                     (let [$state (j/unchecked-get this :state)]
+                       (j/unchecked-set this :state (get-derived-state-from-props $props $state))
                        (apply initial-state this (:view/children this)))
                      initial-state)]
     (init-state! this (atom state-data)))
@@ -192,14 +192,14 @@
   (let [$state (j/get this :state)]
     (when-not (j/contains? $state :state-atom)
       (init-state! this (atom nil)))
-    (j/!get $state :state-atom)))
+    (j/unchecked-get $state :state-atom)))
 
 (defn- get-special [this k not-found]
   (case k
     :view/state (get-state! this)
     (or (-> this
-            (j/!get :state)
-            (j/!get (name k)))
+            (j/unchecked-get :state)
+            (j/unchecked-get (name k)))
         not-found)))
 
 (defn- get-prop [this k not-found]
@@ -220,7 +220,7 @@
     r/IReadReactively
     (-invalidate! [this _] (force-update this))
     INamed
-    (-name [this] (j/!get this :displayName))
+    (-name [this] (j/unchecked-get this :displayName))
     (-namespace [this] nil)
     IPrintWithWriter
     (-pr-writer [this writer opts]
@@ -269,7 +269,7 @@
                    (keyword? class-react-key) (get props class-react-key)
                    (fn? class-react-key) (.apply class-react-key (assoc props :view/children children) (to-array children))
                    :else (throw (js/Error "Invalid key supplied to component"))))
-           (j/!get constructor :displayName))))
+           (j/unchecked-get constructor :displayName))))
 
 (defn- view*
   "Return a React element factory."
