@@ -26,18 +26,16 @@
   (vswap! to-render disj component)
   (j/assoc! component :chia$toUpdate false))
 
-(defn force-update!* [^js component]
-  (if-let [fu (j/get component :chia$forceUpdate)]
-    (fu)
-    (.forceUpdate component)))
+(defprotocol IForceUpdate
+  (-force-update! [this]))
 
 (defn force-update!
   "Force-updates `component` immediately."
   [^js component]
   (vswap! to-render disj component)
-  (force-update!* component))
+  (-force-update! component))
 
-(defn force-update
+(defn schedule-update!
   "Queues a force-update for `component`"
   [^js component]
   (if (true? *immediate-state-update*)
@@ -47,8 +45,8 @@
       (vswap! to-render conj component)
       (request-render))))
 
-(defn order [^js component]
-  (j/get component :chia$order))
+(defn order [component]
+  (.-chia$order component))
 
 (defn flush!
   []
@@ -57,7 +55,7 @@
       (vreset! to-render #{})
       (doseq [^js c (sort-by order components)]
         (when (true? (j/get c :chia$toUpdate))
-          (force-update!* c))))))
+          (-force-update! c))))))
 
 (defn render-loop
   [frame-ms]

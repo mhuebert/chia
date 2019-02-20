@@ -15,19 +15,15 @@
             [goog.object :as gobj])
   (:require-macros [chia.view :as v]))
 
-(goog/exportSymbol "React" react)
-(goog/exportSymbol "ReactDOM" react-dom)
-
 (def create-element react/createElement)
 (def is-valid-element? react/isValidElement)
-
 (def Component react/Component)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;; Render loop
 
-(def force-update render-loop/force-update)
+(def schedule-update render-loop/schedule-update!)
 (def force-update! render-loop/force-update!)
 (def flush! render-loop/flush!)
 
@@ -171,7 +167,7 @@
                             (if-let [^js should-update (j/unchecked-get this :shouldComponentUpdate)]
                               (.call should-update this)
                               true))
-                   (force-update this)))))
+                   (render-loop/schedule-update! this)))))
   watchable)
 
 (defn- populate-initial-state!
@@ -217,7 +213,11 @@
          "view" (get-special this k not-found)
          (get-prop this k not-found))))
     r/IReadReactively
-    (-invalidate! [this _] (force-update this))
+    (-invalidate! [this _]
+      (render-loop/schedule-update! this))
+    render-loop/IForceUpdate
+    (-force-update! [this]
+      (j/call this :forceUpdate))
     INamed
     (-name [this] (j/unchecked-get this :displayName))
     (-namespace [this] nil)
@@ -411,7 +411,9 @@
     (-write writer (str "👁<" chia$name ">")))
   r/IReadReactively
   (-invalidate! [this _]
-    (render-loop/force-update this)))
+    (render-loop/schedule-update! this))
+  render-loop/IForceUpdate
+  (-force-update! [this] (chia$forceUpdate)))
 
 (def use-state* react/useState)
 (def use-effect react/useEffect)
@@ -456,7 +458,7 @@
                    (add-watch state-atom ::state-atom
                               (fn [_ _ old-state new-state]
                                 (when (not= old-state new-state)
-                                  (render-loop/force-update chia$view))))
+                                  (render-loop/schedule-update! chia$view))))
                    #(remove-watch state-atom ::state-atom)) #js [])
      state-atom)))
 

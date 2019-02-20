@@ -61,10 +61,10 @@
                      ;; super()
                      (~'.call ~'chia.view/Component ~this-name ~props-sym)
                      ;; init internal state
-                     (set! (~'.-state ~this-name) (~'js-obj))
-                     ;; add count
-                     (-> ~this-name
-                         (~'goog.object/set "chia$order" (~'vswap! ~'chia.view/instance-counter inc)))
+
+                     (~'applied-science.js-interop/assoc! ~this-name
+                       ~'.-state (~'js-obj)
+                       ~'.-chia$order (~'vswap! ~'chia.view/instance-counter inc))
 
                      ~(when initial-state
                         `(~'chia.view/populate-initial-state! ~this-name ~props-sym ~initial-state))
