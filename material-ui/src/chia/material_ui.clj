@@ -14,8 +14,10 @@
          options (-> options
                      (update :->js-keys (fnil conj []) :classes)
                      (update :lift-nses (fnil conj #{}) "material"))]
-     `(~'chia.view/defn ~the-name [& args#]
-       (let [[props# children#] (~'chia.view/parse-args args#)
-             props# (~'chia.view/adapt-props ~options props#)]
-         (-> (~'array ~class-sym props#)
-             (.concat (to-array children#))))))))
+     `(~'defn ~the-name [& args#]
+        (let [[props# children#] (~'chia.view/parse-args args#)
+              props# (~'chia.view/adapt-props ~options props#)
+              children# (some->> children#
+                                 (mapv ~'chia.view/to-element))
+              arga# (.concat (~'cljs.core/array ~class-sym props#) (~'to-array children#))]
+          (.apply ~'chia.view/create-element nil arga#))))))

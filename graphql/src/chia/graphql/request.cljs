@@ -3,7 +3,8 @@
   (:require ["unfetch" :as unfetch]
             [chia.graphql.printer :as string]
             [applied-science.js-interop :as j]
-            [chia.util :as u]))
+            [chia.util :as u]
+            [kitchen-async.promise :as p]))
 
 (defn ->promise ^js [x]
   (cond-> x
@@ -26,21 +27,22 @@
                    (clj->js))))
 
 (defn post!
-  [{:as   options
-    :keys [token
-           url]} form variables]
+  [api-opts-promise form variables]
   (let [query-string (-> (string/emit form)
                          :string+)]
     (assert (string? query-string))
-    (-> (get-token token)
-        (then
-         (fn [token]
-           (fetch url
-                  {:method      "POST"
-                   :credentials "include"
-                   :headers     (cond-> {:Content-Type "application/json"}
-                                        token (assoc :Authorization (str "Bearer: " token)))
-                   :body        {:query     query-string
-                                 :variables variables}})))
-        (then #(j/call % :json)))))
+    (p/let [{:as           options
+             :request/keys [get-token
+                            url]} api-opts-promise]
+      (-> (get-token)
+          (p/then
+            (fn [token]
+              (fetch url
+                     {:method      "POST"
+                      :credentials "include"
+                      :headers     (cond-> {:Content-Type "application/json"}
+                                           token (assoc :Authorization (str "Bearer: " token)))
+                      :body        {:query     query-string
+                                    :variables variables}})))
+          (p/then #(j/call % :json))))))
 

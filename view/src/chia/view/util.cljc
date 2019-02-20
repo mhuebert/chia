@@ -41,9 +41,9 @@
      ([id] (find-or-append-element id :div))
      ([id tag]
       (or (.getElementById js/document id)
-          (-> (.createElement js/document (name tag))
-              (j/assoc! :id (name id))
-              (->> (.appendChild (.-body js/document))))))))
+          (let [element (-> (.createElement js/document (name tag))
+                            (j/assoc! :id (name id)))]
+            (.. js/document -body (appendChild element)))))))
 
 (def lifecycle-keys
   "Mapping of methods-map keys to React lifecycle keys."

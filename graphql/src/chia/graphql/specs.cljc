@@ -153,17 +153,12 @@
                                               ::request/url]))
 
 (s/fdef request/post!
-        :args (s/cat :options ::request/api-options
+        :args (s/cat :options (s/or :promise u/promise?
+                                    :api-opts-map ::request/api-options)
                      :form :graphql/xvec
                      :variables (s/nilable map?)))
 
 ;; root
-
-(s/fdef root/get-api-options
-        :ret (s/cat :options ::request/api-options))
-
-(s/fdef root/set-api-options!
-        :args (s/cat :options ::request/api-options))
 
 (s/fdef root/get-operation
         :args (s/cat :root :graphql/root))

@@ -206,27 +206,34 @@
        (swap! ~'chia.view.view-specs/spec-meta assoc ~kw {:doc ~doc})
        (clojure.spec.alpha/def ~kw ~@args))))
 
+(core/defn parse-functional-view-args [args]
+  (let [view-map (s/conform (s/cat :name (s/? symbol?)
+                                   :doc (s/? string?)
+                                   :view/options (s/? map?)
+                                   :body (s/+ any?))
+                            args)]
+    (assoc view-map :view/name
+                    (symbol (name (ns-name *ns*))
+                            (name (:name view-map))))))
+
 (defmacro defn [& args]
   (let [{:keys     [name
                     doc
                     view/options
-                    view/arglist
-                    view/body]
-         view-name :view/name} (parse-view-args args)
+                    body]
+         view-name :view/name} (parse-functional-view-args args)
         view-fn-sym (symbol (str "-" name))
         key-fn-sym (gensym "key")
         key-fn (:key options)]
     `(let [~key-fn-sym ~key-fn
            ~view-fn-sym
-           (core/fn ~view-fn-sym [props#]
-             (let [args# (j/get props# :children)
-                   chia$state# (~'chia.view/use-chia ~(str name))]
-               (binding [~'chia.view/*current-view* chia$state#]
-                 (~'chia.reactive/with-dependency-tracking! (j/get chia$state# :chia$forceUpdate)
-                  (let [~arglist args#]
-                    ~@(drop-last body)
-                    (~'chia.view.hiccup/element {:wrap-props ~'chia.view/wrap-props}
-                     ~(last body)))))))]
+           (core/fn [props#]
+             (let [chia$view# (~'chia.view/use-chia ~(str view-name))]
+               (binding [~'chia.view/*current-view* chia$view#]
+                 (~'chia.reactive/with-dependency-tracking! chia$view#
+                   (~'chia.view.hiccup/element {:wrap-props ~'chia.view/wrap-props}
+                     (apply (fn ~name ~@body)
+                            (j/get props# :children)))))))]
        (core/defn ~name [& args#]
          (let [props# (when ~key-fn-sym
                         (~'js-obj :key (apply ~key-fn-sym args#)))]

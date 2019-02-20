@@ -25,10 +25,12 @@
                 (.attach)))))
 
 (def ^js page-styles
-  (when (exists? js/window)
-    (-> ^js (JSS)
-        (.createStyleSheet #js {})
-        (doto (j/call :attach)))))
+  (memoize
+    (fn []
+      (when (exists? js/window)
+        (-> ^js (JSS)
+            (.createStyleSheet #js {})
+            (doto (j/call :attach)))))))
 
 (def classes!
   (memoize
@@ -45,10 +47,10 @@
   (memoize
    (fn class!
      ([selector styles]
-      (.addRule page-styles selector (clj->js styles))
+      (.addRule (page-styles) selector (clj->js styles))
       nil)
      ([styles]
-      (some-> (.addRule page-styles
+      (some-> (.addRule (page-styles)
                         (str "inline-" (vswap! counter inc))
                         (clj->js styles))
               (j/get :selectorText)

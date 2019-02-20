@@ -18,13 +18,15 @@
 ;;
 ;; API Options
 
-(defonce api-options (atom {}))
+(def ^:private resolve-api-opts! (atom nil))
 
-(defn get-api-options []
-  @api-options)
+(defn set-api-options! [api-opts]
+  (@resolve-api-opts! api-opts))
 
-(defn set-api-options! [opts]
-  (reset! api-options opts))
+(defonce api-opts-promise (p/promise [resolve reject]
+                            (reset! resolve-api-opts! resolve)))
+
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -211,30 +213,32 @@
   (add-to-cache! cache root payload)
   (read-root cache root))
 
-(defn resolve! [root]
-  (merge-root-meta! root
-                    {:async/loading? true})
-  #_(if (:resolve (schema/entry root))
-      (exec! root))
-  (-> (request/post! (get-api-options)
-                     (form root)
-                     (:root/variables root))
-      (p/then (fn [response]
-                (let [result (write-root-response! root response)]
-                  (merge-root-meta! root (u/select-ns result "async"))
-                  result)))
-      (p/catch* (fn [error]
-                  (js/console.error error)
-                  (prn :error-in-root root)
-                  (merge-root-meta! root
-                                    {:async/error {:message "Error sending GraphQL operation"
-                                                   :error   error}})))))
+(defn resolve!
+  ([root] (resolve! nil root))
+  ([{:as   options
+     :keys [async/load-silently?]} root]
+   (when-not load-silently?
+     (merge-root-meta! root
+                       {:async/loading? true}))
+    #_(if (:resolve (schema/entry root))
+        (exec! root))
+   (-> (request/post! api-opts-promise (form root) (:root/variables root))
+       (p/then (fn [response]
+                 (let [result (write-root-response! root response)]
+                   (merge-root-meta! root (u/select-ns result "async"))
+                   result)))
+       (p/catch* (fn [error]
+                   (js/console.error error)
+                   (prn :error-in-root root)
+                   (merge-root-meta! root
+                                     {:async/error {:message "Error sending GraphQL operation"
+                                                    :error   error}}))))))
 
 (defn group-options [m]
   (reduce-kv (fn [[variables options] k v]
                (case (namespace k)
                  ("graphql"
-                  "async")
+                   "async")
                  [variables (assoc options k v)]
                  [(assoc variables k v) options])) [{} {}] m))
 
