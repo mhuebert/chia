@@ -12,13 +12,13 @@
   `(macros/deftime ~@body))
 
 (core/defmacro defmacro
-  "Like defmacro, but only evaluated at macro-expansion time"
+  "Like defmacro, but only evaluated at macro-definition time"
   [& body]
   `(macro-time
     (core/defmacro ~@body)))
 
 (core/defmacro defn
-  "Like defn, but only evaluated at macro-expansion time"
+  "Like defn, but only evaluated at macro-definition time"
   [& body]
   `(macro-time
     (core/defn ~@body)))

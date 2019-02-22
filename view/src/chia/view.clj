@@ -50,8 +50,6 @@
     ~(cond-> (to-element `(do ~@body))
              (not pure?) (wrap-current-view-binding))))
 
-
-
 (core/defn- make-constructor [the-name initial-state]
   (let [this-name (gensym)
         fn-name (gensym the-name)
