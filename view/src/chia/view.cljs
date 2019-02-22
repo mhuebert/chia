@@ -47,7 +47,7 @@
   (cond-> props
           (contains? props :on-change) (update :on-change render-loop/apply-sync!)))
 
-(defn- wrap-props
+(defn wrap-props
   "Wraps :on-change handlers of text inputs to apply changes synchronously."
   [props tag]
   (cond-> props
