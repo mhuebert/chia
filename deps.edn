@@ -38,7 +38,7 @@
 
   applied-science/js-interop
   {:git/url "https://github.com/appliedsciencestudio/js-interop"
-   :sha "92769cdaa0196639d1dc04087442b8a37985f17e"}
+   :sha "060918e0d70b05c8307daf747c5b3bf43bf2c281"}
 
 
   ;; transitive deps
