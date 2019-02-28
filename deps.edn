@@ -36,10 +36,7 @@
 
   net.cgrand/xforms {:mvn/version "0.16.0"}
 
-  applied-science/js-interop
-  {:git/url "https://github.com/appliedsciencestudio/js-interop"
-   :sha "060918e0d70b05c8307daf747c5b3bf43bf2c281"}
-
+  appliedscience/js-interop {:mvn/version "0.1.10"}
 
   ;; transitive deps
 
@@ -65,7 +62,7 @@
 
   ;; graphql
   athos/kitchen-async {:git/url "https://github.com/athos/kitchen-async.git"
-                       :sha "5fc0a3065bbbbcc9d828a5bd2392d64170b71f31"}
+                       :sha "68eca4b37e796cf0d3c1850a15560a1f71d47879"}
 
   expound {:mvn/version "0.7.1"}
   }}

@@ -40,7 +40,7 @@
 
 (core/defn wrap-current-view-binding [body]
   `(~'this-as this#
-    (binding [*current-view* this#]
+    (binding [~'chia.view.registry/*current-view* this#]
       ~body)))
 
 (core/defn- wrap-render-body
@@ -62,7 +62,7 @@
 
                      (~'applied-science.js-interop/assoc! ~this-name
                        ~'.-state (~'js-obj)
-                       ~'.-chia$order (~'vswap! ~'chia.view/instance-counter inc))
+                       ~'.-chia$order (~'vswap! ~'chia.view.registry/instance-counter inc))
 
                      ~(when initial-state
                         `(~'chia.view/populate-initial-state! ~this-name ~props-sym ~initial-state))
@@ -167,7 +167,7 @@
        ~name)))
 
 (defmacro extend-view [view & args]
-  `(clojure.core/specify!
+  `(~'cljs.core/specify!
     (~'goog.object/getValueByKeys ~view "chia$constructor" "prototype")
     ~@args))
 
@@ -187,7 +187,7 @@
          val-sym (gensym "val")]
      `(let [~key-sym ~(if key `(str ~gname "/" ~key)
                               gname)
-            ~this-sym ~'chia.view/*current-view*]
+            ~this-sym ~'chia.view.registry/*current-view*]
         (or (~js-get ~this-sym ~key-sym)
             (let [~val-sym ~body]
               (~js-assoc! ~this-sym ~key-sym ~val-sym)
@@ -226,8 +226,8 @@
     `(let [~key-fn-sym ~key-fn
            ~view-fn-sym
            (core/fn [props#]
-             (let [chia$view# (~'chia.view/use-chia ~(str view-name))]
-               (binding [~'chia.view/*current-view* chia$view#]
+             (let [chia$view# (~'chia.view.hooks/use-chia ~(str view-name))]
+               (binding [~'chia.view.registry/*current-view* chia$view#]
                  (~'chia.reactive/with-dependency-tracking! chia$view#
                    (~'chia.view.hiccup/element {:wrap-props ~'chia.view/wrap-props}
                      (apply (fn ~name ~@body)

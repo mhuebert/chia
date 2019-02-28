@@ -10,7 +10,8 @@
             [chia.view :as v]
             [chia.graphql.exec :as exec]
             [clojure.string :as str]
-            [cljs.pprint :as pp]))
+            [cljs.pprint :as pp]
+            [chia.view.registry :as registry]))
 
 (defonce cache (d/create))
 
@@ -255,7 +256,7 @@
 (defmethod invoke-root :Mutation
   [root]
 
-  (when-let [view v/*current-view*]
+  (when-let [view registry/*current-view*]
     (listen root {} view))
 
   (assoc (read-root root)
@@ -264,8 +265,8 @@
 (defmethod invoke-root :Query
   [root]
 
-  (if-let [view v/*current-view*]
-    (listen root {:on-mount resolve!} v/*current-view*)
+  (if-let [view registry/*current-view*]
+    (listen root {:on-mount resolve!} registry/*current-view*)
     (resolve! root))
 
   ;; handle cache policies - :network-only, :cache-only, :cache-and-network, :cache-or-network
@@ -278,7 +279,7 @@
    (invoke-root (merge this
                        #:root {:variables variables
                                :xkeys     xkeys
-                               :view      v/*current-view*}))))
+                               :view      registry/*current-view*}))))
 
 #_(defn invoke [root variables & xkeys]
     (let [[variables xkeys] (if (map? variables)

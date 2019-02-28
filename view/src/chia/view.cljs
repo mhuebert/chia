@@ -31,17 +31,9 @@
 ;;
 ;; Dynamic vars
 
-(def ^:dynamic *current-view*
-  "Tracks the currently-rendering component."
-  nil)
-
 (def ^:dynamic *reload*
   "When true, all components re-render, regardless of shouldComponentUpdate."
   false)
-
-(def instance-counter
-  "For tracking the order in which components have been constructed (parent components are always constructed before their children)."
-  (volatile! 0))
 
 (defn- update-change-prop [props]
   (cond-> props
@@ -397,70 +389,6 @@
                                               :chia$class]))]
            (get class k)))
        not-found)))
-
-;; Hooks
-;;
-;; exploring functional components and hooks,
-;; experimental / not stable
-
-(deftype FunctionalView [chia$name
-                         chia$order
-                         chia$forceUpdate]
-  IPrintWithWriter
-  (-pr-writer [this writer opts]
-    (-write writer (str "👁<" chia$name ">")))
-  r/IReadReactively
-  (-invalidate! [this _]
-    (render-loop/schedule-update! this))
-  render-loop/IForceUpdate
-  (-force-update! [this] (chia$forceUpdate)))
-
-(def use-state* react/useState)
-(def use-effect react/useEffect)
-(def use-context react/useContext)
-(def use-reducer react/useReducer)
-(def use-callback react/useCallback)
-(def use-memo react/useMemo)
-(def use-ref react/useRef)
-(def use-imperative-handle react/useImperativeHandle)
-(def use-layout-effect react/useLayoutEffect)
-(def use-debug-value react/use-debug-value)
-
-(defn use-force-update! []
-  (-> (use-reducer inc 0)
-      (unchecked-get 1)))
-
-(defn use-on-unmount [f]
-  (use-effect (constantly f) #js []))
-
-(defn use-chia [view-name]
-  (let [force-update! (use-force-update!)
-        [chia$view _] (use-state* (fn [] (new FunctionalView
-                                              view-name
-                                              (vswap! instance-counter inc)
-                                              force-update!)))]
-    (use-on-unmount
-      (fn []
-        (render-loop/forget! chia$view)
-        (r/dispose-reader! chia$view)
-        (doseq [f (some-> (j/get chia$view :chia$onUnmount)
-                          (vals))]
-          (f))))
-    chia$view))
-
-(defn use-state
-  ([] (use-state nil))
-  ([initial-state]
-   (let [state-atom (-> (use-ref (atom initial-state))
-                        (j/get :current))
-         chia$view *current-view*]
-     (use-effect (fn []
-                   (add-watch state-atom ::state-atom
-                              (fn [_ _ old-state new-state]
-                                (when (not= old-state new-state)
-                                  (render-loop/schedule-update! chia$view))))
-                   #(remove-watch state-atom ::state-atom)) #js [])
-     state-atom)))
 
 (defn adapt-react-class
   ([the-class]

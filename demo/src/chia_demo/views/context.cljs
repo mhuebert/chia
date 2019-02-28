@@ -1,16 +1,17 @@
 (ns chia-demo.views.context
   (:require [chia.view :as v]
             [chia.view.context :as c]
-            [chia.reactive :as r]))
+            [chia.reactive :as r]
+            [chia.view.registry :as registry]))
 
 (defn counter []
-  (let [{:keys [view/state]} v/*current-view*]
+  (let [{:keys [view/state]} registry/*current-view*]
     (r/silently
      (swap! state update :count (fnil inc 0)))
     [:div (str "Renders:" (:count @state 0))]))
 
 (defn clicks []
-  (let [{:keys [view/state]} v/*current-view*]
+  (let [{:keys [view/state]} registry/*current-view*]
     [:a.db {:on-click #(swap! state update :clicks (fnil inc 0))}
      (str "Clicks:" (:clicks @state 0))]))
 

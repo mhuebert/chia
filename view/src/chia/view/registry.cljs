@@ -1,5 +1,13 @@
 (ns chia.view.registry)
 
+(def ^:dynamic *current-view*
+  "Tracks the currently-rendering component."
+  nil)
+
+(def instance-counter
+  "For tracking the order in which components have been constructed (parent components are always constructed before their children)."
+  (volatile! 0))
+
 (defonce registry-ref (atom {}))
 
 (defn register-view! [view-var]
