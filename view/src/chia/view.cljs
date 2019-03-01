@@ -344,9 +344,9 @@
            lift-nses
            wrap-props]} props]
   (-> props
-      (cond-> ->element-keys (u/update-some-keys ->element-keys to-element)
+      (cond-> lift-nses (u/lift-nses lift-nses)
+              ->element-keys (u/update-some-keys ->element-keys to-element)
               ->js-keys (u/update-some-keys ->js-keys clj->js)
-              lift-nses (u/lift-nses lift-nses)
               wrap-props (wrap-props))
       (update-change-prop)
       (hiccup-impl/props->js)))
@@ -393,7 +393,8 @@
 (defn adapt-react-class
   ([the-class]
    (adapt-react-class nil the-class))
-  ([{:keys [->element-keys
+  ([{:as sp
+     :keys [->element-keys
             ->js-keys
             lift-nses
             wrap-props]} the-class]
@@ -403,9 +404,9 @@
                               [(first args) (rest args)]
                               [{} args])
            props (-> props
-                     (cond-> ->element-keys (u/update-some-keys ->element-keys to-element)
+                     (cond-> lift-nses (u/lift-nses lift-nses)
+                             ->element-keys (u/update-some-keys ->element-keys to-element)
                              ->js-keys (u/update-some-keys ->js-keys clj->js)
-                             lift-nses (u/lift-nses lift-nses)
                              wrap-props (wrap-props))
                      (update-change-prop)
                      (hiccup-impl/props->js))

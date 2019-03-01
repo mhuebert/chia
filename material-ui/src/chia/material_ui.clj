@@ -12,8 +12,8 @@
                        (u/camel-case)
                        (symbol))
          options (-> options
-                     (update :->js-keys (fnil conj []) :classes)
-                     (update :lift-nses (fnil conj #{}) "material"))]
+                     (update :lift-nses (fnil conj #{}) "material")
+                     (update :->js-keys (fnil conj []) :classes))]
      `(~'defn ~the-name [& args#]
         (let [[props# children#] (~'chia.view/parse-args args#)
               props# (~'chia.view/adapt-props ~options props#)
