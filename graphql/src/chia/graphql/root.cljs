@@ -24,8 +24,9 @@
 (defn set-api-options! [api-opts]
   (@resolve-api-opts! api-opts))
 
-(defonce api-opts-promise (p/promise [resolve reject]
-                            (reset! resolve-api-opts! resolve)))
+(defonce api-opts-promise
+         (p/promise [resolve reject]
+           (reset! resolve-api-opts! resolve)))
 
 
 
@@ -105,14 +106,11 @@
   (let [mount-root? (-> (root-entry root)
                         :views
                         (empty?))]
-
     (assert view)
-
     (vswap! root-listeners update-in [(root-id root) :views] (fnil conj #{}) view)
     (v/on-unmount! view root #(unmount-view! root view))
 
     (when mount-root?
-
       (doseq [f [(:on-unmount options)
                  (:on-unmount (:root/options root))]]
         (when f
@@ -176,7 +174,7 @@
       (let [{:keys [message path]} (j/lookup (aget errors 0))]
         (js/console.error (str "GraphQL: " (js->clj path) " " message))))
 
-    (prn :gql/request time `(~(keyword (get-name root)) ~variables) (root-id root))
+    #_(prn :gql/request time `(~(keyword (get-name root)) ~variables) (root-id root))
 
     (conj datoms {:db/id                    (root-id root)
                   :async/error              (js->clj errors :keywordize-keys true)
@@ -264,9 +262,8 @@
 
 (defmethod invoke-root :Query
   [root]
-
   (if-let [view registry/*current-view*]
-    (listen root {:on-mount resolve!} registry/*current-view*)
+    (listen root {:on-mount resolve!} view)
     (resolve! root))
 
   ;; handle cache policies - :network-only, :cache-only, :cache-and-network, :cache-or-network

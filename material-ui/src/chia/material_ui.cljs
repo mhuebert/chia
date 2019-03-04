@@ -1,8 +1,7 @@
 (ns chia.material-ui
   (:require [chia.view :as v]
             [clojure.string :as str]
-            ["@material-ui/core/IconButton" :default IconButton*]
-            ["@material-ui/core/styles" :refer [withStyles createMuiTheme MuiThemeProvider]])
+            ["@material-ui/core/IconButton" :default IconButton*])
   (:require-macros [chia.material-ui :as m]))
 
 (def icon-adjustments
@@ -43,9 +42,3 @@
                      (assoc :key icon-name))
                  (icon icon-props icon-name))))
 
-(defn create-theme
-  ([] (create-theme {}))
-  ([options]
-   (createMuiTheme (clj->js options))))
-
-(def theme-provider (v/adapt-react-class MuiThemeProvider))

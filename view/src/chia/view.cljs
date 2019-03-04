@@ -7,6 +7,7 @@
             [chia.view.hiccup.impl :as hiccup-impl]
             [chia.view.view-specs]
             [chia.view.util :as view-util]
+            [chia.view.hooks :as hooks]
             [chia.util :as u]
             [applied-science.js-interop :as j]
             [chia.view.registry :as registry]
@@ -105,13 +106,13 @@
         :view/will-receive-state) (bind f)
       :view/will-unmount
       (fn []
-        (this-as ^js this
+        (this-as this
           (v/apply-fn f this)
           (.call (default-methods :view/will-unmount) this)))
       :view/render
       (fn []
         (this-as ^js this
-          (j/assoc! this :chia$toUpdate false)              ;; avoid double-render in render loop
+          (j/assoc! this .-chia$toUpdate false)             ;; avoids double-render in render loop
           (r/with-dependency-tracking! this
                                        (v/apply-fn f this))))
       :view/did-update
@@ -393,7 +394,7 @@
 (defn adapt-react-class
   ([the-class]
    (adapt-react-class nil the-class))
-  ([{:as sp
+  ([{:as   sp
      :keys [->element-keys
             ->js-keys
             lift-nses
@@ -414,3 +415,10 @@
                        (to-array)
                        (j/unshift! the-class))]
        (to-element js-form)))))
+
+(defn functional-render [view-name view-fn]
+  (fn [props]
+    (binding [registry/*current-view* (hooks/use-chia view-name)]
+      (r/with-dependency-tracking! registry/*current-view*
+        (hiccup/element {:wrap-props wrap-props}
+                        (apply view-fn (j/get props :children)))))))

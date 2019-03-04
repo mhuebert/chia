@@ -14,12 +14,13 @@
          (memoize (fn []
                     (-> (j/get js/document :body)
                         (.appendChild (doto (js/document.createElement "div")
-                                        (.setAttribute "style"  "padding: 3px 3px 0 0; font-size: 9px;")
+                                        (.setAttribute "style" "padding: 3px 3px 0 0; font-size: 9px;")
                                         (.setAttribute "class" "fixed top-0 right-0 z-max monospace gray")))))))
 
 (defn render-fps []
-  (react-dom/render (react/createElement "div" #js {} (str (js/Math.floor frame-rate)))
-                    (fps-element)))
+  (react-dom/render
+    (react/createElement "div" #js {} (str (js/Math.floor frame-rate)))
+    (fps-element)))
 
 (defn measure-frame-rate!
   [value]

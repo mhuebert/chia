@@ -33,16 +33,14 @@
     (assert (string? query-string))
     (p/let [{:as           options
              :request/keys [get-token
-                            url]} api-opts-promise]
-      (-> (get-token)
-          (p/then
-            (fn [token]
-              (fetch url
-                     {:method      "POST"
-                      :credentials "include"
-                      :headers     (cond-> {:Content-Type "application/json"}
-                                           token (assoc :Authorization (str "Bearer: " token)))
-                      :body        {:query     query-string
-                                    :variables variables}})))
-          (p/then #(j/call % :json))))))
+                            url]} api-opts-promise
+            token (get-token)
+            response (fetch url
+                            {:method      "POST"
+                             :credentials "include"
+                             :headers     (cond-> {:Content-Type "application/json"}
+                                                  token (assoc :Authorization (str "Bearer: " token)))
+                             :body        {:query     query-string
+                                           :variables variables}})]
+      (j/call response :json))))
 

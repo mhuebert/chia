@@ -1,1 +1,0 @@
-Warning - chia/apollo is unlikely to survive, more likely to build a local cache around chia/triple-db.

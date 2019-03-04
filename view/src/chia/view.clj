@@ -224,14 +224,9 @@
         key-fn-sym (gensym "key")
         key-fn (:key options)]
     `(let [~key-fn-sym ~key-fn
-           ~view-fn-sym
-           (core/fn [props#]
-             (let [chia$view# (~'chia.view.hooks/use-chia ~(str view-name))]
-               (binding [~'chia.view.registry/*current-view* chia$view#]
-                 (~'chia.reactive/with-dependency-tracking! chia$view#
-                   (~'chia.view.hiccup/element {:wrap-props ~'chia.view/wrap-props}
-                     (apply (fn ~name ~@body)
-                            (j/get props# :children)))))))]
+           ~view-fn-sym (~'chia.view.functional-render
+                          ~(str view-name)
+                          (fn ~name ~@body))]
        (core/defn ~name [& args#]
          (let [props# (when ~key-fn-sym
                         (~'js-obj :key (apply ~key-fn-sym args#)))]

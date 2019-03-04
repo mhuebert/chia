@@ -7,7 +7,7 @@
 
 
 (def use-state* react/useState)
-(def use-effect react/useEffect)
+(def use-effect* react/useEffect)
 (def use-context react/useContext)
 (def use-reducer react/useReducer)
 (def use-callback react/useCallback)
@@ -16,6 +16,25 @@
 (def use-imperative-handle react/useImperativeHandle)
 (def use-layout-effect react/useLayoutEffect)
 (def use-debug-value react/use-debug-value)
+
+(def ^:private js-undefined (js* "void 0"))
+
+(defn- wrap-effect [f]
+  (fn []
+    (let [destroy (f)]
+      ;; we must return `undefined` (and not null) if there is no fn to call on dispose
+      (if (fn? destroy)
+        destroy
+        js-undefined))))
+
+(defn use-effect
+  ([f]
+   (use-effect* (wrap-effect f)))
+  ([f memoize-by]
+   (use-effect* (wrap-effect f)
+                (cond-> memoize-by
+                        (vector? memoize-by)
+                        (to-array)))))
 
 (deftype FunctionalView [chia$name
                          chia$order
@@ -71,3 +90,4 @@
                                   (render-loop/schedule-update! chia$view))))
                    #(remove-watch state-atom ::state-atom)) #js [])
      state-atom)))
+
