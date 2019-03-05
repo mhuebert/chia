@@ -32,9 +32,7 @@
    (use-effect* (wrap-effect f)))
   ([f memoize-by]
    (use-effect* (wrap-effect f)
-                (cond-> memoize-by
-                        (vector? memoize-by)
-                        (to-array)))))
+                memoize-by)))
 
 (deftype FunctionalView [chia$name
                          chia$order
@@ -62,12 +60,23 @@
 (defn use-will-unmount [f]
   (use-effect (constantly f) #js []))
 
-(defn use-chia [view-name]
+(defn use-once
+  "Like use-memo, but accepts a function and is guaranteed to be called only once."
+  [f]
+  (let [ref (use-ref ::unset)]
+    (if (not= ::unset (j/get ref :current))
+      (j/get ref :current)
+      (do (j/assoc! ref :current (f))
+          (j/get ref :current)))))
+
+(defn use-chia* [view-name ^boolean ref]
   (let [force-update! (use-force-update!)
-        [chia$view _] (use-state* (fn [] (new FunctionalView
-                                              view-name
-                                              (vswap! registry/instance-counter inc)
-                                              force-update!)))]
+        chia$view (use-once (fn []
+                              (cond-> (new FunctionalView
+                                           view-name
+                                           (vswap! registry/instance-counter inc)
+                                           force-update!)
+                                      (not (false? ref)) (j/assoc! .-chia$ref ref))))]
     (use-will-unmount
       (fn []
         (render-loop/forget! chia$view)
@@ -80,14 +89,33 @@
 (defn use-state
   ([] (use-state nil))
   ([initial-state]
-   (let [state-atom (-> (use-ref (atom initial-state))
-                        (j/get :current))
-         chia$view registry/*current-view*]
-     (use-effect (fn []
-                   (add-watch state-atom ::state-atom
-                              (fn [_ _ old-state new-state]
-                                (when (not= old-state new-state)
-                                  (render-loop/schedule-update! chia$view))))
-                   #(remove-watch state-atom ::state-atom)) #js [])
+   (let [chia$view registry/*current-view*
+         state-atom (use-once (fn []
+                                (let [state-atom (atom initial-state)]
+                                  (add-watch state-atom ::state-atom
+                                             (fn [_ _ old-state new-state]
+                                               (when (not= old-state new-state)
+                                                 (render-loop/schedule-update! chia$view))))
+                                  state-atom)))]
+     (use-will-unmount #(remove-watch state-atom ::state-atom))
      state-atom)))
 
+(defn use-forwarded-ref []
+  (let [forwarded-ref (j/get registry/*current-view* .-chia$ref)
+        ref (use-ref)]
+    (assert forwarded-ref "Must set :view/forward-ref? for use-forwarded-ref")
+    (use-imperative-handle forwarded-ref
+                           (fn []  (j/get ref :current)))
+    ref))
+
+(defn memo
+  ([f]
+   (react/memo f (fn [x y]
+                   (= (j/get x :children)
+                      (j/get y :children)))))
+  ([f should-update?]
+   (let [args-equal? (complement should-update?)]
+     (react/memo f
+                 (fn [x y]
+                   (args-equal? (j/get x :children)
+                                (j/get y :children)))))))

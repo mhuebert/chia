@@ -36,19 +36,19 @@
   ;; TODO
   ;; upgrade hiccup/element to work partly at macroexpansion time
   `(~'chia.view.hiccup/element {:wrap-props ~'chia.view/wrap-props}
-    ~x))
+     ~x))
 
 (core/defn wrap-current-view-binding [body]
   `(~'this-as this#
-    (binding [~'chia.view.registry/*current-view* this#]
-      ~body)))
+     (binding [~'chia.view.registry/*current-view* this#]
+       ~body)))
 
 (core/defn- wrap-render-body
   "Wrap body in anonymous function form."
   [name argv body pure?]
   `(~'fn ~(symbol (str "__" name)) ~argv
-    ~(cond-> (to-element `(do ~@body))
-             (not pure?) (wrap-current-view-binding))))
+     ~(cond-> (to-element `(do ~@body))
+              (not pure?) (wrap-current-view-binding))))
 
 (core/defn- make-constructor [the-name initial-state]
   (let [this-name (gensym)
@@ -81,7 +81,7 @@
                              (if (fn? v#)
                                (fn [& args#]
                                  (~'this-as this#
-                                  (apply v# this# args#)))
+                                   (apply v# this# args#)))
                                v#)))) {} m))
 
 (def __deprecated-keys #{:view/will-receive-props
@@ -157,10 +157,10 @@
          :keys     [name]
          view-name :view/name} (parse-view-args args)
         name (with-meta name (merge
-                              (meta name)
-                              (select-keys view-map [:doc
-                                                     :view/arglist
-                                                     :view/name])))]
+                               (meta name)
+                               (select-keys view-map [:doc
+                                                      :view/arglist
+                                                      :view/name])))]
     `(do
        (def ~name ~(field-view view-map))
        (~'chia.view.registry/register-view! (var ~view-name))
@@ -168,8 +168,8 @@
 
 (defmacro extend-view [view & args]
   `(~'cljs.core/specify!
-    (~'goog.object/getValueByKeys ~view "chia$constructor" "prototype")
-    ~@args))
+     (~'goog.object/getValueByKeys ~view "chia$constructor" "prototype")
+     ~@args))
 
 (defmacro once
   "Evaluates `body` once per component mount or, if :key is provided, once per unique key (per component mount).
@@ -193,7 +193,7 @@
               (~js-assoc! ~this-sym ~key-sym ~val-sym)
               ~(when on-unmount
                  `(~'chia.view/on-unmount! ~this-sym ~key-sym
-                   (fn [this#] (~on-unmount this# ~val-sym))))
+                    (fn [this#] (~on-unmount this# ~val-sym))))
               ~val-sym))))))
 
 (defmacro defspec [kw doc & args]
@@ -220,14 +220,21 @@
                     view/options
                     body]
          view-name :view/name} (parse-functional-view-args args)
+        {:view/keys [forward-ref?]} options
         view-fn-sym (symbol (str "-" name))
         key-fn-sym (gensym "key")
-        key-fn (:key options)]
+        key-fn (:key options)
+        args-sym (gensym "args")]
     `(let [~key-fn-sym ~key-fn
            ~view-fn-sym (~'chia.view.functional-render
-                          ~(str view-name)
-                          (fn ~name ~@body))]
-       (core/defn ~name [& args#]
-         (let [props# (when ~key-fn-sym
-                        (~'js-obj :key (apply ~key-fn-sym args#)))]
-           (.call ~'chia.view/create-element nil ~view-fn-sym props# args#))))))
+                          {:view/name           ~(str view-name)
+                           :view/fn             (fn ~name ~@body)
+                           :view/should-update? ~(:view/should-update? options `not=)
+                           :view/forward-ref?   ~(:view/forward-ref? options false)})]
+       (core/defn ~name [& ~args-sym]
+         (let [props# (when ~(boolean (or key-fn-sym forward-ref?))
+                        (~'js-obj
+                          ~@(cond-> []
+                                    key-fn (conj "key" `(apply ~key-fn-sym ~args-sym))
+                                    forward-ref? (conj "ref" `(:ref (first ~args-sym))))))]
+           (.call ~'chia.view/create-element nil ~view-fn-sym props# ~args-sym))))))

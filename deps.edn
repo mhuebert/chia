@@ -21,8 +21,8 @@
          "triple-db/test"
          "graphql/test"]
  :deps
- {org.clojure/clojure {:mvn/version "1.9.0"}
-  org.clojure/clojurescript {:mvn/version "1.10.439"}
+ {org.clojure/clojure {:mvn/version "1.10.0"}
+  org.clojure/clojurescript {:mvn/version "1.10.520"}
   org.clojure/test.check {:mvn/version "RELEASE" #_"0.10.0-alpha3"}
 
   ;; nice data structure viewers in console
@@ -64,5 +64,5 @@
   athos/kitchen-async {:git/url "https://github.com/athos/kitchen-async.git"
                        :sha "68eca4b37e796cf0d3c1850a15560a1f71d47879"}
 
-  expound {:mvn/version "0.7.1"}
+  expound {:mvn/version "0.7.2"}
   }}

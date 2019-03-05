@@ -29,10 +29,10 @@
         "Two ways to specify a class")
 
     (is (= ["div" {:className "red"}]
-           (element-args [:div.red nil]))
-        "Three ways to specify a class")
+           (element-args [:div.red]))
+        "Two ways to specify a class")
 
-    (is (= (element-args [:.red {:class   "white black"
+    (is (= (element-args [:.red {:class "white black"
                                  #_#_:classes ["purple"]}])
            ["div" {:className "red white black"}])
         "Combine classes from element tag and :class")
@@ -49,9 +49,8 @@
 
     (is (= (element-args [:div {:some/attr true
                                 :someAttr  "hello"}])
-           ["div" {:some-attr true
-                   :someAttr  "hello"}])
-        "Do not camelCase custom attributes")
+           ["div" {:someAttr "hello"}])
+        "Elide namespaced attributes")
 
     (is (= (element-args [:div {:style {:font-family "serif"
                                         :custom-attr "x"}}])
@@ -74,7 +73,7 @@
     (is (= (element-args [:special/effect#el.pink {:data-collapse true
                                                    :aria-label    "hello"
                                                    :class         "bg-black"
-                                                   #_#_:classes       ["white"]
+                                                   #_#_:classes ["white"]
                                                    :style         {:font-family "serif"
                                                                    :font-size   12}}])
            ["special:effect" {:data-collapse true

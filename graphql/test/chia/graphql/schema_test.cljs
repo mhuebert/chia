@@ -11,7 +11,7 @@
             [chia.graphql.root :as root]
             [chia.graphql.printer :as string]))
 
-(st/instrument)
+
 #_(deftest instrument-varargs
 
     (defn defx [key & [doc]]

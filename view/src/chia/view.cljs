@@ -114,7 +114,7 @@
         (this-as ^js this
           (j/assoc! this .-chia$toUpdate false)             ;; avoids double-render in render loop
           (r/with-dependency-tracking! this
-                                       (v/apply-fn f this))))
+            (v/apply-fn f this))))
       :view/did-update
       (fn []
         (this-as ^js this
@@ -416,9 +416,14 @@
                        (j/unshift! the-class))]
        (to-element js-form)))))
 
-(defn functional-render [view-name view-fn]
-  (fn [props]
-    (binding [registry/*current-view* (hooks/use-chia view-name)]
-      (r/with-dependency-tracking! registry/*current-view*
-        (hiccup/element {:wrap-props wrap-props}
-                        (apply view-fn (j/get props :children)))))))
+(defn functional-render [{:keys         [view/should-update?]
+                          view-name     :view/name
+                          view-fn       :view/fn
+                          ^boolean ref? :view/forward-ref?}]
+  (-> (fn [props ref]
+        (binding [registry/*current-view* (hooks/use-chia* view-name (if ref? ref false))]
+          (r/with-dependency-tracking! registry/*current-view*
+            (hiccup/element {:wrap-props wrap-props}
+                            (apply view-fn (j/get props :children))))))
+      (cond-> ref? (react/forwardRef))
+      (hooks/memo should-update?)))

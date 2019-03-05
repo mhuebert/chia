@@ -7,7 +7,10 @@
             [chia.graphql.root :as root]
             [applied-science.js-interop :as j]
             [clojure.spec.alpha :as s]
-            [clojure.spec.test.alpha :as st]))
+            [clojure.spec.test.alpha :as st]
+            [expound.alpha :as expound]))
+
+(set! s/*explain-out* expound/printer)
 
 ;; schema
 
@@ -17,7 +20,7 @@
 
 (s/fdef schema/make-schema
         :args (s/cat :fields (s/keys
-                              :opt-un [:schema/registry])))
+                               :opt-un [:schema/registry])))
 
 (s/def :schema/terminal-type #?(:cljs types/type?
                                 :clj  (constantly true)))
@@ -31,7 +34,7 @@
 
 (s/def ::schema/name string?)
 (s/def ::schema/type-key keyword? #_(s/and keyword?
-                                schema/registered-type?))
+                                           schema/registered-type?))
 (s/def ::schema/type-key+ (s/or :schema/type-key keyword? #_::schema/type-key
                                 :type-key-plural (s/and vector?
                                                         (s/coll-of keyword? :count 1))))
@@ -40,11 +43,10 @@
 (s/def ::schema/description string?)
 (s/def ::schema/of-interface keyword?)
 (s/def ::schema/fields-map (s/map-of keyword? (s/or
-                                               :schema/type-key ::schema/type-key+
-                                               :type-map ::schema/type-map
-                                               :child-fields (s/and map?
-                                                                         ::schema/fields-map)
-                                               )))
+                                                :schema/type-key ::schema/type-key+
+                                                :type-map ::schema/type-map
+                                                :child-fields (s/and map?
+                                                                     ::schema/fields-map))))
 (s/def ::schema/type-keys (s/coll-of ::schema/type-key))
 (s/def ::schema/enum-values (s/coll-of (s/or :string string?
                                              :keyword keyword?)))
@@ -101,12 +103,12 @@
 (s/def :root/xkeys :graphql/xkeys)
 
 (comment
- (s/valid? :graphql/xkey (list :a [:b {}]))
- (s/valid? :graphql/xkeys (list
-                           :a
-                           [:b {} :c]
-                           (map keyword ["d" "e"])
-                           )))
+  (s/valid? :graphql/xkey (list :a [:b {}]))
+  (s/valid? :graphql/xkeys (list
+                             :a
+                             [:b {} :c]
+                             (map keyword ["d" "e"])
+                             )))
 
 
 ;; normalize
@@ -166,8 +168,8 @@
 (s/def :graphql/root
   (s/and #(instance? schema/Root %)
          (s/keys
-          :req [:root/xkeys
-                :root/variables])))
+           :req [:root/xkeys
+                 :root/variables])))
 
 (s/def :graphql/root-id
   (s/map-of string? number?

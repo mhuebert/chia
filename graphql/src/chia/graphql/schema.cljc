@@ -102,12 +102,12 @@
 
 (def concrete?
   (comp
-   (fn [k]
-     (or (concrete-types k)
-         (-> @*schema-ref*
-             :schema/scalars
-             (contains? k))))
-   get-base))
+    (fn [k]
+      (or (concrete-types k)
+          (-> @*schema-ref*
+              :schema/scalars
+              (contains? k))))
+    get-base))
 
 (def object? (comp object-types
                    get-base))
@@ -141,11 +141,11 @@
   ([k]
    (entry @*schema-ref* k))
   ([registry k]
-   (assert (not (vector? k)))
-   (get registry (get k :schema/type-key k))
-   #_(if (vector? k)
-       (entry registry (apply join-keywords k))
-       (get registry (get k :schema/type-key k)))))
+   #_(assert (not (vector? k)))
+   #_(get registry (get k :schema/type-key k))
+   (if (vector? k)
+     (entry registry (apply join-keywords k))
+     (get registry (get k :schema/type-key k)))))
 
 (defn resolve-base-key [type-key]
   (let [{:keys [schema/base-key]} (parse-type-key type-key)]
@@ -179,15 +179,15 @@
 (def base-key-at-path (comp resolve-base-key key-at-path))
 
 (comment
- (def path-keys (juxt key-at-path base-key-at-path))
- (assert (= (path-keys [:spark-gql.schema.entities/Board :id])
-            [:String! :String]))
- (assert (= (path-keys [:spark-gql.schema.entities/Board :actions :view :public])
-            [:Boolean! :Boolean]))
- (assert (= (path-keys [:spark-gql.schema.entities/Board :membership :roles])
-            [[:spark-gql.schema.accounts/Role] :Enum]))
- (assert (= (path-keys [:spark-gql.schema.entities/Board :images :logo])
-            [:String :String])))
+  (def path-keys (juxt key-at-path base-key-at-path))
+  (assert (= (path-keys [:spark-gql.schema.entities/Board :id])
+             [:String! :String]))
+  (assert (= (path-keys [:spark-gql.schema.entities/Board :actions :view :public])
+             [:Boolean! :Boolean]))
+  (assert (= (path-keys [:spark-gql.schema.entities/Board :membership :roles])
+             [[:spark-gql.schema.accounts/Role] :Enum]))
+  (assert (= (path-keys [:spark-gql.schema.entities/Board :images :logo])
+             [:String :String])))
 
 (defn- as-type-map [t]
   (cond (map? t) t
@@ -201,23 +201,23 @@
   ([registry parent-key data]
    (->> data
         (reduce-kv
-         (fn [m child-key v]
-           (if (and (namespace child-key) (map? v))
-             (make-child-entries m parent-key
-                                 (u/update-vals v (comp #(assoc % :of-interface child-key) as-type-map)))
-             (let [{:as   child-map
-                    :keys [of-interface]} (as-type-map v)
-                   child-key (join-keywords parent-key child-key) #_(keyword (name parent-key) (name child-key))]
-               (-> m
-                   ;; add
-                   (assoc child-key child-map)
-                   (update-in [parent-key :field-keys] conj-set child-key)
-                   (cond-> of-interface
-                           (-> (update-in [parent-key :interfaces]
-                                          conj-set of-interface)
-                               (update-in [:schema/implementors of-interface]
-                                          conj-set parent-key)))))))
-         registry))))
+          (fn [m child-key v]
+            (if (and (namespace child-key) (map? v))
+              (make-child-entries m parent-key
+                                  (u/update-vals v (comp #(assoc % :of-interface child-key) as-type-map)))
+              (let [{:as   child-map
+                     :keys [of-interface]} (as-type-map v)
+                    child-key (join-keywords parent-key child-key) #_(keyword (name parent-key) (name child-key))]
+                (-> m
+                    ;; add
+                    (assoc child-key child-map)
+                    (update-in [parent-key :field-keys] conj-set child-key)
+                    (cond-> of-interface
+                            (-> (update-in [parent-key :interfaces]
+                                           conj-set of-interface)
+                                (update-in [:schema/implementors of-interface]
+                                           conj-set parent-key)))))))
+          registry))))
 
 (defn- type-with-children [parent-key]
   (fn [registry {:as   type-map
@@ -260,9 +260,9 @@
 
 (def implementors-simple
   (memoize
-   (fn [{:as   registry
-         :keys [schema/implementors]}]
-     (u/update-map implementors name #(into #{} (map name) %)))))
+    (fn [{:as   registry
+          :keys [schema/implementors]}]
+      (u/update-map implementors name #(into #{} (map name) %)))))
 
 (defn ^:dynamic *fragment-matches?* [data-type fragment-type]
   (or (nil? fragment-type)
@@ -331,10 +331,8 @@
   (assoc (as-type-map t) :description description*))
 
 (defn props
-  ([t props]
-   (assoc (as-type-map t) :props props))
-  ([t k1 & kvs]
-   (props t (apply hash-map (cons k1 kvs)))))
+  [t props]
+  (assoc (as-type-map t) :props props))
 
 (defn !
   "Indicates that a type is required. Especially useful for List types.
@@ -372,10 +370,10 @@
 (defn field* [operation type-map root-options]
   (let [object-k (object operation {(keyword (:name type-map)) type-map})]
     (map->Root (merge
-                {:schema/type-key (join-keywords object-k (keyword (:name type-map)))
-                 :root/variables  {}
-                 :root/options    {}}
-                root-options))))
+                 {:schema/type-key (join-keywords object-k (keyword (:name type-map)))
+                  :root/variables  {}
+                  :root/options    {}}
+                 root-options))))
 
 (m/defn ^:private field [operation args]
   (let [parsed-args
