@@ -57,12 +57,12 @@
                            :into {}
                            :gen-max 10))
 
-(defn is-react-element? [x]
+(defn is-valid-element? [x]
   (and (object? x)
        (or (boolean (aget x "c$view"))
            (react/isValidElement x))))
 
-(s/def ::native-element (-> is-react-element?
+(s/def ::native-element (-> is-valid-element?
                             (gen-set #{#js {"c$view" #js {}}})))
 
 (s/def ::element (s/or :element ::native-element
