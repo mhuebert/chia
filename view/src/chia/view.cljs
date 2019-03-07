@@ -64,7 +64,8 @@
   {:view/should-update
                                         (fn []
                                           (this-as this
-                                            (or (true? *reload*)
+                                            (prn :should-update? registry/*reload*)
+                                            (or (true? registry/*reload*)
                                                 (let [$state (j/unchecked-get this :state)]
                                                   (or (not= (j/unchecked-get $state :props)
                                                             (j/unchecked-get $state :prev-props))
@@ -311,15 +312,13 @@
 
 (defn render-to-dom
   "Render view to element, which should be a DOM element or id of element on page."
-  ([react-element dom-element {:as   options
-                               :keys [reload?]}]
-   (if-not reload?
-     (render-to-dom react-element dom-element)
-     (binding [*reload* true]
-       (render-to-dom react-element dom-element))))
   ([react-element dom-element]
-   (react-dom/render (to-element react-element)
-                     (resolve-node dom-element))))
+   (render-to-dom react-element dom-element nil))
+  ([react-element dom-element {:keys [reload?]
+                               :or   {reload? true}}]
+   (binding [registry/*reload* reload?]
+     (react-dom/render (to-element react-element)
+                       (resolve-node dom-element)))))
 
 (defn unmount-from-dom
   [dom-element]

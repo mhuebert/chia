@@ -5,7 +5,6 @@
             [applied-science.js-interop :as j]
             [chia.view.registry :as registry]))
 
-
 (def use-state* react/useState)
 (def use-effect* react/useEffect)
 (def use-context react/useContext)
@@ -105,17 +104,21 @@
         ref (use-ref)]
     (assert forwarded-ref "Must set :view/forward-ref? for use-forwarded-ref")
     (use-imperative-handle forwarded-ref
-                           (fn []  (j/get ref :current)))
+                           (fn [] (j/get ref :current)))
     ref))
 
 (defn memo
   ([f]
-   (react/memo f (fn [x y]
-                   (= (j/get x :children)
-                      (j/get y :children)))))
+   (let [args-equal? (fn [x y]
+                       (if registry/*reload*
+                         false
+                         (= (j/get x :children)
+                            (j/get y :children))))]
+     (react/memo f args-equal?)))
   ([f should-update?]
-   (let [args-equal? (complement should-update?)]
-     (react/memo f
-                 (fn [x y]
-                   (args-equal? (j/get x :children)
-                                (j/get y :children)))))))
+   (let [args-equal? (fn [x y]
+                       (if registry/*reload*
+                         false
+                         (not (should-update? (j/get x :children)
+                                              (j/get y :children)))))]
+     (react/memo f args-equal?))))
