@@ -67,12 +67,17 @@
 
 (defn use-memoized
   "Evaluates `f` once, caches and returns result. Unlike builtin `useMemo`, guaranteed to only evaluate once per lifecycle."
-  [f]
-  (let [ref (use-ref ::unset)]
-    (if (not= ::unset (j/get ref :current))
-      (j/get ref :current)
-      (do (j/assoc! ref :current (f))
-          (j/get ref :current)))))
+  ([f]
+   (use-memoized ::key f))
+  ([key f]
+   (let [ref (use-ref ::unset)
+         current (j/get ref :current)]
+     (if (not= (j/get current :key) key)
+       (let [value (f)]
+         (j/assoc! ref :current #js {:value value
+                                     :key   key})
+         value)
+       (j/get current :value)))))
 
 (defn use-did-mount
   "Evaluates `f` on component mount, returns nil. For side effects."
@@ -112,6 +117,18 @@
     (use-imperative-handle forwarded-ref
                            (fn [] (j/get ref :current)))
     ref))
+
+(defn use-on-interval
+  [{:keys [interval
+           now?
+           key]} f]
+  (let [effect (fn []
+                 (when now? (f))
+                 (let [i (js/setInterval f interval)]
+                   #(js/clearInterval i)))]
+    (if key
+      (use-effect effect #js[key])
+      (use-effect effect))))
 
 ;;;;;;;;;;;;;;
 ;;

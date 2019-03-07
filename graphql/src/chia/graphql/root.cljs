@@ -260,6 +260,12 @@
   (assoc (read-root root)
     :gql/mutate! (partial mutate! root)))
 
+(defn send-query [this variables & xkeys]
+  (resolve! (merge this
+                   #:root {:variables variables
+                           :xkeys     xkeys
+                           :view      registry/*current-view*})))
+
 (defmethod invoke-root :Query
   [root]
   (if-let [view registry/*current-view*]
