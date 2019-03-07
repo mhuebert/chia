@@ -64,7 +64,6 @@
   {:view/should-update
                                         (fn []
                                           (this-as this
-                                            (prn :should-update? registry/*reload*)
                                             (or (true? registry/*reload*)
                                                 (let [$state (j/unchecked-get this :state)]
                                                   (or (not= (j/unchecked-get $state :props)

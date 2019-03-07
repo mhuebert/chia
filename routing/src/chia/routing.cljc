@@ -185,7 +185,7 @@
               (intercept js/document)))
            ([element]
             (when browser?
-              (.addEventListener element "click" root-click-listener))))))
+              (.addEventListener element "click" #'root-click-listener))))))
 
      (defonce ^:private listeners (atom #{}))
 
@@ -223,6 +223,8 @@
                           intercept-clicks?]
                    :or   {fire-now?         true
                           intercept-clicks? true}}]
+
+        (start!)
 
         (when intercept-clicks?
           (intercept-clicks))
