@@ -1,5 +1,6 @@
 (ns chia-demo.app
   (:require [chia.view :as v]
+            [chia.view.legacy :as legacy]
             [chia.jss :as jss]
             [chia-demo.styles]
 
@@ -20,7 +21,7 @@
                components/demo
                context/demo])
 
-(v/defview show-section
+(legacy/defview show-section
   {:key (fn [_ handler] (v/class-get handler :demo/title))}
   [_ handler & args]
   (let [label (v/class-get handler :demo/title)
@@ -33,7 +34,7 @@
             (cons
              (list [:div.pa2 (handler)])))))
 
-(v/defview layout []
+(legacy/defview layout []
   (map show-section sections))
 
 (defn ^:dev/after-load ^:export render []

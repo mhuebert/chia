@@ -1,5 +1,6 @@
 (ns chia-demo.views.reactive
   (:require [chia.view :as v]
+            [chia.view.legacy :as legacy]
             [chia.reactive.atom-db :as db]
             [chia-demo.views.util :as u]
             [cljs.pprint :as pp]
@@ -28,7 +29,7 @@
 ;; - _env_ - eg. read react context? somehow support theming.
 
 
-(v/defview color-box
+(legacy/defview color-box
   {:key :path
    :props/consumed #{:path}}
   [{:keys [path
@@ -59,7 +60,7 @@
                          (add-color! path))}
     (u/icon :add-circle)]])
 
-(v/defview demo
+(legacy/defview demo
   {:view/initial-state {:renders 1}
    :demo/title "Reactive Atom Demo"
    :view/will-unmount #(db/assoc! ::colors {})

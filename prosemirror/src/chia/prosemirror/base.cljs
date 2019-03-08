@@ -5,6 +5,7 @@
             ["prosemirror-commands" :as commands]
             ["prosemirror-state" :as state :refer [EditorState]]
             [chia.view :as v]
+            [chia.view.legacy :as legacy]
             [applied-science.js-interop :as j]
             [chia.prosemirror.core :as pm]
             [clojure.spec.alpha :as s]))
@@ -18,44 +19,44 @@
 
 (s/def ::input-rules vector?)
 
-(v/defspec ::doc
+(legacy/defspec ::doc
            "A prosemirror doc"
            object?)
 
-(v/defspec ::serialize
+(legacy/defspec ::serialize
            "Should convert a ProseMirror doc to Markdown."
            fn?)
 
-(v/defspec ::parse
+(legacy/defspec ::parse
            "Should convert a Markdown string ot a ProseMirror doc."
            fn?)
 
-(v/defspec ::schema
+(legacy/defspec ::schema
            "a ProseMirror schema"
            #(and (j/contains? % :nodes)
                  (j/contains? % :marks)))
 
-(v/defspec ::on-dispatch
+(legacy/defspec ::on-dispatch
            "(this, EditorView) - called after every update."
            fn?)
 
-(v/defspec ::editor-view-props
+(legacy/defspec ::editor-view-props
            "Passed to the EditorView constructor."
            map?)
 
-(v/defspec ::keymap
+(legacy/defspec ::keymap
            "Merged as the highest-priority keymap (http://prosemirror.net/docs/ref/#keymap)."
            map?)
 
-(v/defspec ::default-value
+(legacy/defspec ::default-value
            "the initial editor state."
            string?)
 
-(v/defspec ::value
+(legacy/defspec ::value
            "Behaves differently from ordinary React controlled inputs. When a *new/different* :value is passed, it replaces the current doc, but continuing to pass the same :value does not freeze local state."
            string?)
 
-(v/defview Editor
+(legacy/defview Editor
   "A ProseMirror editor view."
   {#_#_:spec/props (s/keys :opt-un
                            [::input-rules
@@ -91,7 +92,7 @@
                                                                         plugins (into plugins)
                                                                         false (conj (keymap/keymap commands/baseKeymap))
                                                                         true (to-array))})
-                           editor-view (-> (v/dom-node this)
+                           editor-view (-> (legacy/dom-node this)
                                            (pm/EditorView. (clj->js (merge editor-view-props
                                                                            {:state editor-state
                                                                             :spellcheck false

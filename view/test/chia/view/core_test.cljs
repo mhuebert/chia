@@ -1,6 +1,7 @@
 (ns chia.view.core-test
   (:require [cljs.test :refer [deftest is are testing]]
-            [chia.view :as v :refer [defview]]
+            [chia.view :as v]
+            [chia.view.legacy :as legacy]
             [chia.view.util :as u]
             [goog.object :as gobj]
             [goog.dom :as gdom]
@@ -26,7 +27,7 @@
                                       :view/state (some-> (:view/state this) (deref))))
   true)
 
-(v/defview apple
+(legacy/defview apple
   {:view/initial-state (fn [this]
                          (log-args :view/initial-state this)
                          {:eaten? false})

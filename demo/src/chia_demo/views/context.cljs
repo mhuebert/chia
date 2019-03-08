@@ -1,6 +1,6 @@
 (ns chia-demo.views.context
   (:require [chia.view :as v]
-            [chia.view.context :as c]
+            [chia.view.legacy :as legacy]
             [chia.reactive :as r]
             [chia.view.registry :as registry]))
 
@@ -15,7 +15,7 @@
     [:a.db {:on-click #(swap! state update :clicks (fnil inc 0))}
      (str "Clicks:" (:clicks @state 0))]))
 
-(v/defview demo
+(legacy/defview demo
            {:demo/title "React Contexts"
             :view/initial-state {:a "A"
                                  :b "B"
@@ -35,14 +35,14 @@
               (counter)
               (clicks)
 
-              (c/provide {:a (:a @state)
+              (hooks/provide {:a (:a @state)
                           :b (:b @state)
                           :c (:c @state)}
-                         (c/consume [a :a]
+                         (legacy/consume [a :a]
                                     [:<>
                                      (show-consumer :a a)
-                                     (c/consume [b :b]
+                                     (legacy/consume [b :b]
                                                 [:<>
                                                  (show-consumer :b b)
-                                                 (c/consume [c :c]
+                                                 (legacy/consume [c :c]
                                                             (show-consumer :c c))])]))]))

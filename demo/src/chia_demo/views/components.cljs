@@ -1,15 +1,16 @@
 (ns chia-demo.views.components
   (:require [chia.view :as v]
+            [chia.view.legacy :as legacy]
             ["@material-ui/core/Button" :default Button]))
 
-(v/defview my-method
+(legacy/defview my-method
   {:key :a}
   [this b c]
   [:div (str " a " (:a (:view/props this))
              " b " b
              " c " c)])
 
-(v/defview demo
+(legacy/defview demo
   {:demo/title "Components"
    :view/styles {}}
   [{:keys [view/state]}]

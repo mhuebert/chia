@@ -4,7 +4,9 @@
             [chia.view.render-loop :as render-loop]
             [chia.reactive :as r]
             [applied-science.js-interop :as j]
-            [chia.view.registry :as registry]))
+            [chia.view.registry :as registry]
+            [chia.view.hiccup :as hiccup]
+            [chia.view.props :as props]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -24,7 +26,7 @@
 
 (def use-state* react/useState)
 (def use-effect* react/useEffect)
-(def use-context react/useContext)
+(def use-context* react/useContext)
 (def use-reducer react/useReducer)
 (def use-callback react/useCallback)
 (def use-memo react/useMemo)
@@ -138,7 +140,8 @@
   "Returns a memoized version of view `f` with optional `should-update?` function.
 
   - By default, arguments are compared with cljs equality.
-  - During dev reload, all components re-render."
+  - During dev reload, all components re-render.
+  - A no-op in node.js"
   (if memo?
     (fn ([f]
          (let [args-equal? (fn [x y]
@@ -188,3 +191,47 @@
                           (vals))]
           (f))))
     chia$view))
+
+;; internal (but not private - used by the v/defn macro)
+
+(defn functional-render [{:keys         [view/should-update?]
+                          view-name     :view/name
+                          view-fn       :view/fn
+                          ^boolean ref? :view/forward-ref?}]
+  (-> (fn [props ref]
+        (binding [registry/*current-view* (use-chia* view-name (if ref? ref false))]
+          (r/with-dependency-tracking! registry/*current-view*
+            (hiccup/element {:wrap-props props/wrap-props}
+                            (apply view-fn (j/get props :children))))))
+      (cond-> ref? (react/forwardRef))
+      (memo should-update?)))
+
+;;;;;;;;;;;;;;
+;;
+;; Contexts
+
+(def -create-context react/createContext)
+
+(defonce lookup-context
+  (memoize
+    (fn ^js [k]
+      (if (object? k)
+        k
+        (-create-context)))))
+
+(defn use-context [context-k]
+  (use-context* (lookup-context context-k)))
+
+(defn provide
+  "Adds React contexts to the component tree.
+   `bindings` should be a map of {<keyword-or-Context>, <value-to-be-bound>}."
+  [binding-map & body]
+  (loop [bindings (seq binding-map)
+         out (props/to-element (vec (cons :<> body)))]
+    (if (empty? bindings)
+      out
+      (recur (rest bindings)
+             (let [[context-k context-v] (first bindings)]
+               (-> (lookup-context context-k)
+                   (j/get :Provider)
+                   (react/createElement #js {:value context-v} out)))))))

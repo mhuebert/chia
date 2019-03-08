@@ -1,5 +1,6 @@
 (ns chia.material-ui
   (:require [chia.view :as v]
+            [chia.view.util]
             [clojure.string :as str]
             ["@material-ui/core/IconButton" :default IconButton*])
   (:require-macros [chia.material-ui :as m]))

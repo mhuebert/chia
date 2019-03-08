@@ -4,7 +4,8 @@
             [chia.prosemirror.tables :as tables]
             [chia.prosemirror.core :as pm]
             [goog.object :as gobj]
-            ["prosemirror-markdown" :as pm-md]))
+            ["prosemirror-markdown" :as pm-md]
+            [chia.view.props :as props]))
 
 (def ^:dynamic *tables?* false)
 (def ^:dynamic *fenced-code-blocks?* true)
@@ -31,17 +32,17 @@
 (defn MarkdownSerializer [nodes marks]
   #js {:serialize (fn [content]
                     (let [state (patch-state (MarkdownSerializerState.
-                                              (doto default-serializer-nodes (gobj/extend (clj->js (or nodes #js {}))))
-                                              (doto default-serializer-marks (gobj/extend (clj->js (or marks #js {})))) nil))]
+                                               (doto default-serializer-nodes (gobj/extend (clj->js (or nodes #js {}))))
+                                               (doto default-serializer-marks (gobj/extend (clj->js (or marks #js {})))) nil))]
                       (.renderContent state content)
                       (.-out state)))})
 
-(def fenced-code-nodes {:code_block (fn [state node]
-                                      (.write state (str "```" (.-params (.-attrs node)) "\n"))
-                                      (.text state (.-textContent node) false)
-                                      (.ensureNewLine state)
-                                      (.write state "```")
-                                      (.closeBlock state node))
+(def fenced-code-nodes {:code_block  (fn [state node]
+                                       (.write state (str "```" (.-params (.-attrs node)) "\n"))
+                                       (.text state (.-textContent node) false)
+                                       (.ensureNewLine state)
+                                       (.write state "```")
+                                       (.closeBlock state node))
                         :bullet_list (fn [state node]
                                        (.renderList state node "    " (fn []
                                                                         (str (or (.. node -attrs -bullet) "*") " "))))})
@@ -65,7 +66,7 @@
 (def parser (cond-> defaultMarkdownParser
                     *tables?* (tables/add-parser-nodes schema pm-md/MarkdownParser)))
 
-(def Editor (v/partial-props base/Editor
-                             {:serialize #(.serialize serializer %)
-                              :parse #(.parse parser %)
-                              :schema schema}))
+(def Editor (props/partial-props base/Editor
+                                 {:serialize #(.serialize serializer %)
+                                  :parse     #(.parse parser %)
+                                  :schema    schema}))

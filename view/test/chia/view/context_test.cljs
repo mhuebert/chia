@@ -1,7 +1,6 @@
 (ns chia.view.context-test
   (:require [chia.view :as v]
             [chia.view.util :as vu]
-            [chia.view.context :as c]
             [cljs.test :as test :refer [is]]
             [chia.reactive.atom :as ra]
             [chia.reactive :as r]))
@@ -23,9 +22,9 @@
 (test/deftest view-context
 
   (is (do (render! (v/view x []
-                     (c/provide {::first-name "Herman"
+                     (hooks/provide {::first-name "Herman"
                                  ::last-name "Früling"}
-                       (c/consume [first-name ::first-name
+                       (legacy/consume [first-name ::first-name
                                    last-name ::last-name]
                          (record! :F first-name
                                   :L last-name)))))
@@ -46,12 +45,12 @@
                      (v/flush!))
           count-outer-inner #(mapv get-count [:outer :inner])]
       (render! (v/view x []
-                 (c/provide {:x "X"
+                 (hooks/provide {:x "X"
                              :y "Y"}
-                   (c/consume [x :x]
+                   (legacy/consume [x :x]
                      [:div
                       (helper :outer)
-                      (c/consume [y :y]
+                      (legacy/consume [y :y]
                         (helper :inner))]))))
 
       (is (= (count-outer-inner) [1 1])

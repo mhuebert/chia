@@ -36,6 +36,12 @@
   (filter #(not (seq? %))
           (rest (tree-seq seq? seq children))))
 
+(defn parse-args [args]
+  (if (or (map? (first args))
+          (nil? (first args)))
+    [(first args) (rest args)]
+    [{} args]))
+
 #?(:cljs
    (defn find-or-append-element
      ([id] (find-or-append-element id :div))
@@ -44,24 +50,3 @@
           (let [element (-> (.createElement js/document (name tag))
                             (j/assoc! :id (name id)))]
             (.. js/document -body (appendChild element)))))))
-
-(def lifecycle-keys
-  "Mapping of methods-map keys to React lifecycle keys."
-  {:view/initial-state "chia$initialState"
-   :view/did-catch "componentDidCatch"
-   :view/did-mount "componentDidMount"
-   :static/get-derived-state-from-props "getDerivedStateFromProps"
-   :view/will-receive-state "componentWillReceiveState"
-   :view/should-update "shouldComponentUpdate"
-   :view/did-update "componentDidUpdate"
-   :view/will-unmount "componentWillUnmount"
-   :view/render "render"})
-
-(defn _state-key? [k]
-  (case k
-    (:view/props
-     :view/prev-props
-     :view/state
-     :view/prev-state
-     :view/children
-     :view/prev-children) true false))
