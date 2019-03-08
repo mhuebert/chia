@@ -125,13 +125,19 @@
 
 (defn use-interval
   [{:keys [interval
-           now?
+           immediate?
+           paused?
            key]} f]
-  (let [effect (fn []
-                 (when now? (f))
-                 (let [i (js/setInterval f interval)]
-                   #(js/clearInterval i)))]
-    (use-effect effect #js[key interval])))
+  (let [ref (-> (use-ref)
+                (j/assoc! :current f))]
+    (use-effect
+      (fn []
+        (when-not paused?
+          (when immediate? (f))
+          (let [callback #(j/call ref :current)
+                i (js/setInterval callback interval)]
+            #(js/clearInterval i))))
+      #js[key interval paused?])))
 
 ;;;;;;;;;;;;;;
 ;;
