@@ -1,0 +1,17 @@
+<code_scheme name="Project" version="173">
+  <ClojureCodeStyleSettings>{
+  :chia.graphql.schema/object :only-indent
+  :chia.reactive/with-dependency-tracking! 1
+  :chia.view.context/provide 1
+  :cljs.core/defonce 1
+  :kitchen-async.promise/-&gt; :only-indent
+  :kitchen-async.promise/-&gt;&gt; :only-indent
+  :kitchen-async.promise/some-&gt; :only-indent
+  :net.cgrand.macrovich/deftime :only-indent
+  :spark-gql.make-schema/enum :only-indent
+  :spark-gql.make-schema/input :only-indent
+  :spark-gql.make-schema/interface :only-indent
+  :spark-gql.make-schema/object :only-indent
+  :spark-gql.make-schema/union :only-indent
+}</ClojureCodeStyleSettings>
+</code_scheme>
