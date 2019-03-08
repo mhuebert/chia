@@ -5,7 +5,7 @@
             ["prosemirror-commands" :as commands]
             ["prosemirror-state" :as state :refer [EditorState]]
             [chia.view :as v]
-            [chia.view.legacy :as legacy]
+            [chia.view.legacy :as vlegacy]
             [applied-science.js-interop :as j]
             [chia.prosemirror.core :as pm]
             [clojure.spec.alpha :as s]))
@@ -19,44 +19,44 @@
 
 (s/def ::input-rules vector?)
 
-(legacy/defspec ::doc
-           "A prosemirror doc"
-           object?)
+(vlegacy/defspec ::doc
+                 "A prosemirror doc"
+                 object?)
 
-(legacy/defspec ::serialize
-           "Should convert a ProseMirror doc to Markdown."
-           fn?)
+(vlegacy/defspec ::serialize
+                 "Should convert a ProseMirror doc to Markdown."
+                 fn?)
 
-(legacy/defspec ::parse
-           "Should convert a Markdown string ot a ProseMirror doc."
-           fn?)
+(vlegacy/defspec ::parse
+                 "Should convert a Markdown string ot a ProseMirror doc."
+                 fn?)
 
-(legacy/defspec ::schema
-           "a ProseMirror schema"
-           #(and (j/contains? % :nodes)
-                 (j/contains? % :marks)))
+(vlegacy/defspec ::schema
+                 "a ProseMirror schema"
+                 #(and (j/contains? % :nodes)
+                       (j/contains? % :marks)))
 
-(legacy/defspec ::on-dispatch
-           "(this, EditorView) - called after every update."
-           fn?)
+(vlegacy/defspec ::on-dispatch
+                 "(this, EditorView) - called after every update."
+                 fn?)
 
-(legacy/defspec ::editor-view-props
-           "Passed to the EditorView constructor."
-           map?)
+(vlegacy/defspec ::editor-view-props
+                 "Passed to the EditorView constructor."
+                 map?)
 
-(legacy/defspec ::keymap
-           "Merged as the highest-priority keymap (http://prosemirror.net/docs/ref/#keymap)."
-           map?)
+(vlegacy/defspec ::keymap
+                 "Merged as the highest-priority keymap (http://prosemirror.net/docs/ref/#keymap)."
+                 map?)
 
-(legacy/defspec ::default-value
-           "the initial editor state."
-           string?)
+(vlegacy/defspec ::default-value
+                 "the initial editor state."
+                 string?)
 
-(legacy/defspec ::value
-           "Behaves differently from ordinary React controlled inputs. When a *new/different* :value is passed, it replaces the current doc, but continuing to pass the same :value does not freeze local state."
-           string?)
+(vlegacy/defspec ::value
+                 "Behaves differently from ordinary React controlled inputs. When a *new/different* :value is passed, it replaces the current doc, but continuing to pass the same :value does not freeze local state."
+                 string?)
 
-(legacy/defview Editor
+(vlegacy/defview Editor
   "A ProseMirror editor view."
   {#_#_:spec/props (s/keys :opt-un
                            [::input-rules
@@ -92,7 +92,7 @@
                                                                         plugins (into plugins)
                                                                         false (conj (keymap/keymap commands/baseKeymap))
                                                                         true (to-array))})
-                           editor-view (-> (legacy/dom-node this)
+                           editor-view (-> (vlegacy/dom-node this)
                                            (pm/EditorView. (clj->js (merge editor-view-props
                                                                            {:state editor-state
                                                                             :spellcheck false
@@ -125,19 +125,19 @@
        (select-keys [:class :style])
        (assoc :dangerouslySetInnerHTML {:__html ""}))])
 
-(v/extend-view Editor
-  Object
-  (resetDoc [{:keys [view/state parse schema]} new-value]
-    (let [view (:pm-view @state)]
-      (.updateState view
-                    (.create EditorState #js {"doc" (cond-> new-value
-                                                            (string? new-value) (parse))
-                                              "schema" schema
-                                              "plugins" (aget view "state" "plugins")}))))
-  (pmView [{:keys [view/state]}]
-    (:pm-view @state))
-  (serialize [{:keys [view/state serialize]}]
-    (some-> (:pm-view @state)
-            (j/get-in [:state :doc])
-            (serialize))))
+(vlegacy/extend-view Editor
+                     Object
+                     (resetDoc [{:keys [view/state parse schema]} new-value]
+                               (let [view (:pm-view @state)]
+                                 (.updateState view
+                                               (.create EditorState #js {"doc" (cond-> new-value
+                                                                                       (string? new-value) (parse))
+                                                                         "schema" schema
+                                                                         "plugins" (aget view "state" "plugins")}))))
+                     (pmView [{:keys [view/state]}]
+                             (:pm-view @state))
+                     (serialize [{:keys [view/state serialize]}]
+                                (some-> (:pm-view @state)
+                                        (j/get-in [:state :doc])
+                                        (serialize))))
 
