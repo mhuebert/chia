@@ -132,25 +132,29 @@
 ;;
 ;; CLJS-friendly memoization
 
-(defn memo
+(def ^:constant ^:private memo? (fn? react/memo))
+
+(def memo
   "Returns a memoized version of view `f` with optional `should-update?` function.
 
   - By default, arguments are compared with cljs equality.
   - During dev reload, all components re-render."
-  ([f]
-   (let [args-equal? (fn [x y]
-                       (if registry/*reload*
-                         false
-                         (= (j/get x :children)
-                            (j/get y :children))))]
-     (react/memo f args-equal?)))
-  ([f should-update?]
-   (let [args-equal? (fn [x y]
-                       (if registry/*reload*
-                         false
-                         (not (should-update? (j/get x :children)
-                                              (j/get y :children)))))]
-     (react/memo f args-equal?))))
+  (if memo?
+    (fn ([f]
+         (let [args-equal? (fn [x y]
+                             (if registry/*reload*
+                               false
+                               (= (j/get x :children)
+                                  (j/get y :children))))]
+           (react/memo f args-equal?)))
+      ([f should-update?]
+       (let [args-equal? (fn [x y]
+                           (if registry/*reload*
+                             false
+                             (not (should-update? (j/get x :children)
+                                                  (j/get y :children)))))]
+         (react/memo f args-equal?))))
+    identity))
 
 ;;;;;;;;;;;;;;
 ;;
