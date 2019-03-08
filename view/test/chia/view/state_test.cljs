@@ -1,7 +1,7 @@
 (ns chia.view.state-test
   (:require
    [cljs.test :refer [deftest is are testing]]
-   [chia.triple-db :as d]
+   [chia.db :as d]
    [chia.view :as v]
    [chia.view.legacy :as vl]
    [chia.view.util :as vu]))
@@ -32,9 +32,9 @@
         (v/flush!)
         (is (= @log [0 1 "x"]))))))
 
-(deftest triple-db
+(deftest db
 
-  (testing "React to global state (chia.triple-db)"
+  (testing "React to global state (chia.db)"
 
     (d/transact! [{:db/id 1
                    :name "Herbert"

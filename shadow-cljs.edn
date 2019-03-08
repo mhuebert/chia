@@ -3,7 +3,7 @@
                     :modules {:app {:entries [chia-demo.app]}}
                     :output-dir "demo/public/compiled"
                     :asset-path "/compiled"
-                    :build-hooks [(chia.static.shadow/write-assets!
+                    :build-hooks [(cljs-static.shadow/write-assets!
                                     {"../index.html" chia-demo.html/index})]
                     :devtools {:http-root "demo/public"
                                :http-port 8080}}

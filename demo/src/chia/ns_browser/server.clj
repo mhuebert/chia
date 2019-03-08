@@ -1,5 +1,5 @@
 (ns chia.ns-browser.server
-  (:require [chia.static.assets :as assets]
+  (:require [cljs-static.assets :as assets]
             [shadow.http.push-state :as push-state]
             [shadow.cljs.devtools.server.runtime :as runtime]
             [shadow.cljs.devtools.server.supervisor :as super]

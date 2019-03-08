@@ -1,6 +1,6 @@
 (ns chia.ns-browser.views
   (:require [chia.view :as v]
-            [chia.triple-db :as d]
+            [chia.db :as d]
             [clojure.string :as str]
             [cljs.pprint :as pp]
             [goog.string :as gstr]

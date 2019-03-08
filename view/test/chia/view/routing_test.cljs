@@ -2,7 +2,7 @@
   (:require [chia.view.util :refer [find-or-append-element]]
             [chia.view.legacy :as vlegacy :refer [defview]]
             [cljs.test :refer [deftest is are testing]]
-            [chia.triple-db :as d]
+            [chia.db :as d]
             [chia.routing :as routing]
             [cljs.core.match :refer-macros [match]]
             [chia.view :as v]))
@@ -12,7 +12,7 @@
 ;; log segments -- tests usage of routing by itself
 (defonce segments-log (atom nil))
 
-;; log view renders -- tests usage of routing in combination with chia.view and chia.triple-db
+;; log view renders -- tests usage of routing in combination with chia.view and chia.db
 (defonce view-log (atom nil))
 
 (defonce unlisten-key (atom nil))
@@ -30,7 +30,7 @@
           (routing/listen (fn [{:keys [segments] :as location}]
                             ;; log segments
                             (swap! segments-log conj segments)
-                            ;; write location to chia.triple-db
+                            ;; write location to chia.db
                             ;; (triggers render of views that reference this data)
                             (d/transact! [(assoc location :db/id :router/location)])))))
 

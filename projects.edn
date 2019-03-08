@@ -1,4 +1,4 @@
-{chia/triple-db {:mvn/version "0.0.0"
+{chia/db {:mvn/version "0.0.0"
                  :project/description "Reactive triple-store"}
  chia/gesture {:mvn/version "0.0.0"
                :project/description "Gesture (user-input) system"}

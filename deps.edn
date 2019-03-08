@@ -1,8 +1,6 @@
 {:paths ["_build"
-         "triple-db/src"
-         "gesture/src"
+         "db/src"
          "reactive/src"
-         "style/src"
          "view/src"
          "routing/src"
          "static/src"
@@ -11,15 +9,10 @@
          "material-ui/src"
          "util/src"
          "demo/src"
-         "shadow/src"
-         "x-vec/src"
-         "graphql/src"
-         "env/src"
-         "prosemirror/src"
-
-         "view/test"
-         "triple-db/test"
-         "graphql/test"]
+         "shadow/src"]
+ :aliases
+ {:test {:extra-paths ["view/test"
+                       "db/test"]}}
  :deps
  {org.clojure/clojure {:mvn/version "1.10.0"}
   org.clojure/clojurescript {:mvn/version "1.10.520"}
@@ -47,7 +40,7 @@
   ;; static
   hiccup {:mvn/version "1.0.5"}
 
-  ;; triple-db
+  ;; db
   com.lucasbradstreet/cljs-uuid-utils {:mvn/version "1.0.2"}
 
   ;; reactive

@@ -3,7 +3,7 @@
             [chia.view.hooks :as hooks]
             [cljs.test :refer [deftest testing is are]]
             [chia.view.util :as u]
-            [chia.triple-db :as d]
+            [chia.db :as d]
             [applied-science.js-interop :as j]
             [chia.view.registry :as registry]))
 
