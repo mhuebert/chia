@@ -31,7 +31,7 @@
         key-fn (:key options)
         args-sym (gensym "args")]
     `(let [~key-fn-sym ~key-fn
-           ~view-fn-sym (~'chia.view.functional-render
+           ~view-fn-sym (~'chia.view.hooks.functional-render
                           {:view/name           ~(str view-name)
                            :view/fn             (fn ~name ~@body)
                            :view/should-update? ~(:view/should-update? options `not=)
