@@ -4,12 +4,13 @@
             [cljs.test :refer [deftest testing is are]]
             [chia.view.util :as u]
             [chia.triple-db :as d]
-            [applied-science.js-interop :as j]))
+            [applied-science.js-interop :as j]
+            [chia.view.registry :as registry]))
 
 (defonce test-element (u/find-or-append-element (str ::element)))
 
 (defn render! [x]
-  (v/render-to-dom x test-element))
+  (v/render-to-dom x test-element {:reload? false}))
 
 (def render-count (atom 0))
 (def internal-state-atom (atom nil))
@@ -37,20 +38,19 @@
     (str "state: " @st)))
 
 (deftest hooks
-
   (testing "memoization"
 
-    (reset! render-count 0)
-    (render! (memoized-view 1))
-    (render! (memoized-view 1))
-    (is (= 1 @render-count)
+      (reset! render-count 0)
+      (render! (memoized-view 1))
+      (render! (memoized-view 1))
+      (is (= 1 @render-count)
         "View does not re-render with same args")
     (render! (memoized-view 2))
     (is (= 2 @render-count)
-        "View re-renders with different args")
+          "View re-renders with different args")
     (update-db!)
     (is (= 3 @render-count)
-        "View re-renders on chia.view/reactive invalidation"))
+          "View re-renders on chia.view/reactive invalidation"))
 
   (testing "should-update?"
 

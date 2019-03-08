@@ -77,7 +77,7 @@
      (if (not= (j/get current :key) key)
        (let [value (f)]
          (j/assoc! ref :current #js {:value value
-                                     :key   key})
+                                     :key key})
          value)
        (j/get current :value)))))
 
@@ -134,30 +134,29 @@
 ;;
 ;; CLJS-friendly memoization
 
-(def ^:constant ^:private memo? (fn? react/memo))
 
-(def memo
+
+(defn- args-not= [x y]
+  (not= (j/get x :children)
+        (j/get y :children)))
+
+(def -memo (if (fn? react/memo) react/memo identity))
+
+(defn memo
   "Returns a memoized version of view `f` with optional `should-update?` function.
 
   - By default, arguments are compared with cljs equality.
   - During dev reload, all components re-render.
   - A no-op in node.js"
-  (if memo?
-    (fn ([f]
-         (let [args-equal? (fn [x y]
-                             (if registry/*reload*
-                               false
-                               (= (j/get x :children)
-                                  (j/get y :children))))]
-           (react/memo f args-equal?)))
-      ([f should-update?]
-       (let [args-equal? (fn [x y]
-                           (if registry/*reload*
-                             false
-                             (not (should-update? (j/get x :children)
-                                                  (j/get y :children)))))]
-         (react/memo f args-equal?))))
-    identity))
+  ([f]
+   (memo f args-not=))
+  ([f should-update?]
+   (-memo f
+          (fn use-last-value? [x y]
+            (if registry/*reload*
+              false
+              (not (should-update? (j/get x :children)
+                                   (j/get y :children))))))))
 
 ;;;;;;;;;;;;;;
 ;;
@@ -184,25 +183,25 @@
                                                force-update!)
                                           (not (::no-ref ref)) (j/assoc! .-chia$forwardRef ref))))]
     (use-will-unmount
-      (fn []
-        (render-loop/forget! chia$view)
-        (r/dispose-reader! chia$view)
-        (doseq [f (some-> (j/get chia$view :chia$onUnmount)
-                          (vals))]
-          (f))))
+     (fn []
+       (render-loop/forget! chia$view)
+       (r/dispose-reader! chia$view)
+       (doseq [f (some-> (j/get chia$view :chia$onUnmount)
+                         (vals))]
+         (f))))
     chia$view))
 
 ;; internal (but not private - used by the v/defn macro)
 
-(defn functional-render [{:keys         [view/should-update?]
-                          view-name     :view/name
-                          view-fn       :view/fn
+(defn functional-render [{:keys [view/should-update?]
+                          view-name :view/name
+                          view-fn :view/fn
                           ^boolean ref? :view/forward-ref?}]
   (-> (fn [props ref]
         (binding [registry/*current-view* (use-chia* view-name (if ref? ref ::no-ref))]
           (r/with-dependency-tracking! registry/*current-view*
-            (hiccup/element {:wrap-props props/wrap-props}
-                            (apply view-fn (j/get props :children))))))
+                                       (hiccup/element {:wrap-props props/wrap-props}
+                                                       (apply view-fn (j/get props :children))))))
       (cond-> ref? (react/forwardRef))
       (memo should-update?)))
 
@@ -213,11 +212,11 @@
 (def -create-context react/createContext)
 
 (defonce lookup-context
-  (memoize
-    (fn ^js [k]
-      (if (object? k)
-        k
-        (-create-context)))))
+         (memoize
+          (fn ^js [k]
+            (if (object? k)
+              k
+              (-create-context)))))
 
 (defn use-context [context-k]
   (use-context* (lookup-context context-k)))

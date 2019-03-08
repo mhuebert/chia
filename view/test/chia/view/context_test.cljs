@@ -1,9 +1,11 @@
 (ns chia.view.context-test
   (:require [chia.view :as v]
+            [chia.view.legacy :as vl]
             [chia.view.util :as vu]
             [cljs.test :as test :refer [is]]
             [chia.reactive.atom :as ra]
-            [chia.reactive :as r]))
+            [chia.reactive :as r]
+            [chia.view.hooks :as hooks]))
 
 (defn render! [view]
   (v/render-to-dom (view) (vu/find-or-append-element :context-test :div))
@@ -21,13 +23,13 @@
 
 (test/deftest view-context
 
-  (is (do (render! (v/view x []
-                     (hooks/provide {::first-name "Herman"
-                                 ::last-name "Früling"}
-                       (legacy/consume [first-name ::first-name
-                                   last-name ::last-name]
-                         (record! :F first-name
-                                  :L last-name)))))
+  (is (do (render! (vl/view x []
+                            (hooks/provide {::first-name "Herman"
+                                            ::last-name "Früling"}
+                                           (vl/consume [first-name ::first-name
+                                                        last-name ::last-name]
+                                                       (record! :F first-name
+                                                                :L last-name)))))
           (= (results :F :L)
              ["Herman" "Früling"]))
       "Contexts are propagated correctly")
@@ -44,14 +46,14 @@
                      (ra/update-in! state [k :trigger] inc)
                      (v/flush!))
           count-outer-inner #(mapv get-count [:outer :inner])]
-      (render! (v/view x []
-                 (hooks/provide {:x "X"
-                             :y "Y"}
-                   (legacy/consume [x :x]
-                     [:div
-                      (helper :outer)
-                      (legacy/consume [y :y]
-                        (helper :inner))]))))
+      (render! (vl/view x []
+                        (hooks/provide {:x "X"
+                                        :y "Y"}
+                                       (vl/consume [x :x]
+                                                   [:div
+                                                    (helper :outer)
+                                                    (vl/consume [y :y]
+                                                                (helper :inner))]))))
 
       (is (= (count-outer-inner) [1 1])
           "Basic render-count works")

@@ -3,6 +3,7 @@
    [cljs.test :refer [deftest is are testing]]
    [chia.triple-db :as d]
    [chia.view :as v]
+   [chia.view.legacy :as vl]
    [chia.view.util :as vu]))
 
 (defn get-el []
@@ -14,7 +15,7 @@
     (testing "atom from initial-state"
       (let [log (atom [])
             local-state (atom nil)
-            view (v/view x
+            view (vl/view x
                    {:view/initial-state 0
                     :view/did-mount #(reset! local-state (:view/state %))}
                    [{:keys [view/state] :as this}]
@@ -41,7 +42,7 @@
 
     (let [log (atom [])
           el (get-el)
-          view (v/view x [{:keys [db/id]}]
+          view (vl/view x [{:keys [db/id]}]
                  (swap! log conj (d/get id :name))
                  [:div "hello"])
           render #(v/render-to-dom (view {:db/id %}) el)]

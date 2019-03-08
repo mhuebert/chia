@@ -1,10 +1,11 @@
 (ns chia.view.routing-test
   (:require [chia.view.util :refer [find-or-append-element]]
+            [chia.view.legacy :as vlegacy :refer [defview]]
             [cljs.test :refer [deftest is are testing]]
             [chia.triple-db :as d]
             [chia.routing :as routing]
             [cljs.core.match :refer-macros [match]]
-            [chia.view :as v :refer [defview]]))
+            [chia.view :as v]))
 
 (enable-console-print!)
 
@@ -76,9 +77,9 @@
       (v/flush!)
 
       (is (= (drop 1 @segments-log) '([]
-                                       ["non-existing-route"]
-                                       ["page" "1"]
-                                       ["page" "2"])))
+                                      ["non-existing-route"]
+                                      ["page" "1"]
+                                      ["page" "2"])))
 
       (is (= @view-log [:index
                         :not-found
