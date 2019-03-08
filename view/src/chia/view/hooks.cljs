@@ -115,7 +115,7 @@
   []
   (let [forwarded-ref (j/get registry/*current-view* .-chia$forwardRef)
         ref (use-ref)]
-    (assert forwarded-ref "use-forwarded-ref requires :view/forward-ref? to be true")
+    (assert (j/contains? registry/*current-view* .-chia$forwardRef) "use-forwarded-ref requires :view/forward-ref? to be true")
     (use-imperative-handle forwarded-ref
                            (fn [] (j/get ref :current)))
     ref))
@@ -182,7 +182,7 @@
                                                view-name
                                                (vswap! registry/instance-counter inc)
                                                force-update!)
-                                          (not (false? ref)) (j/assoc! .-chia$forwardRef ref))))]
+                                          (not (::no-ref ref)) (j/assoc! .-chia$forwardRef ref))))]
     (use-will-unmount
       (fn []
         (render-loop/forget! chia$view)
@@ -199,7 +199,7 @@
                           view-fn       :view/fn
                           ^boolean ref? :view/forward-ref?}]
   (-> (fn [props ref]
-        (binding [registry/*current-view* (use-chia* view-name (if ref? ref false))]
+        (binding [registry/*current-view* (use-chia* view-name (if ref? ref ::no-ref))]
           (r/with-dependency-tracking! registry/*current-view*
             (hiccup/element {:wrap-props props/wrap-props}
                             (apply view-fn (j/get props :children))))))
