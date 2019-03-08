@@ -118,7 +118,7 @@
                            (fn [] (j/get ref :current)))
     ref))
 
-(defn use-on-interval
+(defn use-interval
   [{:keys [interval
            now?
            key]} f]
@@ -126,9 +126,7 @@
                  (when now? (f))
                  (let [i (js/setInterval f interval)]
                    #(js/clearInterval i)))]
-    (if key
-      (use-effect effect #js[key])
-      (use-effect effect))))
+    (use-effect effect #js[key interval])))
 
 ;;;;;;;;;;;;;;
 ;;
