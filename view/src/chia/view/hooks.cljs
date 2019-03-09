@@ -12,9 +12,12 @@
 ;;
 ;; Why does this namespace exist? why not just use React hooks directly?
 ;;
-;; * some hooks that rely on javascript-specific semantics like `undefined` and js equality, these need to be adapted for cljs to work properly at all
-;; * some behaviour can more succinct because cljs has macros, ie. we can provide a better api than JS with equivalent performance (eg. ref forwarding)
-;; * some behaviour can be better-by-default in cljs because we use immutable data structures, like memoizing all components by default
+;; * some hooks that rely on javascript-specific semantics like `undefined` and js equality,
+;;   these need to be adapted for cljs to work properly at all
+;; * some behaviour can more succinct because cljs has macros, ie. we can provide a better 
+;;   api than JS with equivalent performance (eg. ref forwarding)
+;; * some behaviour can be better-by-default in cljs because we use immutable data structures, 
+;;   like memoizing all components by default
 ;; * figwheel/shadow-style reloading needs to be explicitly supported
 ;; * built-in state handling is not consistent with how Clojure handles state (ie. use atoms)
 ;;
