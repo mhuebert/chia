@@ -1,0 +1,11 @@
+
+node_modules
+*.log
+target
+.firebaserc
+*.iml
+checkouts
+.idea
+*.js.map
+public/js
+package-lock.json

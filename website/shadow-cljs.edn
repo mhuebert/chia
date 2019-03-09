@@ -1,0 +1,7 @@
+{:deps true
+ :dev-http {8706 "public"}
+ :builds {:browser {:target :browser
+                    :modules {:website {:entries [website.core]}}
+                    :output-dir "public/js"
+                    :asset-path "/js"
+                    :compiler-options {:language-in :es5}}}}

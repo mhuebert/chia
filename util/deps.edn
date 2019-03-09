@@ -1,1 +1,4 @@
-{:deps {org.clojure/clojurescript {:mvn/version "1.10.339"}}}
+{:paths ["src"]
+
+ :deps {org.clojure/clojurescript  {:mvn/version "1.10.520"}
+        net.cgrand/macrovich {:mvn/version "0.2.1"}}}

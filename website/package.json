@@ -1,0 +1,23 @@
+{
+  "name": "chia-website",
+  "version": "0.1.0",
+  "main": " ",
+  "license": "MIT",
+  "scripts": {
+    "watch": "shadow-cljs watch browser;",
+    "server": "shadow-cljs server;",
+    "release": "shadow-cljs release browser"
+  },
+  "dependencies": {
+    "@material-ui/core": "^3.0.1",
+    "highlight.js": "^9.15.6",
+    "jss": "^9",
+    "jss-global": "^3",
+    "jss-preset-default": "^4",
+    "markdown-it": "^8.4.2",
+    "react": "^16.8.4",
+    "react-dom": "^16.8.4",
+    "reset-jss": "^1",
+    "shadow-cljs": "^2.8.15"
+  }
+}

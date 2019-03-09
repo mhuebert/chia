@@ -1,7 +1,7 @@
-pom.xml
-pom.xml.asc
+pom.xml*
 node_modules
-.shadow-cljs
+**/.shadow-cljs/**
+**/.cpcache/**
 .cpcache
 .DS_STORE
 .nrepl-port
@@ -13,4 +13,3 @@ project.clj
 target
 demo/public
 **/compiled/**
-out

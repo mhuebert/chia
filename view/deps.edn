@@ -1,7 +1,11 @@
-{:paths ["src" "test"]
+{:paths ["src"]
 
- :deps
- {org.clojure/clojurescript {:mvn/version "1.10.339"}
-  net.cgrand/xforms {:mvn/version "0.16.0"}
-  net.cgrand/macrovich {:mvn/version "0.2.1"}
-  chia/style {:deps/root "../style"}}}
+ :aliases {:test
+           {:extra-paths ["test"]}}
+
+ :deps {org.clojure/clojurescript {:mvn/version "1.10.520"}
+        chia/reactive {:local/root "../reactive"}
+        chia/util {:local/root "../util"}
+        chia/jss {:local/root "../jss"}
+
+        appliedscience/js-interop {:mvn/version "0.1.11"}}}

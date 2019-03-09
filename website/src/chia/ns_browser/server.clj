@@ -73,7 +73,7 @@
                  [:cache-write
                   :cache-read] [:resource-id, :resource-name]
                  :compile-cljs {:resource-id #{[:shadow.build.targets.bootstrap/macro chia.view]}
-                                :resource-name "chia/view$macros.cljc"}
+                                :resource-name "chia.view.legacy$macros.cljc"}
                  :build-complete {:build-config {}
                                   :info {:compile-start :Number
                                          :timings {[:resolve
@@ -83,7 +83,7 @@
                                          :modules []
                                          :sources []
                                          :compiled #{[:shadow.build.targets.bootstrap/macro chia.view]
-                                                     [:shadow.build.classpath/resource "chia_demo/app.cljs"]
+                                                     [:shadow.build.classpath/resource "chia_demo/website.cljs"]
                                                      [:shadow.build.classpath/resource "chia/reactive.cljc"]}}}}})
 
  #_(close! output-chan)

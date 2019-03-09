@@ -11,8 +11,8 @@
 ;                                :suffix "v1"})
 
 (def env {:cache-name "pwa-chia"
-          :files-to-cache ["/compiled/app.js"
-                           "/compiled/app.css"
+          :files-to-cache ["/compiled/website.js"
+                           "/compiled/website.css"
                            "/compiled/worker.js"
                            "/index.html"
                            "/"]})

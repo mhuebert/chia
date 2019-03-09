@@ -1,0 +1,11 @@
+{:paths ["src"]
+
+ :deps {org.clojure/clojurescript  {:mvn/version "1.10.520"}
+
+        chia/view {:local/root "../view"}
+        chia/routing {:local/root "../routing"}
+        chia/db {:local/root "../db"}
+        chia/jss {:local/root "../jss"}
+        chia/material-ui {:local/root "../material-ui"}
+
+        org.clojure/core.match {:mvn/version "0.3.0-alpha5"}}}
