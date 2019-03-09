@@ -109,17 +109,14 @@
                                                    (map->js))))))
        prop-js))))
 
-(defn js-conj [ar x]
-  (doto ar
-    (.push x)))
-
 (defn clj->js-args! [js-args to-element]
   (let [props (aget js-args 1)
-        props (cond-> props
-                      (map? props) (props->js))]
+        props (if (map? props)
+                (props->js props)
+                (to-element props))]
     (reduce-flatten-seqs to-element
                          #js [(aget js-args 0) props]
-                         js-conj
+                         j/push!
                          (.slice js-args 2))))
 
 
