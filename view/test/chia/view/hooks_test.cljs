@@ -32,7 +32,7 @@
   (str x))
 
 (v/defn view-with-state []
-  (let [st (hooks/use-state)]
+  (let [st (hooks/use-atom)]
     (swap! render-count inc)
     (reset! internal-state-atom st)
     (str "state: " @st)))
@@ -63,7 +63,7 @@
     (is (= 3 @render-count)
         "view/should-update? does not interfere with chia.view/reactive invalidations"))
 
-  (testing "hooks/use-state"
+  (testing "hooks/use-atom"
     (reset! render-count 0)
     (render! (view-with-state))
     (swap! @internal-state-atom inc)

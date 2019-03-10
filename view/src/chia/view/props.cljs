@@ -32,7 +32,6 @@
       (hiccup-impl/props->js)))
 
 (defn merge-props
-  "Merge props, concatenating :class props and merging styles."
   [m1 m2]
   (merge m1
          m2

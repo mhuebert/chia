@@ -9,7 +9,8 @@
             [cljs.spec.alpha :as s]
             [chia.view.legacy.view-specs]
             [chia.view.legacy.util :as legacy-util]
-            [goog.object :as gobj])
+            [goog.object :as gobj]
+            [chia.view.impl :as impl])
   (:require-macros [chia.view.legacy :as legacy]))
 
 (def Component react/Component)
@@ -59,7 +60,7 @@
                                               (when f (f this)))
 
                                             (r/dispose-reader! this)
-                                            (render-loop/forget! this)))
+                                            (render-loop/dequeue! this)))
    :view/did-update
                                         (fn []
                                           (this-as ^js this
@@ -186,9 +187,6 @@
     r/IReadReactively
     (-invalidate! [this _]
       (render-loop/schedule-update! this))
-    render-loop/IForceUpdate
-    (-force-update! [this]
-      (j/call this :forceUpdate))
     INamed
     (-name [this] (j/unchecked-get this :displayName))
     (-namespace [this] nil)
@@ -253,11 +251,11 @@
                                              [nil (cons props children)])]
               (validate-specs (:spec-keys view-base) props children)
 
-              (v/-create-element constructor #js {"key"      (str (element-key props children constructor))
-                                                  "ref"      ref
-                                                  "props"    (some-> props
-                                                                     (dissoc :ref))
-                                                  "children" children})))
+              (impl/-create-element constructor #js {"key"      (str (element-key props children constructor))
+                                                     "ref"      ref
+                                                     "props"    (some-> props
+                                                                        (dissoc :ref))
+                                                     "children" children})))
       (j/assoc! :chia$constructor constructor))))
 
 (defn component? [x]
@@ -294,5 +292,5 @@
   [^js ctx f]
   (-> ctx
       (j/get :Consumer)
-      (v/-create-element #js {} #(context-observer {:view-fn       f
-                                                    :context-value %}))))
+      (impl/-create-element #js {} #(context-observer {:view-fn       f
+                                                       :context-value %}))))

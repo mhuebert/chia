@@ -37,16 +37,6 @@
 (m/defmacro unchecked-keyword-identical? [a b]
   `(core/identical? (.-fqn ~a) (.-fqn ~b)))
 
-(m/defmacro condentical [k & pairs]
-  (let [trailing-clause (when (odd? (count pairs))
-                          (last pairs))]
-    `(cond ~@(->> (partition 2 pairs)
-                  (mapcat (fn [[test-k expr]]
-                            (cond (or (keyword? test-k)
-                                      (keyword? k))
-                                  `((identical? ~k ~test-k) ~expr)
-                                  (list? test-k)
-                                  `((identical-in? ~test-k ~k) ~expr)
-                                  :else `((core/identical? ~test-k ~k) ~expr)))))
-           ~@(when trailing-clause
-               `(:else ~trailing-clause)))))
+(defn butlastv [v]
+  (cond-> v
+          (> (count v) 0) (pop)))

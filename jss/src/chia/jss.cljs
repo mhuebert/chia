@@ -6,7 +6,6 @@
             [chia.view.util :as vu]
             [chia.util :as u]))
 
-
 (def JSS
   (memoize
    (fn
@@ -24,7 +23,7 @@
                 (.createStyleSheet reset-jss)
                 (.attach)))))
 
-(def ^js page-styles
+(def ^:private ^js page-styles
   (memoize
     (fn []
       (when (exists? js/window)

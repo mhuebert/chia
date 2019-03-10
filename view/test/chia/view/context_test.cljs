@@ -24,12 +24,12 @@
 (test/deftest view-context
 
   (is (do (render! (vl/view x []
-                            (hooks/provide {::first-name "Herman"
-                                            ::last-name "Früling"}
-                                           (vl/consume [first-name ::first-name
-                                                        last-name ::last-name]
-                                                       (record! :F first-name
-                                                                :L last-name)))))
+                     (v/provide {::first-name "Herman"
+                                 ::last-name  "Früling"}
+                                (vl/consume [first-name ::first-name
+                                             last-name ::last-name]
+                                            (record! :F first-name
+                                                     :L last-name)))))
           (= (results :F :L)
              ["Herman" "Früling"]))
       "Contexts are propagated correctly")
@@ -47,13 +47,13 @@
                      (v/flush!))
           count-outer-inner #(mapv get-count [:outer :inner])]
       (render! (vl/view x []
-                        (hooks/provide {:x "X"
-                                        :y "Y"}
-                                       (vl/consume [x :x]
-                                                   [:div
-                                                    (helper :outer)
-                                                    (vl/consume [y :y]
-                                                                (helper :inner))]))))
+                 (v/provide {:x "X"
+                             :y "Y"}
+                            (vl/consume [x :x]
+                                        [:div
+                                         (helper :outer)
+                                         (vl/consume [y :y]
+                                                     (helper :inner))]))))
 
       (is (= (count-outer-inner) [1 1])
           "Basic render-count works")
