@@ -192,6 +192,6 @@
     (if-let [[ctx-sym ctx-k] (first bindings)]
       (recur (rest bindings)
              `(~'chia.view.legacy/consume*
-                (~'chia.view.hooks/lookup-context ~ctx-k)
+                (~'chia.view.impl/lookup-context ~ctx-k)
                 (fn [~ctx-sym] ~out)))
       out)))

@@ -3,68 +3,52 @@
             ["react-dom" :as react-dom]
             [applied-science.js-interop :as j]
             [chia.view.fps :as fps]
+            [chia.view.impl :as impl]
             [chia.util :as u]))
 
+(impl/raf-polyfill!)
 
-(defonce ^:dynamic *immediate-state-update* false)
-
-;; raf polyfill
-(when (and (exists? js/window)
-           (not (j/get js/window :requestAnimationFrame)))
-  (j/assoc! js/window :requestAnimationFrame
-            (or
-              (j/get js/window :webkitRequestAnimationFrame)
-              (j/get js/window :mozRequestAnimationFrame)
-              (j/get js/window :oRequestAnimationFrame)
-              (j/get js/window :msRequestAnimationFrame)
-              (fn [cb]
-                (js/setTimeout cb (/ 1000 60))))))
+(defonce ^:dynamic *immediate-updates*
+         ;; When true, updates will not be queued.
+         false)
 
 (defonce to-render (volatile! #{}))
-(declare request-render)
 
-(defn forget! [component]
-  (j/assoc! component .-chia$toUpdate false))
+(defn- order [view]
+  (j/get view .-chia$order))
 
-(defprotocol IForceUpdate
-  (-force-update! [this]))
+(defn dequeue! [view]
+  (j/assoc! view .-chia$toUpdate false))
 
-(defn force-update!
-  "Force-updates `component` immediately."
-  [^js component]
-  (vswap! to-render disj component)
-  (-force-update! component))
-
-(defn schedule-update!
-  "Queues a force-update for `component`"
-  [^js component]
-  (if (true? *immediate-state-update*)
-    (force-update! component)
-    (do
-      (j/assoc! component .-chia$toUpdate true)
-      (vswap! to-render conj component)
-      (request-render))))
-
-(defn order [component]
-  (j/get component .-chia$order))
+;;;;;;;;;;;;;;;;;;
+;;
+;; Render loop
 
 (defn flush!
+  "Render all queued updates immediately."
   []
-  (when-let [components (seq @to-render)]
+  (when-let [views (seq @to-render)]
     (vreset! to-render #{})
-    (doseq [c (sort-by order components)]
+    (doseq [c (sort-by order views)]
       (when (and ^boolean (j/get c .-chia$toUpdate)
                  (not ^boolean (j/get c .-chia$unmounted)))
-        (-force-update! c)))))
+        (j/call c :forceUpdate)))))
 
-(defn render-loop
-  [frame-ms]
-  ;(fps/tick! frame-ms)
-  (flush!))
+(defn force-update!
+  "Force-updates `view` immediately."
+  [view]
+  (vswap! to-render disj view)
+  (j/call view :forceUpdate))
 
-(defn request-render []
-  (js/requestAnimationFrame render-loop))
-
+(defn schedule-update!
+  [view]
+  "Queues a force-update for `component`"
+  (if (true? *immediate-updates*)
+    (force-update! view)
+    (do
+      (j/assoc! view .-chia$toUpdate true)
+      (vswap! to-render conj view)
+      (js/requestAnimationFrame flush!))))
 
 (defn apply-sync!
   "Wraps function `f` to flush the render loop before returning."
