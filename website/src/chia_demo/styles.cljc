@@ -4,12 +4,6 @@
             [chia.jss :as jss]
             [chia.jss.tachyons :as tach]))
 
-(defonce theme (m/create-theme {}))
-
-(def unit (j/get-in theme [:spacing :unit]))
-
-(defonce base (f-styles/base {:unit unit}))
-
 (def classes* (jss/classes!
                {"@global"
                 (merge
