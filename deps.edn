@@ -4,7 +4,8 @@
          "routing/src"
          "jss/src"
          "material-ui/src"
-         "util/src"]
+         "util/src"
+         "website/src"]
  :aliases
  {:test {:extra-paths ["view/test"
                        "db/test"]}}
