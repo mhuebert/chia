@@ -30,6 +30,7 @@
 ;; Hooks
 
 (defn use-context
+  "Returns binding for context `context-k` (context or keyword)"
   [context-k]
   (impl/-use-context
     (impl/lookup-context context-k)))

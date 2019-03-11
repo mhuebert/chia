@@ -15,10 +15,19 @@
           (and ^boolean (or (identical? "input" tag)
                             (identical? "textarea" tag))) update-change-prop))
 
-(defn to-element [x]
+(defn to-element
+  "Converts hiccup to React element."
+  [x]
   (hiccup/element {:wrap-props wrap-props} x))
 
 (defn adapt-props
+  "Converts props map to JavaScript according to `options`.
+
+  ->element-keys: coll of keys to convert to React elements
+  ->js-keys:      coll of keys to convert to JavaScript via clj->js
+  lift-nses:      coll of namespaces (as strings), keys of these namespaces
+                    will be included (all other namespaced keys are elided)
+  wrap-props:     arbitrary fn to modify props map after other transformations"
   [{:keys [->element-keys
            ->js-keys
            lift-nses
@@ -32,6 +41,7 @@
       (hiccup-impl/props->js)))
 
 (defn merge-props
+  "Merge props, concatenating :class props and merging styles."
   [m1 m2]
   (merge m1
          m2
@@ -42,7 +52,9 @@
                      (select-keys m1 [:style])
                      (select-keys m2 [:style]))))
 
-(defn partial-props [view initial-props]
+(defn partial-props
+  "Partially applies props to view. Keys will be merged with other props."
+  [view initial-props]
   (fn [props & children]
     (let [[props children] (if (or (map? props)
                                    (nil? props)) [props children]

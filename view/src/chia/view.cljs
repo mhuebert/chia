@@ -7,6 +7,7 @@
             [chia.view.impl :as impl]
             [chia.view.render-loop :as render-loop]
             [chia.view.registry :as registry]
+            [chia.view.util :as vu]
 
             [chia.view.hiccup :as hiccup]
             [chia.view.hiccup.impl :as hiccup-impl]
@@ -38,24 +39,15 @@
                    (j/get :Provider)
                    (impl/-create-element #js {:value context-v} out)))))))
 
-(def use-context "Returns binding for context `context-k` (context or keyword)"
-  hooks/use-context)
+(def use-context hooks/use-context)
 
 ;;;;;;;;;;;;;;;;;;
 ;;
 ;; Props & Conversions
 
-(def merge-props
-  "Merge props, concatenating :class props and merging styles."
-  props/merge-props)
-
-(def partial-props
-  "Partially applies props to view. Keys will be merged with other props."
-  props/partial-props)
-
-(def to-element
-  "Converts hiccup to React element."
-  props/to-element)
+(def merge-props props/merge-props)
+(def partial-props props/partial-props)
+(def to-element props/to-element)
 
 ;;;;;;;;;;;;;;;;;;
 ;;
@@ -66,7 +58,7 @@
   ([react-element dom-element]
    (render-to-dom react-element dom-element nil))
   ([react-element dom-element {:keys [reload?]
-                               :or {reload? true}}]
+                               :or   {reload? true}}]
    (binding [registry/*reload* reload?]
      (impl/-render (to-element react-element)
                    (impl/resolve-node dom-element)))))
@@ -99,21 +91,17 @@
 
 ;;;;;;;;;;;;;;;;;;
 ;;
-;; JS/React interop
+;; Vanilla React interop
 
-;; TODO
-;; document this & verify behaviour w.r.t. children
 (defn adapt-react-class
+  "Wraps a vanilla React class so that it can be used like any other view.
+
+  See props/adapt-props for options."
   ([the-class]
    (adapt-react-class nil the-class))
   ([options the-class]
    (fn [& args]
-     (let [[props children] (if (or (map? (first args))
-                                    (nil? (first args)))
-                              [(first args) (rest args)]
-                              [{} args])
-           props (props/adapt-props options props)
-           js-form (-> (cons props children)
-                       (to-array)
-                       (j/unshift! the-class))]
-       (to-element js-form)))))
+     (let [[props children] (vu/parse-args args)
+           props (props/adapt-props options props)]
+       (->> (reduce j/push! #js[the-class props] children)
+            (to-element))))))
