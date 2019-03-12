@@ -3,21 +3,19 @@
             [chia.cell.runtime :as runtime]
             [com.stuartsierra.dependency :as dep]
             [chia.cell.deps :as deps]
-            [chia.reactive :as r]
-            [chia.view :as v]
-            [chia.view.registry :as registry])
+            [chia.reactive :as r])
   (:require-macros [chia.cell]))
 
 (def ^:dynamic *graph* (atom (new deps/CellGraph {} {} {})))
 
+(defn get-function [id]
+  (get-in @*graph* [:cells id :function]))
+
 (defn get-value [id]
   (get-in @*graph* [:cells id :value]))
 
-(defn get-instance [id]
-  (get-in @*graph* [:cells id :instance]))
-
-(defn set-instance [graph id cell]
-  (assoc-in graph [:cells id :instance] cell))
+(defn get-global-meta [id]
+  (get-in @*graph* [:cells id :meta]))
 
 ;;;;;;;;;;;;;;;;;;
 ;;
@@ -49,11 +47,15 @@
     (vswap! *change-log* conj cell)
     (r/invalidate-readers! cell)))
 
+(declare Cell)
+(defn empty-cell [id] (Cell. id nil))
+
 (defn- clean-eval [cell]
-  (try (.computeNext cell cell)
-       (catch js/Error e
-         (runtime/dispose! cell)
-         (throw e))))
+  (when-let [f (get-function (id cell))]
+    (try (f cell)
+         (catch js/Error e
+           (runtime/dispose! cell)
+           (throw e)))))
 
 (defn- eval-cell [graph cell]
   (if (= cell (first *stack*))
@@ -61,10 +63,10 @@
     (binding [*graph* (atom graph)
               *stack* (cons cell *stack*)
               *read-log* (volatile! #{})
-              runtime/*runtime* (:runtime (.-internalState cell))]
+              runtime/*runtime* (::runtime (get-global-meta (id cell)))]
       (runtime/dispose! cell)
       (let [value (clean-eval cell)
-            next-deps (disj @*read-log* (id cell))]
+            next-deps (disj @*read-log* id)]
         (-reset! cell value)
         (-> @*graph*
             (deps/transition-deps (id cell) next-deps))))))
@@ -79,9 +81,9 @@
   (if *computing-dependents*
     graph
     (binding [*computing-dependents* true]
-      (let [sorted-cells (->> (deps/transitive-dependents-sorted graph (id cell))
-                              (keep get-instance))]
-        (reduce eval-cell graph sorted-cells)))))
+      (let [sorted-ids (->> (deps/transitive-dependents-sorted graph (id cell))
+                            (mapv empty-cell))]
+        (reduce eval-cell graph sorted-ids)))))
 
 (defn- eval-cell-and-dependents! [cell]
   (when-not *computing-dependents*
@@ -130,63 +132,56 @@
 ;;
 ;; Cell status
 
-(defprotocol IMetaReactive
-  (merge-meta! [this _meta]
-               "Set meta, cause reactive updates."))
+(defn vary-global-meta! [cell f & args]
+  (swap! *graph* update-in [:cells (id cell) :meta] #(apply f % args))
+  (invalidate-readers! cell)
+  (eval-cell-and-dependents! cell))
 
 (defn loading! [cell]
-  (merge-meta! cell {:async/loading? true}))
+  (vary-global-meta! cell merge {:async/loading? true}))
+
 (defn error! [cell error]
-  (merge-meta! cell {:async/loading? false
-                     :async/error error}))
+  (vary-global-meta! cell merge {:async/loading? false
+                                 :async/error error}))
 (defn complete! [cell]
-  (merge-meta! cell {:async/loading? false
-                     :async/error nil}))
+  (vary-global-meta! cell merge {:async/loading? false
+                                 :async/error nil}))
 
 ;;;;;;;;;;;;;;;;;;
 ;;
 ;; Cell type
 
-(deftype Cell
-  [id computeNext ^:mutable internalState ^:mutable meta]
+(deftype Cell [id ^:mutable meta]
 
   IWithMeta
   (-with-meta [this m]
-    (set! meta m)
-    this)
+    (Cell. id m))
 
   IMeta
   (-meta [_] meta)
 
-  IMetaReactive
-  (merge-meta! [this m]
-    (set! meta (merge meta m))
-    (invalidate-readers! this)
-    (eval-cell-and-dependents! this))
-
   IPrintWithWriter
-  (-pr-writer [this writer _]
-    (write-all writer (str "⚪️" id)))
+  (-pr-writer [this writer _] (write-all writer (str "⚪️" id)))
 
   runtime/IDispose
   (on-dispose [this f]
-    (set! internalState (update internalState :on-dispose conj f)))
+    (swap! *graph* update-in [:cells id :meta ::on-dispose] conj f))
   (-dispose! [this]
-    (doseq [f (get internalState :on-dispose)]
+    (doseq [f (::on-dispose (get-global-meta id))]
       (f))
-    (set! internalState (dissoc internalState :on-dispose))
+    (swap! *graph* update-in [:cells id :meta] dissoc ::on-dispose)
     this)
 
   ;; Atom behaviour
 
   IWatchable
   (-notify-watches [this oldval newval]
-    (doseq [f (vals (:watches internalState))]
+    (doseq [f (vals (::watches (get-global-meta id)))]
       (f this oldval newval)))
   (-add-watch [this key f]
-    (set! internalState (update internalState :watches assoc key f)))
+    (swap! *graph* update-in [:cells id :meta ::watches] assoc key f))
   (-remove-watch [this key]
-    (set! internalState (update internalState :watches dissoc key)))
+    (swap! *graph* update-in [:cells id :meta ::watches] dissoc key))
 
   IDeref
   (-deref [this]
@@ -215,7 +210,7 @@
     (r/log-read! this)
     (case k
       (:async/loading?
-       :async/error) (get meta k)
+       :async/error) (get (get-global-meta id) k)
       :async/value (get-value id)
       (throw (js/Error. (str "Unknown key on cell: " k))))))
 
@@ -224,8 +219,7 @@
 ;; Cell type
 
 (defn purge-cell! [id]
-  (let [cell (get-instance id)]
-    (runtime/-dispose! cell))
+  (runtime/-dispose! (empty-cell id))
   (swap! *graph* dep/remove-node id))
 
 (defn cell*
@@ -235,17 +229,14 @@
   ([f]
    (cell* (keyword "chia.cell.temp" (str "_" (util/unique-id))) f))
   ([id f]
-   (or (get-in @*graph* [:cells id :instance])
-       (let [cell (Cell. id f {:runtime runtime/*runtime*} nil)]
-         (runtime/on-dispose runtime/*runtime* #(purge-cell! id))
-
-         ;; if cell is created in a view context, dispose of it when
-         ;; that view unmounts.
-         (some-> registry/*view*
-                 (v/on-unmount! ::cell #(runtime/dispose! (.-runtime cell))))
-
-         (swap! *graph* set-instance id cell)
-         (eval-cell! cell)))))
+   (if (contains? (:cells @*graph*) id)
+     (Cell. id nil)
+     (let [cell (Cell. id nil)]
+       (swap! *graph* (fn [graph]
+                        (assoc-in graph [:cells id] {:function f
+                                                     :meta {::runtime runtime/*runtime*}})))
+       (runtime/on-dispose runtime/*runtime* #(purge-cell! id))
+       (eval-cell! cell)))))
 
 (defn cell
   [{:keys [key]} value]
