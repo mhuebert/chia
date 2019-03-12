@@ -37,11 +37,10 @@
   (reduce (fn [out form]
             (doto out (.push (to-element form)))) #js [] form-vec))
 
-
-
 (defn -to-element [form]
   (when form
-    (cond (vector? form)
+    (cond (react/isValidElement form) form
+          (vector? form)
           (let [tag (form 0)]
             (cond (keyword? tag)
                   (if (keyword-identical? :<> tag)
@@ -54,7 +53,7 @@
                   :else (make-fragment (element-arr -to-element form))))
 
           (satisfies? IElement form)
-          (to-element form)
+          (-to-element (to-element form))
 
           (satisfies? IEmitHiccup form)
           (-to-element (to-hiccup form))

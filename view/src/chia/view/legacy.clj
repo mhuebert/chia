@@ -24,7 +24,7 @@
 
 (core/defn wrap-current-view-binding [body]
   `(~'this-as this#
-     (binding [~'chia.view.registry/*current-view* this#]
+     (binding [~'chia.view.registry/*view* this#]
        ~body)))
 
 (core/defn- wrap-render-body
@@ -169,7 +169,7 @@
          val-sym (gensym "val")]
      `(let [~key-sym ~(if key `(str ~gname "/" ~key)
                               gname)
-            ~this-sym ~'chia.view.registry/*current-view*]
+            ~this-sym ~'chia.view.registry/*view*]
         (or (~js-get ~this-sym ~key-sym)
             (let [~val-sym ~body]
               (~js-assoc! ~this-sym ~key-sym ~val-sym)

@@ -11,7 +11,7 @@
          (volatile! {}))
 
 (def ^:dynamic *write-paths*
-  "A nested map representing "
+  "A nested map representing paths that may be changed by a mutation."
   nil)
 
 (def conj-set (fnil conj #{}))
@@ -28,31 +28,31 @@
 (defn deref
   "Reactively dereferences any atom, creates a dependency on it for the current reader (ie. chia.reactive/*reader*)"
   [ref]
-  (r/update-source-log! ref conj-set [::value])
+  (r/log-read! ref conj-set [::value])
   (core/deref ref))
 
 (defn get
   "Like Clojure's `get`, creates dependency on key `k`."
   ([ref k]
-   (r/update-source-log! ref conj-set [k ::value])
+   (r/log-read! ref conj-set [k ::value])
    (core/get (core/deref ref) k))
   ([ref k not-found]
-   (r/update-source-log! ref conj-set [k ::value])
+   (r/log-read! ref conj-set [k ::value])
    (core/get (core/deref ref) k not-found)))
 
 (defn get-in
   "Like Clojure's `get-in`, creates dependency on `path`."
   ([ref path]
-   (r/update-source-log! ref conj-set (conj path ::value))
+   (r/log-read! ref conj-set (conj path ::value))
    (core/get-in (core/deref ref) path))
   ([ref path not-found]
-   (r/update-source-log! ref conj-set (conj path ::value))
+   (r/log-read! ref conj-set (conj path ::value))
    (core/get-in (core/deref ref) path not-found)))
 
 (defn apply-in
   "Applies `f` to value at `path` followed by `args`. Creates dependency on the result of this computation."
   [ref path f & args]
-  (r/update-source-log! ref conj-set (into path [::fns [f args]]))
+  (r/log-read! ref conj-set (into path [::fns [f args]]))
   (apply f (core/get-in (core/deref ref) path) args))
 
 (defn keys-in
@@ -63,13 +63,13 @@
 (defn select-keys
   "Like Clojure's `select-keys`, creates dependency on the given keys `ks`."
   [ref ks]
-  (r/update-source-log! ref into-set (mapv #(vector % ::value) ks))
+  (r/log-read! ref into-set (mapv #(vector % ::value) ks))
   (select-keys (core/deref ref) ks))
 
 (defn contains?
   "Like Clojure's `contains?`, creates dependency on the key `k`."
   [ref k]
-  (r/update-source-log! ref conj-set [k ::value])
+  (r/log-read! ref conj-set [k ::value])
   (core/contains? (core/deref ref) k))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -122,18 +122,17 @@
   [ref path f & args]
   (assoc-in! ref path (apply f (core/get-in (core/deref ref) path) args)))
 
+(defn merge! [ref m]
+  (binding [*write-paths* (reduce-kv #(assoc %1 %2 nil) {} m)]
+    (core/swap! ref merge m)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;; Implementation
 ;;
 
-(defn all-readers-at-path [path]
-  (let [index @readers-by-path
-        {value-readers ::value
-         fn-readers ::fns} (core/get-in index path)]
-    (reduce-kv (fn [out _ reader] (conj out reader)) (or value-readers #{}) fn-readers)))
-
-(defn readers-at-path [{value-readers ::value
+(defn readers-at-path [{:as reader-index
+                        value-readers ::value
                         fn-readers ::fns
                         :or {value-readers #{}}} oldval newval]
   (if-not fn-readers
@@ -167,6 +166,13 @@
                                                                   (core/get oldval k)
                                                                   (core/get newval k)))))
                   write-paths))))
+
+(defn invalidate-path! [source path]
+  (let [index (get @readers-by-path source)
+        {value-readers ::value
+         fn-readers ::fns} (core/get-in index path)]
+    (doseq [reader (into value-readers (vals fn-readers))]
+      (r/invalidate! reader {}))))
 
 (defn- handle-atom-reset
   "When a watched atom changes, invalidate readers at changed paths, constrained by the current *write-path*."

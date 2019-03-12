@@ -6,23 +6,7 @@
 
 ;;;;;;;;;;;;;;
 ;;
-;; React
-
-(def -create-element react/createElement)
-(def -create-portal react-dom/createPortal)
-(def -create-context react/createContext)
-(def -is-valid-element? react/isValidElement)
-(def -forward-ref react/forwardRef)
-
-;;;;;;;;;;;;;;
-;;
-;; Hooks
-
-(def -use-state react/useState)
-(def -use-effect react/useEffect)
-(def -use-context react/useContext)
-(def -use-memo react/useMemo)
-(def -use-layout-effect react/useLayoutEffect)
+;; Hook utils
 
 (def ^:private js-undefined (js* "void 0"))
 
@@ -57,12 +41,15 @@
       (if (object? k)
         k
         (do
-          (assert (qualified-keyword? k))
-          (-create-context))))))
+          (assert (qualified-keyword? k)
+                  (str "Context lookup keywords must be namespaced. [" (str k) "]"))
+          (react/createContext))))))
 
 ;;;;;;;;;;;;;;
 ;;
 ;; View memoization
+;;
+;; We can memoize views by default in CLJS, thanks to immutable data / cheap equality checks.
 
 (defn- args-not= [x y]
   (not= (j/get x :children)

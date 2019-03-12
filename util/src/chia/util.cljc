@@ -1,7 +1,5 @@
 (ns chia.util
-  (:require #?(:cljs [applied-science.js-interop])
-            [chia.util.macros :as m]
-            [applied-science.js-interop :as j]
+  (:require [chia.util.macros :as m]
             [clojure.string :as str])
   #?(:cljs (:require-macros [chia.util])))
 

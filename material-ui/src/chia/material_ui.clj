@@ -20,4 +20,4 @@
               children# (some->> children#
                                  (mapv ~'chia.view/to-element))
               arga# (.concat (~'cljs.core/array ~class-sym props#) (~'to-array children#))]
-          (.apply ~'chia.view.impl/-create-element nil arga#))))))
+          (.apply ~'chia.view/-create-element nil arga#))))))

@@ -5,16 +5,18 @@
          "jss/src"
          "material-ui/src"
          "util/src"
+         "cell/src"
          "website/src"]
  :aliases
  {:test {:extra-paths ["view/test"
-                       "db/test"]}}
+                       "db/test"
+                       "cell/test"]}}
  :deps
  {org.clojure/clojure {:mvn/version "1.10.0"}
   org.clojure/clojurescript {:mvn/version "1.10.520"}
   org.clojure/test.check {:mvn/version "RELEASE" #_"0.10.0-alpha3"}
 
-  appliedscience/js-interop {:mvn/version "0.1.10"}
+  appliedscience/js-interop {:mvn/version "0.1.11"}
 
   ;; transitive deps
 

@@ -33,14 +33,14 @@
 (defn log-read
   "Record pattern to *pattern-log*."
   ([db kind pattern]
-   (r/update-source-log! db
-                         update kind conj-set pattern))
+   (r/log-read! db
+                update kind conj-set pattern))
   ([db kind pattern multiple?]
-   (r/update-source-log! db
-                         update
-                         kind
-                         (if multiple? into-set conj-set)
-                         pattern)))
+   (r/log-read! db
+                update
+                kind
+                (if multiple? into-set conj-set)
+                pattern)))
 
 (defn- add-value
   "Associates value with pattern in value-map."

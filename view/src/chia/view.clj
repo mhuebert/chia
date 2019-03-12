@@ -31,7 +31,7 @@
         key-fn (:key options)
         args-sym (gensym "args")]
     `(let [~key-fn-sym ~key-fn
-           ~view-fn-sym (~'chia.view.hooks/-functional-render
+           ~view-fn-sym (~'chia.view/-functional-render
                          {:view/name ~(str view-name)
                           :view/fn (fn ~name ~@body)
                           :view/should-update? ~(:view/should-update? options `not=)
@@ -42,4 +42,4 @@
                          ~@(cond-> []
                                    key-fn (conj "key" `(apply ~key-fn-sym ~args-sym))
                                    forward-ref? (conj "ref" `(:ref (first ~args-sym))))))]
-           (.call ~'chia.view.impl/-create-element nil ~view-fn-sym props# ~args-sym))))))
+           (.call ~'chia.view/-create-element nil ~view-fn-sym props# ~args-sym))))))

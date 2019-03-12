@@ -35,41 +35,41 @@
 
 (def default-methods
   {:view/should-update
-                                        (fn []
-                                          (this-as this
-                                            (or (true? registry/*reload*)
-                                                (let [$state (j/unchecked-get this :state)]
-                                                  (or (not= (j/unchecked-get $state :props)
-                                                            (j/unchecked-get $state :prev-props))
-                                                      (not= (j/unchecked-get $state :children)
-                                                            (j/unchecked-get $state :prev-children))
-                                                      (when-let [state (j/unchecked-get $state :state-atom)]
-                                                        (not= @state (j/unchecked-get $state :prev-state))))))))
+   (fn []
+     (this-as this
+       (or (true? registry/*reload*)
+           (let [$state (j/unchecked-get this :state)]
+             (or (not= (j/unchecked-get $state :props)
+                       (j/unchecked-get $state :prev-props))
+                 (not= (j/unchecked-get $state :children)
+                       (j/unchecked-get $state :prev-children))
+                 (when-let [state (j/unchecked-get $state :state-atom)]
+                   (not= @state (j/unchecked-get $state :prev-state))))))))
    :static/get-derived-state-from-props get-derived-state-from-props
    :view/will-unmount
-                                        (fn []
-                                          (this-as this
-                                            ;; manually track unmount state, react doesn't do this anymore,
-                                            ;; otherwise our async render loop can't tell if a component is still on the page.
+   (fn []
+     (this-as this
+       ;; manually track unmount state, react doesn't do this anymore,
+       ;; otherwise our async render loop can't tell if a component is still on the page.
 
-                                            (some-> (:view/state this)
-                                                    (remove-watch this))
+       (some-> (:view/state this)
+               (remove-watch this))
 
-                                            (doseq [f (some-> (j/unchecked-get this :chia$onUnmount)
-                                                              (vals))]
-                                              (when f (f this)))
+       (doseq [f (some-> (j/unchecked-get this :chia$onUnmount)
+                         (vals))]
+         (when f (f this)))
 
-                                            (r/dispose-reader! this)
-                                            (render-loop/dequeue! this)))
+       (r/dispose-reader! this)
+       (render-loop/dequeue! this)))
    :view/did-update
-                                        (fn []
-                                          (this-as ^js this
-                                            (let [$state (j/unchecked-get this :state)
-                                                  state-atom (j/unchecked-get $state :state-atom)]
-                                              (-> $state
-                                                  (j/assoc! :prev-props (j/unchecked-get $state :props)
-                                                            :prev-children (j/unchecked-get $state :children))
-                                                  (cond-> state-atom (j/assoc! :prev-state @state-atom))))))})
+   (fn []
+     (this-as ^js this
+       (let [$state (j/unchecked-get this :state)
+             state-atom (j/unchecked-get $state :state-atom)]
+         (-> $state
+             (j/assoc! :prev-props (j/unchecked-get $state :props)
+                       :prev-children (j/unchecked-get $state :children))
+             (cond-> state-atom (j/assoc! :prev-state @state-atom))))))})
 
 
 
@@ -78,7 +78,7 @@
     (default-methods k)
     (case k
       (:view/should-update
-        :view/will-receive-state) (bind f)
+       :view/will-receive-state) (bind f)
       :view/will-unmount
       (fn []
         (this-as this
@@ -89,7 +89,7 @@
         (this-as ^js this
           (j/assoc! this .-chia$toUpdate false)             ;; avoids double-render in render loop
           (r/with-dependency-tracking! this
-            (legacy/apply-fn f this))))
+                                       (legacy/apply-fn f this))))
       :view/did-update
       (fn []
         (this-as ^js this
@@ -220,7 +220,7 @@
 
 
 
-(defn validate-specs [{prop-spec     :spec/props
+(defn validate-specs [{prop-spec :spec/props
                        children-spec :spec/children} props children]
   (when js/goog.DEBUG
     (some-> prop-spec
@@ -244,18 +244,18 @@
   [view-base constructor]
   (let [constructor (extend-constructor view-base constructor)]
     (doto (fn [props & children]
-            (let [[{:as   props
+            (let [[{:as props
                     :keys [ref]} children] (if (or (map? props)
                                                    (nil? props))
                                              [props children]
                                              [nil (cons props children)])]
               (validate-specs (:spec-keys view-base) props children)
 
-              (impl/-create-element constructor #js {"key"      (str (element-key props children constructor))
-                                                     "ref"      ref
-                                                     "props"    (some-> props
-                                                                        (dissoc :ref))
-                                                     "children" children})))
+              (v/-create-element constructor #js {"key" (str (element-key props children constructor))
+                                                  "ref" ref
+                                                  "props" (some-> props
+                                                                  (dissoc :ref))
+                                                  "children" children})))
       (j/assoc! :chia$constructor constructor))))
 
 (defn component? [x]
@@ -292,5 +292,5 @@
   [^js ctx f]
   (-> ctx
       (j/get :Consumer)
-      (impl/-create-element #js {} #(context-observer {:view-fn       f
-                                                       :context-value %}))))
+      (v/-create-element #js {} #(context-observer {:view-fn f
+                                                    :context-value %}))))

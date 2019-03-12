@@ -1,4 +1,8 @@
 {
+  "scripts": {
+    "test-once": "shadow-cljs -A:test compile test",
+    "test": "shadow-cljs -A:test watch test"
+  },
   "devDependencies": {
     "shadow-cljs": "^2.8.14"
   },

@@ -25,7 +25,7 @@
 
   (is (do (render! (vl/view x []
                      (v/provide {::first-name "Herman"
-                                 ::last-name  "Früling"}
+                                 ::last-name "Früling"}
                                 (vl/consume [first-name ::first-name
                                              last-name ::last-name]
                                             (record! :F first-name
@@ -47,12 +47,12 @@
                      (v/flush!))
           count-outer-inner #(mapv get-count [:outer :inner])]
       (render! (vl/view x []
-                 (v/provide {:x "X"
-                             :y "Y"}
-                            (vl/consume [x :x]
+                 (v/provide {::x "X"
+                             ::y "Y"}
+                            (vl/consume [x ::x]
                                         [:div
                                          (helper :outer)
-                                         (vl/consume [y :y]
+                                         (vl/consume [y ::y]
                                                      (helper :inner))]))))
 
       (is (= (count-outer-inner) [1 1])

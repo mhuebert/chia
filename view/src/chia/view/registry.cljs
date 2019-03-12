@@ -1,6 +1,6 @@
 (ns chia.view.registry)
 
-(def ^:dynamic *current-view*
+(def ^:dynamic *view*
   "Tracks the currently-rendering component."
   nil)
 

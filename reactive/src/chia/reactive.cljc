@@ -69,6 +69,19 @@
       (-invalidate! reader info)
       (reader info))))
 
+(defn get-readers [source]
+  (keys (get @dependents source)))
+
+(defn invalidate-readers! [source]
+  (doseq [reader (keys (get @dependents source))]
+    (invalidate! reader nil)))
+
+(defn invalidate-readers-for-sources! [sources]
+  (let [readers (into [] (comp (mapcat get-readers)
+                               (distinct)) sources)]
+    (doseq [reader readers]
+      (invalidate! reader nil))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;; Reactive data sources
@@ -92,23 +105,29 @@
 ;; Read functions
 ;;
 
+(defn update-simple! [source reader prev next]
+  (cond (nil? prev) (add-edge! source reader ::simple)
+        (nil? next) (remove-edge! source reader)))
 
 (defn update-watch!
   "Updates watch for a source<>reader combo. Handles effectful updating of `source`."
   [source reader prev-patterns next-patterns]
   (when (not= prev-patterns next-patterns)
-    (let [new-source? (empty? (get @dependents source))]
-      (if (empty? next-patterns)
-        (remove-edge! source reader)
-        (add-edge! source reader next-patterns))
-      (update-pattern-watches! source
-                               reader
-                               prev-patterns
-                               next-patterns
-                               (cond (and (not new-source?)
-                                          (empty? (get @dependents source))) :removed
-                                     (and new-source?
-                                          (not (empty? next-patterns))) :added)))))
+    (if (or (= prev-patterns ::simple)
+            (= next-patterns ::simple))
+      (update-simple! source reader prev-patterns next-patterns)
+      (let [new-source? (empty? (get @dependents source))]
+        (if (empty? next-patterns)
+          (remove-edge! source reader)
+          (add-edge! source reader next-patterns))
+        (update-pattern-watches! source
+                                 reader
+                                 prev-patterns
+                                 next-patterns
+                                 (cond (and (not new-source?)
+                                            (empty? (get @dependents source))) :removed
+                                       (and new-source?
+                                            (not (empty? next-patterns))) :added))))))
 
 (defn dispose-reader!
   "Removes reader from reactive graph."
@@ -123,7 +142,8 @@
   (let [prev-deps (get @dependencies reader)]
     (doseq [source (-> (set (keys next-deps))
                        (into (keys prev-deps)))]
-      (update-watch! source reader (get prev-deps source) (get next-deps source)))
+      (let [next-dep (get next-deps source)]
+        (update-watch! source reader (get prev-deps source) next-dep)))
     reader))
 
 
@@ -156,11 +176,15 @@
 ;; For implementing data sources
 ;;
 
-(defn update-source-log!
+(defn log-read!
   "Logs read of a pattern-supporting dependency. `source` must satisfy IWatchableByPattern.
 
    `f` will be called by the existing patterns for the current source/reader, and `args`."
-  [source f & args]
-  (when *reader*
-    (vswap! *reader-dependency-log* assoc source (apply f (get @*reader-dependency-log* source) args)))
-  source)
+  ([source]
+   (when *reader*
+     (vswap! *reader-dependency-log* assoc source ::simple))
+   source)
+  ([source f & args]
+   (when *reader*
+     (vswap! *reader-dependency-log* assoc source (apply f (get @*reader-dependency-log* source) args)))
+   source))

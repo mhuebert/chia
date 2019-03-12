@@ -5,13 +5,13 @@
             [chia.view.registry :as registry]))
 
 (defn counter []
-  (let [{:keys [view/state]} registry/*current-view*]
+  (let [{:keys [view/state]} registry/*view*]
     (r/silently
      (swap! state update :count (fnil inc 0)))
     [:div (str "Renders:" (:count @state 0))]))
 
 (defn clicks []
-  (let [{:keys [view/state]} registry/*current-view*]
+  (let [{:keys [view/state]} registry/*view*]
     [:a.db {:on-click #(swap! state update :clicks (fnil inc 0))}
      (str "Clicks:" (:clicks @state 0))]))
 
