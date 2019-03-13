@@ -28,3 +28,4 @@
       (handle-error [this e] (throw e)))))
 
 (defonce ^:dynamic *runtime* (default-runtime))
+(defonce ^:dynamic *reload* false)

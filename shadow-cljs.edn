@@ -13,7 +13,7 @@
                    :output-dir "demo/public"}
           :test {:target :browser-test
                  :test-dir "demo/public/compiled/browser-tests"
-                 ;:ns-regexp "cell.*-test$"
+                 :ns-regexp "cell.*-test$"
                  :compiler-options {:static-fns false}
                  :devtools {:http-port 8021
                             :http-root "demo/public/compiled/browser-tests"}}}}

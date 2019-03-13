@@ -19,18 +19,27 @@
                          [(first body) (rest body)]
                          [nil body])
         cell-name (keyword (str *ns*) (str the-name))]
-    `(def ~the-name
-       ~@(when docstring (list docstring))
-       (let ~lib-bindings
-         (cond-> (~'chia.cell/cell* ~cell-name (fn [~'self] ~@body))
-                 ~options (with-meta ~options))))))
+    `(do
+       (declare ~the-name)
+       (let [prev-cell# ~the-name]
+         (def ~the-name
+           ~@(when docstring (list docstring))
+           (let ~lib-bindings
+             (cond-> (~'chia.cell/cell*
+                      ~cell-name
+                      (fn [~'self] ~@body)
+                      (when prev-cell#
+                        #::{:reload true
+                            :prev-cell prev-cell#
+                            :def? true}))
+                     ~options (with-meta ~options))))))))
 
 
 
 (defn- cell-identity
   "Construct a cell-name, incorporating the runtime-value of `key` if provided."
   [&env key]
-  (let [namespace-segment `(str ~(str *ns*) "#" (hash ~'chia.view.registry/*view*)) #_(str *ns*)
+  (let [namespace-segment `(str ~(str *ns*) #_#_"#" (hash ~'chia.view.registry/*view*)) #_(str *ns*)
         position (str "-" (util/unique-id)
                       "#L" (:line &env) "-C" (:column &env))]
     `(keyword ~namespace-segment

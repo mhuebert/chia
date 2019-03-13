@@ -7,9 +7,10 @@
   "Purges and removes all cells in the provided namespace."
   [ns]
   (let [ns (str ns)
-        cell-ids (->> (:cells @cell/*graph*)
-                      (keys)
-                      (filter #(= (namespace %) ns)))]
-    (doseq [id (deps/topo-sort @cell/*graph* cell-ids)]
-      (cell/purge-cell! id)
-      (swap! cell/*graph* dep/remove-all id))))
+        cells (->> (:cells @cell/*graph*)
+                   (keep (fn [[k data]]
+                           (when (= (namespace k) ns)
+                             (:instance data)))))]
+    (doseq [cell (deps/topo-sort @cell/*graph* cells)]
+      (cell/purge-cell! cell)
+      (swap! cell/*graph* dep/remove-all cell))))

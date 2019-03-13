@@ -16,7 +16,7 @@
             [com.stuartsierra.dependency :as dep]))
 
 (defn dep-set [cells]
-  (set (map util/id cells)))
+  (set cells))
 
 (deftest dependencies-test
           (repl/reset-namespace 'chia.cell-test)
@@ -27,14 +27,14 @@
                 d (cell c)]
 
             (are [cell immediate-dependencies]
-              (= (dep/immediate-dependencies @*graph* (id cell))
+              (= (dep/immediate-dependencies @*graph* cell)
                  (dep-set immediate-dependencies))
               b #{a}
               c #{b}
               d #{})
 
             (are [cell immediate-dependents]
-              (= (dep/immediate-dependents @*graph* (id cell))
+              (= (dep/immediate-dependents @*graph* cell)
                  (dep-set immediate-dependents))
               a #{b}
               b #{c}
@@ -42,7 +42,7 @@
               d #{})
 
             (are [cell transitive-dependents]
-              (= (dep/transitive-dependents @*graph* (id cell))
+              (= (dep/transitive-dependents @*graph* cell)
                  (dep-set transitive-dependents))
               a #{b c}
               b #{c}
@@ -74,7 +74,7 @@
             i (cell {:key :i} @h)
             j (cell (str @h @i))]
 
-        (= (dep/immediate-dependents @*graph* (id h)) (dep-set #{i}))
+        (= (dep/immediate-dependents @*graph* h) (dep-set #{i}))
         (is (= 1 @i))
 
         (is (= "11" @j))
@@ -129,7 +129,7 @@
       (defcell s @r)
       (defcell s- @s))
 
-    (is (= (dep/transitive-dependents @*graph* (id r))
+    (is (= (dep/transitive-dependents @*graph* r)
            (dep-set [r- s s-])))
 
     (runtime/dispose! ctx-1)
@@ -137,11 +137,9 @@
     (is (= nil @r @r-))
     (is (= 1 @s @s-))
 
-    (is (= (dep/transitive-dependents @*graph* (id r))
+    (is (= (dep/transitive-dependents @*graph* r)
            (dep-set [r- s s-]))
         "Dependencies to named cells persist"))
-
-
 
   (comment (binding [runtime/*runtime* ctx-1
                      cell/DEBUG true]
