@@ -2,6 +2,21 @@
   (:require [chia.cell.util :as util])
   (:refer-clojure :exclude [bound-fn]))
 
+(defmacro read-tx-key [cell k]
+  `(let [cell# ~cell
+         tx-cell# (~'chia.cell/tx-cell cell#)]
+     (or (~'applied-science.js-interop/get tx-cell# ~k)
+         (~'applied-science.js-interop/get cell# ~k))))
+
+(defmacro assoc-tx-key! [cell k v]
+  `(~'chia.cell/mutate-cell! ~cell
+    (~'applied-science.js-interop/obj ~k ~v)))
+
+(defmacro update-tx-key! [cell k f & args]
+  `(let [cell# ~cell]
+     (assoc-tx-key! cell# ~k
+                    (~f (read-tx-key cell# ~k) ~@args))))
+
 (def lib-bindings
   (reduce (fn [bindings sym]
             (into bindings [(symbol (name sym)) sym]))

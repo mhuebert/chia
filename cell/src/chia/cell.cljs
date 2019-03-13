@@ -1,24 +1,13 @@
 (ns chia.cell
-  (:require [chia.cell.util :as util :refer [id]]
+  (:refer-clojure :exclude [eval])
+  (:require [chia.cell.util :as util]
+            [chia.util :as u]
             [chia.cell.runtime :as runtime]
-            [com.stuartsierra.dependency :as dep]
-            [chia.cell.deps :as deps]
-            [chia.reactive :as r])
-  (:require-macros [chia.cell]))
-
-(def ^:dynamic *graph* (atom (new deps/CellGraph {})))
-
-(defn get-function [id]
-  (get-in @*graph* [:cells id :function]))
-
-(defn set-function! [id f]
-  (swap! *graph* assoc-in [:cells id :function] f))
-
-(defn get-value [id]
-  (get-in @*graph* [:cells id :value]))
-
-(defn get-global-meta [id]
-  (get-in @*graph* [:cells id :meta]))
+            [chia.reactive :as r]
+            [applied-science.js-interop :as j]
+            [goog.object :as gobj]
+            [clojure.set :as set])
+  (:require-macros [chia.cell :as c]))
 
 ;;;;;;;;;;;;;;;;;;
 ;;
@@ -32,67 +21,129 @@
   "Track cell dependencies during eval"
   nil)
 
-(def ^:dynamic ^:private *change-log*
-  "Track cell changes during eval"
+(def ^:dynamic *tx-log*
+  "Track cell changes during tx"
   nil)
+
+(defn- mutate-cell! [cell new-attrs-js]
+  (assert cell "Cannot mutate a nothing cell")
+  (when-not new-attrs-js
+    (throw (js/Error. "no new attrs")))
+  (if *tx-log*
+    (vswap! *tx-log* update cell #(doto (or % #js{})
+                                    (gobj/extend new-attrs-js)))
+    (gobj/extend cell new-attrs-js)))
+
+(defn- tx-cell [cell]
+  (some-> *tx-log* (deref) (get cell)))
+
+(defn- notify-cell-changed! [cell oldval newval]
+  (r/invalidate-readers! cell)
+  (-notify-watches cell oldval newval))
+
+(defn- tx! [f]
+  (let [[value tx-changed]
+        (binding [*tx-log* (volatile! {})]
+          (let [value (f)]
+            [value @*tx-log*]))]
+    (doseq [[cell changes] tx-changed]
+      (mutate-cell! cell changes)
+      (let [newval (.-value changes)
+            oldval (.-value cell)]
+        (when (not= oldval newval)
+          (notify-cell-changed! cell oldval newval))))
+    value))
+
+(defn internal-state [cell]
+  (c/read-tx-key cell .-internal))
 
 (defn log-read! [cell]
   (when *read-log*
     (vswap! *read-log* conj cell))
-  (r/log-read! cell))
+  (r/log-read! cell)
+  cell)
+
+;;;;;;;;;;;;;;;;;;
+;;
+;; Dependency graph
+
+(def set-conj (fnil conj #{}))
+
+(defn immediate-dependencies [cell]
+  (.-dependencies cell))
+
+(defn immediate-dependents [cell]
+  (.-dependents cell))
+
+(defn transitive-sorted [f]
+  (fn -transitive-sorted
+    ([cell]
+     (->> cell
+          (-transitive-sorted [#{cell} []])
+          (second)))
+    ([[seen results] cell]
+     (let [new (set/difference (f cell) seen)]
+       (reduce -transitive-sorted
+               [(into (conj seen cell) new)
+                (-> results
+                    (cond-> (not (seen cell)) (conj cell))
+                    (into new))]
+               new)))))
+
+(def transitive-dependents (transitive-sorted immediate-dependents))
+(def transitive-dependencies (transitive-sorted immediate-dependencies))
+
+(defn depend! [cell dep]
+  (c/assoc-tx-key! cell .-dependencies
+                   (set-conj (immediate-dependencies cell) dep))
+  (c/assoc-tx-key! dep .-dependents
+                   (set-conj (immediate-dependents dep) cell)))
+
+(defn remove-edge! [cell dep]
+  (c/assoc-tx-key! cell .-dependencies
+                   (disj (immediate-dependencies cell) dep))
+  (c/assoc-tx-key! dep .-dependents
+                   (disj (immediate-dependents dep) cell)))
+
+(defn transition-deps! [cell next-dependency-nodes]
+  (let [prev-dependencies (c/read-tx-key cell .-dependencies)]
+    (doseq [added (set/difference next-dependency-nodes prev-dependencies)]
+      (depend! cell added))
+    (doseq [removed (set/difference prev-dependencies next-dependency-nodes)]
+      (remove-edge! cell removed))
+    nil))
 
 ;;;;;;;;;;;;;;;;;;
 ;;
 ;; Cell evaluation
 
-(defn- invalidate-readers! [cell]
-  (if *change-log*
-    (vswap! *change-log* conj cell)
-    (r/invalidate-readers! cell)))
-
-(declare Cell)
-
-(defn- clean-eval [cell]
-  (when-let [f (get-function (id cell))]
-    (try (f cell)
+(defn- eval [cell]
+  (let [f (c/read-tx-key cell .-f)
+        value (c/read-tx-key cell .-value)]
+    (try (f value)
          (catch js/Error e
-           (runtime/dispose! cell)
+           (runtime/dispose! tx-cell)
            (throw e)))))
 
-(defn- eval-cell [graph cell]
+(defn- eval-and-set! [cell]
   (if (= cell (first *stack*))
-    graph
-    (binding [*graph* (atom graph)
-              *stack* (cons cell *stack*)
+    cell
+    (binding [*stack* (cons cell *stack*)
               *read-log* (volatile! #{})
-              runtime/*runtime* (::runtime (get-global-meta (id cell)))]
+              runtime/*runtime* (::runtime (internal-state cell))]
       (runtime/dispose! cell)
-      (let [value (clean-eval cell)
+      (let [value (eval cell)
             next-deps (disj @*read-log* cell)]
         (-reset! cell value)
-        (-> @*graph*
-            (deps/transition-deps cell next-deps))))))
-
-(defn- eval-cell! [cell]
-  (reset! *graph* (eval-cell @*graph* cell))
-  cell)
+        (transition-deps! cell next-deps)))))
 
 (def ^:dynamic ^:private *computing-dependents* false)
 
-(defn- eval-cell-and-dependents [graph cell]
-  (if *computing-dependents*
-    graph
-    (binding [*computing-dependents* true]
-      (let [sorted-cells (deps/transitive-dependents-sorted graph cell)]
-        (reduce eval-cell graph sorted-cells)))))
-
-(defn- eval-cell-and-dependents! [cell]
+(defn- eval-with-dependents! [cell]
   (when-not *computing-dependents*
-    (binding [*change-log* (volatile! [])]
-      (try
-        (reset! *graph* (eval-cell-and-dependents @*graph* cell))
-        (finally
-         (r/invalidate-readers-for-sources! @*change-log*)))))
+    (binding [*computing-dependents* true]
+      (doseq [cell (transitive-dependents cell)]
+        (eval-and-set! cell))))
   cell)
 
 ;;;;;;;;;;;;;;;;;;
@@ -133,39 +184,26 @@
 ;;
 ;; Cell status
 
-(defn vary-global-meta! [cell f & args]
-  (swap! *graph* update-in [:cells (id cell) :meta] #(apply f % args))
-  (invalidate-readers! cell)
-  (eval-cell-and-dependents! cell))
+(defn update-internal! [cell f & args]
+  (c/update-tx-key! cell .-internal #(apply f % args))
+  (tx! #(eval-with-dependents! cell))
+  (r/invalidate-readers! cell))
 
 (defn loading! [cell]
-  (vary-global-meta! cell merge {:async/loading? true}))
+  (update-internal! cell merge {:async/loading? true}))
 
 (defn error! [cell error]
-  (vary-global-meta! cell merge {:async/loading? false
-                                 :async/error error}))
+  (update-internal! cell merge {:async/loading? false
+                                :async/error error}))
 (defn complete! [cell]
-  (vary-global-meta! cell merge {:async/loading? false
-                                 :async/error nil}))
-
-(defn- transitive
-  "Recursively expands the set of dependency relationships starting
-  at (get neighbors x), for each x in node-set"
-  [k cells node-set]
-  (loop [unexpanded (mapcat (comp k cells id) node-set)
-         expanded #{}]
-    (if-let [[node & more] (seq unexpanded)]
-      (if (contains? expanded node)
-        (recur more expanded)
-        (recur (concat more (get-in cells [(id node) k]))
-               (conj expanded node)))
-      expanded)))
+  (update-internal! cell merge {:async/loading? false
+                                :async/error nil}))
 
 ;;;;;;;;;;;;;;;;;;
 ;;
 ;; Cell type
 
-(deftype Cell [id ^:mutable meta dependencies dependents]
+(deftype Cell [id ^:mutable f ^:mutable value ^:mutable internal ^:mutable dependencies ^:mutable dependents ^:mutable meta]
 
   IEquiv
   (-equiv [this other]
@@ -178,7 +216,14 @@
 
   IWithMeta
   (-with-meta [this m]
-    (Cell. id m))
+    (let [tx-attrs (tx-cell this)]
+      (Cell. (j/get tx-attrs .-id id)
+             (j/get tx-attrs .-f f)
+             (j/get tx-attrs .-value value)
+             (j/get tx-attrs .-internal internal)
+             (j/get tx-attrs .-dependencies dependencies)
+             (j/get tx-attrs .-dependents dependents)
+             m)))
 
   IMeta
   (-meta [_] meta)
@@ -188,43 +233,42 @@
 
   runtime/IDispose
   (on-dispose [this f]
-    (swap! *graph* update-in [:cells id :meta ::on-dispose] conj f))
+    (c/update-tx-key! this .-internal update ::on-dispose conj f))
   (-dispose! [this]
-    (doseq [f (::on-dispose (get-global-meta id))]
+    (doseq [f (::on-dispose (internal-state this))]
       (f))
-    (swap! *graph* update-in [:cells id :meta] dissoc ::on-dispose)
+    (c/update-tx-key! this .-internal dissoc ::on-dispose)
     this)
 
   ;; Atom behaviour
 
   IWatchable
   (-notify-watches [this oldval newval]
-    (doseq [f (vals (::watches (get-global-meta id)))]
+    (doseq [f (vals (::watches (internal-state this)))]
       (f this oldval newval)))
   (-add-watch [this key f]
-    (swap! *graph* update-in [:cells id :meta ::watches] assoc key f))
+    (c/update-tx-key! this .-internal update ::watches assoc key f))
   (-remove-watch [this key]
-    (swap! *graph* update-in [:cells id :meta ::watches] dissoc key))
+    (c/update-tx-key! this .-internal update ::watches dissoc key))
 
   IDeref
   (-deref [this]
     (log-read! this)
-    (get-value id))
+    (c/read-tx-key this .-value))
 
   IReset
   (-reset! [this newval]
-    (let [oldval (get-value id)]
-      (swap! *graph* assoc-in [:cells id :value] newval)
-      (-notify-watches this oldval newval)
-      (invalidate-readers! this)
-      (eval-cell-and-dependents! this)
-      newval))
+    (tx!
+     (fn []
+       (mutate-cell! this (j/obj .-value newval))
+       (eval-with-dependents! this)))
+    newval)
 
   ISwap
-  (-swap! [this f] (-reset! this (f (get-value id))))
-  (-swap! [this f a] (-reset! this (f (get-value id) a)))
-  (-swap! [this f a b] (-reset! this (f (get-value id) a b)))
-  (-swap! [this f a b xs] (-reset! this (apply f (get-value id) a b xs)))
+  (-swap! [this f] (-reset! this (f (c/read-tx-key this .-value))))
+  (-swap! [this f a] (-reset! this (f (c/read-tx-key this .-value) a)))
+  (-swap! [this f a b] (-reset! this (f (c/read-tx-key this .-value) a b)))
+  (-swap! [this f a b xs] (-reset! this (apply f (c/read-tx-key this .-value) a b xs)))
 
   ILookup
   (-lookup [this k]
@@ -233,70 +277,13 @@
     (r/log-read! this)
     (case k
       (:async/loading?
-       :async/error) (get (get-global-meta id) k)
-      :async/value (get-value id)
-      (throw (js/Error. (str "Unknown key on cell: " k)))))
-
-
-
-  dep/DependencyGraph
-  (immediate-dependencies [cell node]
-    (get-in cells [(id node) :dependencies] #{}))
-  (immediate-dependents [graph node]
-    (assert node "cell must exist")
-    (get-in cells [(id node) :dependents] #{}))
-  (transitive-dependencies [graph node]
-    (transitive :dependencies cells #{node}))
-  (transitive-dependencies-set [graph node-set]
-    (transitive :dependencies cells node-set))
-  (transitive-dependents [graph node]
-    (transitive :dependents cells #{node}))
-  (transitive-dependents-set [graph node-set]
-    (transitive :dependents cells node-set))
-  (nodes [graph]
-    (some->> cells
-             (remove (fn [[_ d]] (:instance d)))
-             (seq)
-             (prn ::missing-NODES))
-    (->> (vals cells)
-         (mapv :instance)
-         (set)))
-
-  dep/DependencyGraphUpdate
-  (depend [graph node dep-node]
-    (when (or (= node dep-node) (dep/depends? graph dep-node node))
-      (throw (ex-info (str "Circular dependency between "
-                           (pr-str node) " and " (pr-str dep-node))
-                      {:reason ::circular-dependency
-                       :node node
-                       :dependency dep-node})))
-    (CellGraph. (-> cells
-                    (update-in [(id node) :dependencies] dep/set-conj dep-node)
-                    (update-in [(id dep-node) :dependents] dep/set-conj node))))
-  (remove-edge [graph node dep-node]
-    (CellGraph. (-> cells
-                    (update-in [(id node) :dependencies] disj dep-node)
-                    (update-in [(id dep-node) :dependents] disj node))))
-  (remove-all [graph node]
-    (CellGraph. (let [{:keys [dependents
-                              dependencies]} (get cells (id node))]
-                  (as-> cells cells
-                        (dissoc cells (id node))
-                        (reduce (fn [cells d]
-                                  (update-in cells [(id d) :dependencies] disj node)) cells dependents)
-                        (reduce (fn [cells d]
-                                  (update-in cells [(id d) :dependents] disj node)) cells dependencies)))))
-  (remove-node [graph node]
-    (CellGraph. (dissoc cells (id node))))
-  )
+       :async/error) (get (internal-state id) k)
+      :async/value (c/read-tx-key this .-value)
+      (throw (js/Error. (str "Unknown key on cell: " k))))))
 
 ;;;;;;;;;;;;;;;;;;
 ;;
-;; Cell type
-
-(defn purge-cell! [cell]
-  (runtime/-dispose! cell)
-  (swap! *graph* dep/remove-node cell))
+;; Cell construction
 
 (defn cell*
   "Returns a new cell, or an existing cell if `id` has been seen before.
@@ -309,24 +296,28 @@
   ([id f {::keys [reload
                   prev-cell
                   def?]}]
-   (cond reload (do (set-function! id f)
-                    (eval-cell! prev-cell))
-         (contains? (:cells @*graph*) id) (get-in @*graph* [:cells id :instance])
-         :else (let [cell (Cell. id nil)]
-                 (swap! *graph* (fn [graph]
-                                  (assoc-in graph [:cells id] {:instance cell
-                                                               :function f
-                                                               :meta {::runtime runtime/*runtime*
-                                                                      ::def? def?}})))
-                 (when-not def?
-                   (runtime/on-dispose runtime/*runtime* #(purge-cell! cell)))
-                 (eval-cell! cell)))))
+   (if reload
+     (do (mutate-cell! prev-cell (j/obj .-f f))
+         (tx! #(eval-and-set! prev-cell))
+         prev-cell)
+     (u/memoized-on runtime/*runtime* (str id)
+       (let [cell (Cell. id
+                         f
+                         nil
+                         {::runtime runtime/*runtime*
+                          ::def? def?}
+                         #{}
+                         #{}
+                         {})]
+         (runtime/on-dispose runtime/*runtime* #(runtime/dispose! cell))
+         (tx! #(eval-and-set! cell))
+         cell)))))
 
 (defn cell
   [{:keys [key]} value]
   (assert key "Cells created by functions require a :key")
   (let [[ns prefix] (if-let [parent-id (some-> (first *stack*)
-                                               (id))]
+                                               .-id)]
                       [(namespace parent-id) (name parent-id)
                        "chia.cell.inline" "_"])
         id (keyword ns (str prefix "#" (hash key)))]

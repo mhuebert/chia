@@ -116,10 +116,9 @@
                      v)))))))
 
 (m/defmacro memoized-on [o k & body]
-  (let [k (munged-key k)]
-    `(or (~'applied-science.js-interop/get ~o ~k)
-         (doto->> (do ~@body)
-                  (~'applied-science.js-interop/assoc! ~o ~k)))))
+  `(or (~'applied-science.js-interop/get ~o ~k)
+       (doto->> (do ~@body)
+                (~'applied-science.js-interop/assoc! ~o ~k))))
 
 (defn user-bindings
   "Returns all user-assigned bindings resulting from a let binding."

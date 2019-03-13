@@ -5,7 +5,3 @@
 (defn unique-id []
   #?(:cljs (uuid-utils/make-random-uuid)
      :clj  (str (java.util.UUID/randomUUID))))
-
-#?(:cljs
-   (defn id [cell]
-     (j/get cell .-id)))
