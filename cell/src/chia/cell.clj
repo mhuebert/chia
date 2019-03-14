@@ -1,21 +1,30 @@
 (ns chia.cell
   (:require [chia.cell.util :as util])
-  (:refer-clojure :exclude [bound-fn]))
+  (:refer-clojure :exclude [bound-fn assoc! read]))
 
-(defmacro read-tx-key [cell k]
+(def jget 'applied-science.js-interop/get)
+(def jget-in 'applied-science.js-interop/get-in)
+
+(defn read* [cell k not-found]
   `(let [cell# ~cell
          tx-cell# (~'chia.cell/tx-cell cell#)]
-     (or (~'applied-science.js-interop/get tx-cell# ~k)
-         (~'applied-science.js-interop/get cell# ~k))))
+     (~jget tx-cell# ~k
+      (~jget-in cell# [~'.-state ~k] ~not-found))))
 
-(defmacro assoc-tx-key! [cell k v]
+(defmacro read
+  ([cell k]
+   (read* cell k nil))
+  ([cell k not-found]
+   (read* cell k not-found)))
+
+(defmacro assoc! [cell k v]
   `(~'chia.cell/mutate-cell! ~cell
     (~'applied-science.js-interop/obj ~k ~v)))
 
-(defmacro update-tx-key! [cell k f & args]
+(defmacro update! [cell k f & args]
   `(let [cell# ~cell]
-     (assoc-tx-key! cell# ~k
-                    (~f (read-tx-key cell# ~k) ~@args))))
+     (assoc! cell# ~k
+             (~f (read cell# ~k) ~@args))))
 
 (def lib-bindings
   (reduce (fn [bindings sym]
@@ -32,8 +41,7 @@
                            [nil body])
         [options body] (if (and (map? (first body)) (> (count body) 1))
                          [(first body) (rest body)]
-                         [nil body])
-        cell-name (keyword (str *ns*) (str the-name))]
+                         [nil body])]
     `(do
        (declare ~the-name)
        (let [prev-cell# ~the-name]
@@ -41,25 +49,12 @@
            ~@(when docstring (list docstring))
            (let ~lib-bindings
              (cond-> (~'chia.cell/cell*
-                      ~cell-name
                       (fn [~'self] ~@body)
                       (when prev-cell#
-                        #::{:reload true
-                            :prev-cell prev-cell#
-                            :def? true}))
+                        #::{:def? true
+                            :reload? true
+                            :prev-cell prev-cell#}))
                      ~options (with-meta ~options))))))))
-
-
-
-(defn- cell-identity
-  "Construct a cell-name, incorporating the runtime-value of `key` if provided."
-  [&env key]
-  (let [namespace-segment `(str ~(str *ns*) #_#_"#" (hash ~'chia.view.registry/*view*)) #_(str *ns*)
-        position (str "-" (util/unique-id)
-                      "#L" (:line &env) "-C" (:column &env))]
-    `(keyword ~namespace-segment
-              (str (hash ~key)
-                   ~position))))
 
 (defmacro cell
   "Returns an anonymous cell. Only one cell will be returned per lexical instance of `cell`,
@@ -73,19 +68,21 @@
                (nil? options)))
    (let [body (if (and (map? options) (seq body))
                 body
-                (cons options body))]
+                (cons options body))
+         id (util/unique-id)]
      `(let ~lib-bindings
-        (~'chia.cell/cell* ~(cell-identity &env key)
-         (fn [~'self] ~@body))))))
+        (~'chia.cell/cell*
+         (fn [~'self] ~@body)
+         {:memo-key (str ~id "#" (hash ~key))})))))
 
 (defmacro bound-fn
   "Returns an anonymous function which will evaluate with the current cell in the stack.
   Similar to Clojure's `bound-fn`, but only cares about the currently bound cell."
   [& body]
-  `(let [the-cell# (first ~'chia.cell/*stack*)
+  `(let [the-cell# ~'chia.cell/*cell*
          context# ~'chia.cell.runtime/*runtime*]
      (fn [& args#]
-       (binding [~'chia.cell/*stack* (cons the-cell# ~'chia.cell/*stack*)]
+       (binding [~'chia.cell/*cell* the-cell#]
          (try (apply (fn ~@body) args#)
               (catch ~'js/Error error#
                 (~'chia.cell.runtime/handle-error context# error#)))))))

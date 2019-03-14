@@ -1,21 +1,24 @@
 (ns chia.cell
   (:refer-clojure :exclude [eval])
   (:require [chia.cell.util :as util]
+            [chia.view.registry :as registry]
             [chia.util :as u]
             [chia.cell.runtime :as runtime]
             [chia.reactive :as r]
             [applied-science.js-interop :as j]
             [goog.object :as gobj]
-            [clojure.set :as set])
+            [clojure.set :as set]
+            [chia.view :as v]
+            [kitchen-async.promise :as p])
   (:require-macros [chia.cell :as c]))
 
 ;;;;;;;;;;;;;;;;;;
 ;;
 ;; Dynamic state
 
-(def ^:dynamic *stack*
-  "Stack of currently evaluating cells"
-  (list))
+(def ^:dynamic *cell*
+  "Currently evaluating cell"
+  nil)
 
 (def ^:dynamic ^:private *read-log*
   "Track cell dependencies during eval"
@@ -26,13 +29,11 @@
   nil)
 
 (defn- mutate-cell! [cell new-attrs-js]
-  (assert cell "Cannot mutate a nothing cell")
-  (when-not new-attrs-js
-    (throw (js/Error. "no new attrs")))
   (if *tx-log*
     (vswap! *tx-log* update cell #(doto (or % #js{})
                                     (gobj/extend new-attrs-js)))
-    (gobj/extend cell new-attrs-js)))
+    (-> (.-state cell)
+        (gobj/extend new-attrs-js))))
 
 (defn- tx-cell [cell]
   (some-> *tx-log* (deref) (get cell)))
@@ -48,20 +49,44 @@
             [value @*tx-log*]))]
     (doseq [[cell changes] tx-changed]
       (mutate-cell! cell changes)
-      (let [newval (.-value changes)
-            oldval (.-value cell)]
+      (let [newval (j/get changes .-value)
+            oldval (j/get cell .-value)]
         (when (not= oldval newval)
           (notify-cell-changed! cell oldval newval))))
     value))
 
 (defn internal-state [cell]
-  (c/read-tx-key cell .-internal))
+  (c/read cell .-internal))
 
 (defn log-read! [cell]
   (when *read-log*
     (vswap! *read-log* conj cell))
   (r/log-read! cell)
   cell)
+
+
+;;;;;;;;;;;;;;;;;;
+;;
+;; Cell status
+
+(declare eval-dependents!)
+
+(defn update-internal! [cell f & args]
+  (c/update! cell .-internal #(apply f % args))
+
+  ;; do not propagate?
+  #_(tx! #(eval-dependents! cell))
+
+  (r/invalidate-readers! cell))
+
+(defn loading! [cell]
+  (c/assoc! cell .-async #js [true nil]))
+
+(defn error! [cell error]
+  (c/assoc! cell .-async #js[false error]))
+
+(defn complete! [cell]
+  (c/assoc! cell .-async #js[false nil]))
 
 ;;;;;;;;;;;;;;;;;;
 ;;
@@ -70,10 +95,10 @@
 (def set-conj (fnil conj #{}))
 
 (defn immediate-dependencies [cell]
-  (.-dependencies cell))
+  (c/read cell .-dependencies))
 
 (defn immediate-dependents [cell]
-  (.-dependents cell))
+  (c/read cell .-dependents))
 
 (defn transitive-sorted [f]
   (fn -transitive-sorted
@@ -94,19 +119,19 @@
 (def transitive-dependencies (transitive-sorted immediate-dependencies))
 
 (defn depend! [cell dep]
-  (c/assoc-tx-key! cell .-dependencies
-                   (set-conj (immediate-dependencies cell) dep))
-  (c/assoc-tx-key! dep .-dependents
-                   (set-conj (immediate-dependents dep) cell)))
+  (c/assoc! cell .-dependencies
+            (set-conj (immediate-dependencies cell) dep))
+  (c/assoc! dep .-dependents
+            (set-conj (immediate-dependents dep) cell)))
 
 (defn remove-edge! [cell dep]
-  (c/assoc-tx-key! cell .-dependencies
-                   (disj (immediate-dependencies cell) dep))
-  (c/assoc-tx-key! dep .-dependents
-                   (disj (immediate-dependents dep) cell)))
+  (c/assoc! cell .-dependencies
+            (disj (immediate-dependencies cell) dep))
+  (c/assoc! dep .-dependents
+            (disj (immediate-dependents dep) cell)))
 
 (defn transition-deps! [cell next-dependency-nodes]
-  (let [prev-dependencies (c/read-tx-key cell .-dependencies)]
+  (let [prev-dependencies (c/read cell .-dependencies)]
     (doseq [added (set/difference next-dependency-nodes prev-dependencies)]
       (depend! cell added))
     (doseq [removed (set/difference prev-dependencies next-dependency-nodes)]
@@ -117,29 +142,47 @@
 ;;
 ;; Cell evaluation
 
+(defn handle-promise! [cell promise]
+  ;; how to 'dispose' of a promise?
+  (when-let [old-promise (c/read cell .-promise)]
+
+    (c/assoc! cell .-promise promise))
+  (let [done? (volatile! false)
+        wrap-cb (fn [f]
+                  (if (identical? promise (c/read cell .-promise))
+                    (f)))]
+    (-> promise
+        (j/call :then (wrap-cb #(-reset! cell %)))
+        (j/call :catch (wrap-cb #(error! cell %))))
+    (when-not @done?
+      (loading! cell)
+      (-reset! cell nil))))
+
 (defn- eval [cell]
-  (let [f (c/read-tx-key cell .-f)
-        value (c/read-tx-key cell .-value)]
+  (let [f (c/read cell .-f)
+        value (c/read cell .-value)]
     (try (f value)
          (catch js/Error e
            (runtime/dispose! tx-cell)
            (throw e)))))
 
 (defn- eval-and-set! [cell]
-  (if (= cell (first *stack*))
+  (if (= cell *cell*)
     cell
-    (binding [*stack* (cons cell *stack*)
+    (binding [*cell* cell
               *read-log* (volatile! #{})
-              runtime/*runtime* (::runtime (internal-state cell))]
+              runtime/*runtime* (c/read cell .-runtime)]
       (runtime/dispose! cell)
       (let [value (eval cell)
             next-deps (disj @*read-log* cell)]
-        (-reset! cell value)
-        (transition-deps! cell next-deps)))))
+        (transition-deps! cell next-deps)
+        (if (u/promise? value)
+          (handle-promise! cell value)
+          (-reset! cell value))))))
 
 (def ^:dynamic ^:private *computing-dependents* false)
 
-(defn- eval-with-dependents! [cell]
+(defn- eval-dependents! [cell]
   (when-not *computing-dependents*
     (binding [*computing-dependents* true]
       (doseq [cell (transitive-dependents cell)]
@@ -182,62 +225,40 @@
 
 ;;;;;;;;;;;;;;;;;;
 ;;
-;; Cell status
-
-(defn update-internal! [cell f & args]
-  (c/update-tx-key! cell .-internal #(apply f % args))
-  (tx! #(eval-with-dependents! cell))
-  (r/invalidate-readers! cell))
-
-(defn loading! [cell]
-  (update-internal! cell merge {:async/loading? true}))
-
-(defn error! [cell error]
-  (update-internal! cell merge {:async/loading? false
-                                :async/error error}))
-(defn complete! [cell]
-  (update-internal! cell merge {:async/loading? false
-                                :async/error nil}))
-
-;;;;;;;;;;;;;;;;;;
-;;
 ;; Cell type
 
-(deftype Cell [id ^:mutable f ^:mutable value ^:mutable internal ^:mutable dependencies ^:mutable dependents ^:mutable meta]
+(deftype Cell [state meta]
+
+  Object
+  (equiv [this other]
+    (-equiv this other))
 
   IEquiv
   (-equiv [this other]
-    (and (instance? Cell other)
-         (keyword-identical? id (.-id other))))
-
-  IHash
-  (-hash [this]
-    (hash id))
+    (-equiv [this other]
+            (if (instance? Cell other)
+              (identical? state (.-state other))
+              false)))
 
   IWithMeta
   (-with-meta [this m]
-    (let [tx-attrs (tx-cell this)]
-      (Cell. (j/get tx-attrs .-id id)
-             (j/get tx-attrs .-f f)
-             (j/get tx-attrs .-value value)
-             (j/get tx-attrs .-internal internal)
-             (j/get tx-attrs .-dependencies dependencies)
-             (j/get tx-attrs .-dependents dependents)
-             m)))
+    (if (identical? m meta)
+      this
+      (Cell. state m)))
 
   IMeta
   (-meta [_] meta)
 
   IPrintWithWriter
-  (-pr-writer [this writer _] (write-all writer (str "⚪️" id)))
+  (-pr-writer [this writer _] (write-all writer (str "⚪️")))
 
   runtime/IDispose
   (on-dispose [this f]
-    (c/update-tx-key! this .-internal update ::on-dispose conj f))
+    (c/update! this .-internal update ::on-dispose conj f))
   (-dispose! [this]
     (doseq [f (::on-dispose (internal-state this))]
       (f))
-    (c/update-tx-key! this .-internal dissoc ::on-dispose)
+    (c/update! this .-internal dissoc ::on-dispose)
     this)
 
   ;; Atom behaviour
@@ -247,28 +268,29 @@
     (doseq [f (vals (::watches (internal-state this)))]
       (f this oldval newval)))
   (-add-watch [this key f]
-    (c/update-tx-key! this .-internal update ::watches assoc key f))
+    (c/update! this .-internal update ::watches assoc key f))
   (-remove-watch [this key]
-    (c/update-tx-key! this .-internal update ::watches dissoc key))
+    (c/update! this .-internal update ::watches dissoc key))
 
   IDeref
   (-deref [this]
     (log-read! this)
-    (c/read-tx-key this .-value))
+    (c/read this .-value))
 
   IReset
   (-reset! [this newval]
     (tx!
      (fn []
+       (complete! this)
        (mutate-cell! this (j/obj .-value newval))
-       (eval-with-dependents! this)))
+       (eval-dependents! this)))
     newval)
 
   ISwap
-  (-swap! [this f] (-reset! this (f (c/read-tx-key this .-value))))
-  (-swap! [this f a] (-reset! this (f (c/read-tx-key this .-value) a)))
-  (-swap! [this f a b] (-reset! this (f (c/read-tx-key this .-value) a b)))
-  (-swap! [this f a b xs] (-reset! this (apply f (c/read-tx-key this .-value) a b xs)))
+  (-swap! [this f] (-reset! this (f (c/read this .-value))))
+  (-swap! [this f a] (-reset! this (f (c/read this .-value) a)))
+  (-swap! [this f a b] (-reset! this (f (c/read this .-value) a b)))
+  (-swap! [this f a b xs] (-reset! this (apply f (c/read this .-value) a b xs)))
 
   ILookup
   (-lookup [this k]
@@ -276,49 +298,64 @@
   (-lookup [this k not-found]
     (r/log-read! this)
     (case k
-      (:async/loading?
-       :async/error) (get (internal-state id) k)
-      :async/value (c/read-tx-key this .-value)
+      :async/loading? (some-> (c/read this .-async) (aget 0))
+      :async/error (some-> (c/read this .-async) (aget 1))
       (throw (js/Error. (str "Unknown key on cell: " k))))))
 
 ;;;;;;;;;;;;;;;;;;
 ;;
 ;; Cell construction
 
+(defn- make-cell [f]
+  (let [cell (Cell. (j/obj .-f f
+                           .-value nil
+                           .-dependencies #{}
+                           .-dependents #{}
+                           .-runtime runtime/*runtime*
+                           .-internal {})
+                    nil)]
+
+    ;; this part clearly needs some work!
+    (cond *cell* (runtime/on-dispose *cell* #(runtime/dispose! cell)) ;; dispose if 'owner' cell disposes?
+          registry/*view* (v/on-unmount! registry/*view* cell #(runtime/dispose! cell)) ;; dispose if owned by view that unmounts?
+          runtime/*runtime* (runtime/on-dispose runtime/*runtime* #(runtime/dispose! cell))) ;; dispose when 'runtime' disposes?
+    ;; need to figure out - when do we want a cell to "stop" running? do we need a concept of a "runtime"?
+
+    (tx! #(eval-and-set! cell))
+    cell))
+
 (defn cell*
   "Returns a new cell, or an existing cell if `id` has been seen before.
   `f` should be a function that, given the cell's previous value, returns its next value.
   `state` is not for public use."
   ([f]
-   (cell* (keyword "chia.cell.temp" (str "_" (util/unique-id))) f nil))
-  ([id f]
-   (cell* id f nil))
-  ([id f {::keys [reload
-                  prev-cell
-                  def?]}]
-   (if reload
-     (do (mutate-cell! prev-cell (j/obj .-f f))
-         (tx! #(eval-and-set! prev-cell))
-         prev-cell)
-     (u/memoized-on runtime/*runtime* (str id)
-       (let [cell (Cell. id
-                         f
-                         nil
-                         {::runtime runtime/*runtime*
-                          ::def? def?}
-                         #{}
-                         #{}
-                         {})]
-         (runtime/on-dispose runtime/*runtime* #(runtime/dispose! cell))
-         (tx! #(eval-and-set! cell))
-         cell)))))
+   (cell* f nil))
+  ([f {:keys [reload?
+              prev-cell
+              def?
+              memo-key]}]
+   (cond reload?
+         (do (mutate-cell! prev-cell (j/obj .-f f
+                                            .-value nil))
+             (tx! #(eval-and-set! prev-cell))
+             prev-cell)
 
+         def? (make-cell f)
+
+         memo-key (u/memoized-on (or *cell*
+                                     registry/*view*
+
+                                     ;; more thought to this.
+                                     ;; do we need a runtime?
+                                     runtime/*runtime*) memo-key
+                    (make-cell f))
+         :else (throw (js/Error. "Invalid arguments to `cell*`")))))
+
+
+;; WIP
 (defn cell
   [{:keys [key]} value]
   (assert key "Cells created by functions require a :key")
-  (let [[ns prefix] (if-let [parent-id (some-> (first *stack*)
-                                               .-id)]
-                      [(namespace parent-id) (name parent-id)
-                       "chia.cell.inline" "_"])
-        id (keyword ns (str prefix "#" (hash key)))]
-    (cell* id (constantly value))))
+  (let [c (cell* (constantly value) {:memo-key (str "#" (hash key))})]
+    (prn :key key c)
+    c))

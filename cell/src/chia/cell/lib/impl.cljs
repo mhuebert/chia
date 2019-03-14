@@ -5,7 +5,7 @@
        ([n f] (timeout n f nil))
        ([n f initial-value]
 
-        (let [self (first cell/*stack*)
+        (let [self cell/*cell*
               _ (cell/status! self :loading)
               clear-key (js/setTimeout (cell/bound-fn []
                                                       (cell/status! self nil)
