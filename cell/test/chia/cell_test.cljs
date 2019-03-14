@@ -142,21 +142,21 @@
     (repl/reset-namespace 'chia.cell-test)
 
 
-    (let [ctx-1 (runtime/default-runtime)
-          ctx-2 (runtime/default-runtime)]
+    (let [ctx-1 (lifecycle/default-runtime)
+          ctx-2 (lifecycle/default-runtime)]
 
-      (binding [runtime/*runtime* ctx-1]
+      (binding [lifecycle/*owner* ctx-1]
         (defcell r 1)
         (defcell r- @r))
 
-      (binding [runtime/*runtime* ctx-2]
+      (binding [lifecycle/*owner* ctx-2]
         (defcell s @r)
         (defcell s- @s))
 
       (is (= (dep/transitive-dependents @*graph* r)
              (dep-set [r- s s-])))
 
-      (runtime/dispose! ctx-1)
+      (lifecycle/dispose! ctx-1)
 
       (is (= nil @r @r-))
       (is (= 1 @s @s-))
@@ -165,32 +165,32 @@
              (dep-set [r- s s-]))
           "Dependencies to named cells persist"))
 
-    (comment (binding [runtime/*runtime* ctx-1
+    (comment (binding [lifecycle/*owner* ctx-1
                        cell/DEBUG true]
                (cell/eval-and-set! r)
                (cell/eval-and-set! r-))
 
-             (binding [runtime/*runtime* ctx-2
+             (binding [lifecycle/*owner* ctx-2
                        cell/DEBUG true]
                (cell/eval-and-set! s)
                (cell/eval-and-set! s-)))
 
 
 
-    (def ctx-3 (runtime/default-runtime))
-    (def ctx-4 (runtime/default-runtime))
+    (def ctx-3 (lifecycle/default-runtime))
+    (def ctx-4 (lifecycle/default-runtime))
 
-    (binding [runtime/*runtime* ctx-3]
+    (binding [lifecycle/*owner* ctx-3]
       (defn f1 [x]
         (cell @(cell {:key x} (str x 1)))))
 
     (defn f2 []
       (def f3 (cell @(f1 "X"))))
-    (binding [runtime/*runtime* ctx-4]
+    (binding [lifecycle/*owner* ctx-4]
       (f2))
 
     (is (= "X1" @f3))
-    (runtime/dispose! ctx-4)
+    (lifecycle/dispose! ctx-4)
     (is (= nil @f3))
     (f2)
     (is (= "X1" @f3))

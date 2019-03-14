@@ -3,13 +3,11 @@
   (:require [chia.cell.util :as util]
             [chia.view.registry :as registry]
             [chia.util :as u]
-            [chia.cell.runtime :as runtime]
+            [chia.reactive.lifecycle :as lifecycle]
             [chia.reactive :as r]
             [applied-science.js-interop :as j]
             [goog.object :as gobj]
-            [clojure.set :as set]
-            [chia.view :as v]
-            [kitchen-async.promise :as p])
+            [clojure.set :as set])
   (:require-macros [chia.cell :as c]))
 
 ;;;;;;;;;;;;;;;;;;
@@ -145,11 +143,11 @@
 (defn handle-promise! [cell promise]
   ;; how to 'dispose' of a promise?
   (when-let [old-promise (c/read cell .-promise)]
-
     (c/assoc! cell .-promise promise))
   (let [done? (volatile! false)
         wrap-cb (fn [f]
-                  (if (identical? promise (c/read cell .-promise))
+                  (when (identical? (c/read cell .-promise)
+                                    promise)
                     (f)))]
     (-> promise
         (j/call :then (wrap-cb #(-reset! cell %)))
@@ -163,7 +161,7 @@
         value (c/read cell .-value)]
     (try (f value)
          (catch js/Error e
-           (runtime/dispose! tx-cell)
+           (lifecycle/dispose! tx-cell)
            (throw e)))))
 
 (defn- eval-and-set! [cell]
@@ -171,14 +169,15 @@
     cell
     (binding [*cell* cell
               *read-log* (volatile! #{})
-              runtime/*runtime* (c/read cell .-runtime)]
-      (runtime/dispose! cell)
+              lifecycle/*owner* (c/read cell .-runtime)]
+      (lifecycle/dispose! cell)
       (let [value (eval cell)
             next-deps (disj @*read-log* cell)]
         (transition-deps! cell next-deps)
         (if (u/promise? value)
           (handle-promise! cell value)
-          (-reset! cell value))))))
+          (-reset! cell value)))
+      cell)))
 
 (def ^:dynamic ^:private *computing-dependents* false)
 
@@ -252,11 +251,11 @@
   IPrintWithWriter
   (-pr-writer [this writer _] (write-all writer (str "⚪️")))
 
-  runtime/IDispose
-  (on-dispose [this f]
-    (c/update! this .-internal update ::on-dispose conj f))
-  (-dispose! [this]
-    (doseq [f (::on-dispose (internal-state this))]
+  lifecycle/IDispose
+  (on-dispose [this key f]
+    (c/update! this .-internal update ::on-dispose assoc key f))
+  (dispose! [this]
+    (doseq [f (vals (::on-dispose (internal-state this)))]
       (f))
     (c/update! this .-internal dissoc ::on-dispose)
     this)
@@ -306,20 +305,17 @@
 ;;
 ;; Cell construction
 
-(defn- make-cell [f]
+(defn- make-cell [f runtime def?]
   (let [cell (Cell. (j/obj .-f f
                            .-value nil
                            .-dependencies #{}
                            .-dependents #{}
-                           .-runtime runtime/*runtime*
+                           .-runtime runtime
                            .-internal {})
                     nil)]
 
-    ;; this part clearly needs some work!
-    (cond *cell* (runtime/on-dispose *cell* #(runtime/dispose! cell)) ;; dispose if 'owner' cell disposes?
-          registry/*view* (v/on-unmount! registry/*view* cell #(runtime/dispose! cell)) ;; dispose if owned by view that unmounts?
-          runtime/*runtime* (runtime/on-dispose runtime/*runtime* #(runtime/dispose! cell))) ;; dispose when 'runtime' disposes?
-    ;; need to figure out - when do we want a cell to "stop" running? do we need a concept of a "runtime"?
+    (when runtime
+      (lifecycle/on-dispose runtime cell #(lifecycle/dispose! cell)))
 
     (tx! #(eval-and-set! cell))
     cell))
@@ -328,28 +324,28 @@
   "Returns a new cell, or an existing cell if `id` has been seen before.
   `f` should be a function that, given the cell's previous value, returns its next value.
   `state` is not for public use."
-  ([f]
-   (cell* f nil))
-  ([f {:keys [reload?
-              prev-cell
-              def?
-              memo-key]}]
-   (cond reload?
-         (do (mutate-cell! prev-cell (j/obj .-f f
-                                            .-value nil))
-             (tx! #(eval-and-set! prev-cell))
-             prev-cell)
+  [f {:as options
+      :keys [prev-cell
+             def?
+             memo-key]}]
+  (let [runtime (when-not def?
+                  (or *cell*
+                      registry/*view*
+                      lifecycle/*owner*))]
 
-         def? (make-cell f)
+    (assert (or def? memo-key) "Anonymous cells must provide `memo-key`")
 
-         memo-key (u/memoized-on (or *cell*
-                                     registry/*view*
+    (cond prev-cell
+          (do (mutate-cell! prev-cell (j/obj .-f f
+                                             .-value nil))
+              (tx! #(eval-and-set! prev-cell)))
 
-                                     ;; more thought to this.
-                                     ;; do we need a runtime?
-                                     runtime/*runtime*) memo-key
-                    (make-cell f))
-         :else (throw (js/Error. "Invalid arguments to `cell*`")))))
+          def? (make-cell f runtime def?)
+
+          memo-key (u/memoized-on runtime memo-key
+                     (make-cell f runtime def?))
+
+          :else (throw (js/Error. (str "Invalid arguments to `cell*` " options))))))
 
 
 ;; WIP

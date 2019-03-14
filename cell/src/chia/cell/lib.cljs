@@ -1,7 +1,7 @@
 (ns chia.cell.lib
   (:refer-clojure :exclude [delay])
   (:require [chia.cell :as cell :refer [cell]]
-            [chia.cell.runtime :as context]
+            [chia.reactive.lifecycle :as lifecycle]
             [goog.net.XhrIo :as xhr]
             [goog.net.ErrorCode :as errors]
             [chia.cell.util :as util]
@@ -18,7 +18,7 @@
                       (reset! self (f @self))
                       (when-not @stop?
                         (.requestAnimationFrame js/window frame-f)))]
-     (context/on-dispose self #(vreset! stop? true))
+     (lifecycle/on-dispose self :on-frame #(vreset! stop? true))
      (reset! self initial-value)
      (.requestAnimationFrame js/window interval-f))))
 
@@ -29,7 +29,7 @@
      (-on-frame f initial-value)
      (let [self cell/*cell*
            clear-key (volatile! nil)
-           _ (context/on-dispose self #(some-> @clear-key (js/clearInterval)))
+           _ (lifecycle/on-dispose self :interval #(some-> @clear-key (js/clearInterval)))
            interval-f (cell/bound-fn [] (reset! self (f @self)))]
        (vreset! clear-key (js/setInterval interval-f n))
        (reset! self (f initial-value))))))
@@ -38,7 +38,7 @@
   [n value]
   (let [self cell/*cell*
         clear-key (volatile! nil)
-        _ (context/on-dispose self #(some-> @clear-key (js/clearTimeout)))
+        _ (lifecycle/on-dispose self :delay #(some-> @clear-key (js/clearTimeout)))
         timeout-f (cell/bound-fn [] (reset! self value))]
     (vreset! clear-key (js/setTimeout timeout-f n))
     nil))

@@ -45,16 +45,13 @@
     `(do
        (declare ~the-name)
        (let [prev-cell# ~the-name]
-         (def ~the-name
+         (def ~(with-meta the-name options)
            ~@(when docstring (list docstring))
            (let ~lib-bindings
-             (cond-> (~'chia.cell/cell*
-                      (fn [~'self] ~@body)
-                      (when prev-cell#
-                        #::{:def? true
-                            :reload? true
-                            :prev-cell prev-cell#}))
-                     ~options (with-meta ~options))))))))
+             (~'chia.cell/cell*
+              (fn [~'self] ~@body)
+              {:def? true
+               :prev-cell prev-cell#})))))))
 
 (defmacro cell
   "Returns an anonymous cell. Only one cell will be returned per lexical instance of `cell`,
@@ -79,10 +76,9 @@
   "Returns an anonymous function which will evaluate with the current cell in the stack.
   Similar to Clojure's `bound-fn`, but only cares about the currently bound cell."
   [& body]
-  `(let [the-cell# ~'chia.cell/*cell*
-         context# ~'chia.cell.runtime/*runtime*]
+  `(let [the-cell# ~'chia.cell/*cell*]
      (fn [& args#]
        (binding [~'chia.cell/*cell* the-cell#]
          (try (apply (fn ~@body) args#)
-              (catch ~'js/Error error#
-                (~'chia.cell.runtime/handle-error context# error#)))))))
+              (catch ~'js/Error e#
+                (~'chia.cell/error! the-cell# e#)))))))

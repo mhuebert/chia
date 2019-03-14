@@ -1,7 +1,7 @@
-(ns chia.cell.runtime)
+(ns chia.reactive.lifecycle)
 
 (defmacro with-runtime [runtime & body]
   `(let [child# ~runtime]
-     (~'chia.cell.runtime/on-dispose #(~'chia.cell.runtime/dispose! child#))
-     (binding [~'chia.cell.runtime/*runtime* child#]
+     (~'chia.reactive.lifecycle/on-dispose #(~'chia.reactive.lifecycle/dispose! child#))
+     (binding [~'chia.reactive.lifecycle/*owner* child#]
        ~@body)))
