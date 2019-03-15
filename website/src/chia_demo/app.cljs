@@ -22,9 +22,9 @@
                context/demo])
 
 (legacy/defview show-section
-  {:key (fn [_ handler] (v/class-get handler :demo/title))}
+  {:key (fn [_ handler] (legacy/class-get handler :demo/title))}
   [_ handler & args]
-  (let [label (v/class-get handler :demo/title)
+  (let [label (legacy/class-get handler :demo/title)
         expanded? (db/get-in [:section label :expanded?] true)]
     (cond-> [:div.pa2.bg-darken-2.hover-bg-darken-3.pointer.flex.flex-row.items-center.bt.bw1.b--darken-4
              {:on-click #(db/assoc-in! [:section label :expanded?] (not expanded?))}

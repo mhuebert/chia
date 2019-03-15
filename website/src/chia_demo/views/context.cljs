@@ -16,33 +16,33 @@
      (str "Clicks:" (:clicks @state 0))]))
 
 (legacy/defview demo
-           {:demo/title "React Contexts"
-            :view/initial-state {:a "A"
-                                 :b "B"
-                                 :c "C"}}
-           [{:keys [view/state]}]
-           (let [mutate-context! (fn [k]
-                                   [:a.db {:on-click #(swap! state update k (fn [x] (str x (first x))))} (str "change!")])
-                 show-consumer (fn [k v]
-                                 [:div.pa3.lh-copy
-                                  [:.b (str k)]
-                                  (mutate-context! k)
-                                  (counter)
-                                  (clicks)
-                                  (str "consuming " k ": [" v "]")])]
-             [:div.pa3
+  {:demo/title "React Contexts"
+   :view/initial-state {:a "A"
+                        :b "B"
+                        :c "C"}}
+  [{:keys [view/state]}]
+  (let [mutate-context! (fn [k]
+                          [:a.db {:on-click #(swap! state update k (fn [x] (str x (first x))))} (str "change!")])
+        show-consumer (fn [k v]
+                        [:div.pa3.lh-copy
+                         [:.b (str k)]
+                         (mutate-context! k)
+                         (counter)
+                         (clicks)
+                         (str "consuming " k ": [" v "]")])]
+    [:div.pa3
 
-              (counter)
-              (clicks)
+     (counter)
+     (clicks)
 
-              (hooks/provide {:a (:a @state)
-                          :b (:b @state)
-                          :c (:c @state)}
-                         (legacy/consume [a :a]
-                                    [:<>
-                                     (show-consumer :a a)
-                                     (legacy/consume [b :b]
-                                                [:<>
-                                                 (show-consumer :b b)
-                                                 (legacy/consume [c :c]
-                                                            (show-consumer :c c))])]))]))
+     (v/provide {:a (:a @state)
+                 :b (:b @state)
+                 :c (:c @state)}
+                (legacy/consume [a :a]
+                                [:<>
+                                 (show-consumer :a a)
+                                 (legacy/consume [b :b]
+                                                 [:<>
+                                                  (show-consumer :b b)
+                                                  (legacy/consume [c :c]
+                                                                  (show-consumer :c c))])]))]))

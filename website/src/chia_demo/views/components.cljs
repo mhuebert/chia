@@ -11,8 +11,7 @@
              " c " c)])
 
 (legacy/defview demo
-  {:demo/title "Components"
-   :view/styles {}}
+  {:demo/title "Components"}
   [{:keys [view/state]}]
   [:div.pa2
    #js [Button {:on-click #(swap! state update :yes not)
