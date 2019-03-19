@@ -16,7 +16,7 @@
   org.clojure/clojurescript {:mvn/version "1.10.520"}
   org.clojure/test.check {:mvn/version "RELEASE" #_"0.10.0-alpha3"}
 
-  appliedscience/js-interop {:mvn/version "0.1.11"}
+  appliedscience/js-interop {:mvn/version "0.1.13"}
 
   ;; transitive deps
 

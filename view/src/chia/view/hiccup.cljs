@@ -37,8 +37,14 @@
   (reduce (fn [out form]
             (doto out (.push (to-element form)))) #js [] form-vec))
 
+(defn valid-err [label x]
+  (str label " are not valid hiccup elements: " x))
+
 (defn -to-element [form]
   (when form
+    (assert (not (keyword? form)) (valid-err "Keywords" form))
+    (assert (not (map? form)) (valid-err "Maps" form))
+
     (cond (react/isValidElement form) form
           (vector? form)
           (let [tag (form 0)]

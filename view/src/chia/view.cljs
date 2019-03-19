@@ -158,5 +158,6 @@
         (binding [registry/*view* (-use-chia view-name (if ref? ref ::no-ref))]
           (r/with-dependency-tracking! registry/*view*
                                        (props/to-element (apply view-fn (j/get props :children))))))
+      (doto (js/Object.defineProperty "name" #js{:value view-name}))
       (cond-> ref? (-forward-ref))
       (impl/memoize-view should-update?)))
