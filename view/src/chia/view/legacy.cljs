@@ -249,7 +249,7 @@
                                                    (nil? props))
                                              [props children]
                                              [nil (cons props children)])]
-              (validate-specs (:spec-keys view-base) props children)
+              #_(validate-specs (:spec-keys view-base) props children)
 
               (v/-create-element constructor #js {"key" (str (element-key props children constructor))
                                                   "ref" ref

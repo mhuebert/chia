@@ -89,7 +89,7 @@
   ([f key]
    (assert (not (array? key))
            "use-memo `key` should not be a JavaScript array - rather, a primitive or Clojure data structure")
-   (let [current (-> (use-ref #js[::unset nil])
+   (let [current (-> (use-ref #js[nil nil])
                      (j/get :current))]
      (if (not= (aget current 0) key)
        (let [value (f)]
@@ -114,20 +114,11 @@
      (use-will-unmount #(remove-watch state-atom ::state-atom))
      state-atom)))
 
-(defn use-force-update
-  "Returns a `forceUpdate` function for the current view."
+(defn use-schedule-update
+  "Returns a `forceUpdate`-like function for the current view (not synchronous)."
   []
   (-> (use-reducer inc 0)
       (aget 1)))
-
-(defn use-did-mount
-  "Evaluates `f` on component mount, returns nil. For side effects."
-  [f]
-  (let [ref (use-ref false)]
-    (when (false? (j/get ref :current))
-      (j/assoc! ref :current true)
-      (f))
-    nil))
 
 (defn use-interval
   [{:keys [interval
@@ -150,6 +141,12 @@
        (f (j/get dom-ref :current)))
      nil)
     dom-ref))
+
+(defn use-listener [target event f capture-phase]
+  (let [f-ref (use-ref f)]
+    (use-effect (fn []
+                  (.addEventListener target event (j/get f-ref :current) capture-phase)
+                  #(.removeEventListener target event (j/get f-ref :current) capture-phase)))))
 
 ;;;;;;;;;;;;;;;;;;;;;
 ;;

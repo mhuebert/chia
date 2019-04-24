@@ -7,6 +7,10 @@
   (when (f x)
     x))
 
+(defn guard->> [f x]
+  (when (f x)
+    x))
+
 (defn some-str [s]
   (when (and s (string? s) (not= s ""))
     s))
@@ -54,7 +58,7 @@
   (update-map m identity f))
 
 (defn update-some-keys [m ks f]
-  (reduce (fn [m k]
+  (reduce (fn update-k [m k]
             (cond-> m
                     (contains? m k) (assoc k (f (get m k))))) m ks))
 
@@ -63,8 +67,13 @@
                (cond-> m
                        (contains? m k) (update k update-f))) m updaters))
 
-(defn find-first [pred coll]
-  (first (filter pred coll)))
+(defn first-when [pred coll]
+  (reduce (fn [_ x]
+            (when (pred x) (reduced x))) nil coll))
+
+(defn last-while [pred coll]
+  (reduce (fn [found x]
+            (if (pred x) x (reduced found))) nil coll))
 
 (defn apply-if-fn [f & args]
   (if (fn? f)
@@ -186,11 +195,6 @@
   (cond-> s
           (str/starts-with? s prefix) (subs (count prefix))))
 
-(defn camel-case* [s]
-  (str/replace s #"-(.)" (fn [[_ s]] (str/upper-case s))))
-
-(def camel-case (memoize camel-case*))
-
 (defn simplify-keyword [k]
   (keyword (name k)))
 
@@ -255,3 +259,22 @@
                      (dissoc k)
                      (assoc (keyword (name k)) v))
                  m)) m m))
+
+(m/defmacro rcomp [& fs]
+  `(comp ~@(reverse fs)))
+
+(defn memoize-1
+  [f]
+  (let [mem (volatile! {})]
+    (fn [x]
+      (let [v (get @mem x lookup-sentinel)]
+        (if (identical? v lookup-sentinel)
+          (let [ret (f x)]
+            (vswap! mem assoc x ret)
+            ret)
+          v)))))
+
+(defn camel-case* [s]
+  (str/replace s #"-(.)" (fn [[_ s]] (str/upper-case s))))
+
+(def camel-case (memoize-1 camel-case*))

@@ -134,7 +134,7 @@
     (render-loop/schedule-update! this)))
 
 (defn -use-chia [view-name ^boolean ref]
-  (let [force-update! (hooks/use-force-update)
+  (let [force-update! (hooks/use-schedule-update)
         chia$view (hooks/use-memo (fn []
                                     (cond-> (new FunctionalView
                                                  view-name

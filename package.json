@@ -8,6 +8,8 @@
   },
   "dependencies": {
     "@material-ui/core": "^1.4.3",
+    "benchmark": "^2.1.4",
+    "create-react-class": "^15.6.3",
     "graphql": "^14.0.2",
     "jss": "^9.8.7",
     "jss-global": "^3.0.0",
@@ -25,6 +27,7 @@
     "prosemirror-view": "^0.24.0",
     "react": "^16.8.3",
     "react-dom": "^16.8.3",
+    "react-is": "^16.8.6",
     "reset-jss": "^1.0.0",
     "serviceworker-cache-polyfill": "^4.0.0",
     "unfetch": "^4.0.1"

@@ -73,18 +73,4 @@
                       (not (should-update? (j/get x :children)
                                            (j/get y :children))))))))
 
-;;;;;;;;;;;;;;
-;;
-;; Render loop
 
-(defn raf-polyfill! []
-  (when (and (exists? js/window)
-             (not (j/get js/window :requestAnimationFrame)))
-    (j/assoc! js/window :requestAnimationFrame
-              (or
-                (j/get js/window :webkitRequestAnimationFrame)
-                (j/get js/window :mozRequestAnimationFrame)
-                (j/get js/window :oRequestAnimationFrame)
-                (j/get js/window :msRequestAnimationFrame)
-                (fn [cb]
-                  (js/setTimeout cb (/ 1000 60)))))))

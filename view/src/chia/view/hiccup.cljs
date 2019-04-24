@@ -21,24 +21,20 @@
 (defprotocol IEmitHiccup
   (to-hiccup [this] "Returns a hiccup form representing `this`"))
 
-(defn format-props [clj-props tag]
-  (assert (keyword? tag)
-          "The first element in a vector must be a keyword.")
-  (let [[_ tag id classes] (hiccup/parse-key-memoized tag)]
-    [tag (hiccup/props->js tag id classes clj-props)]))
-
-(defn make-fragment [children]
-  (.apply react/createElement nil
-          (doto (to-array children)
-            (.unshift nil)
-            (.unshift react/Fragment))))
-
-(defn element-arr [to-element form-vec]
-  (reduce (fn [out form]
-            (doto out (.push (to-element form)))) #js [] form-vec))
+(defn vector-props [tag props]
+  (let [[tag id classes] (hiccup/parse-key-memoized tag)]
+    #js [tag (hiccup/props->js tag id classes props)]))
 
 (defn valid-err [label x]
   (str label " are not valid hiccup elements: " x))
+
+(declare -to-element)
+
+(defn fragment [children]
+  (->> children
+       (reduce (fn [out el]
+                 (j/push! out (-to-element el))) #js[react/Fragment nil])
+       (.apply react/createElement nil)))
 
 (defn -to-element [form]
   (when form
@@ -49,32 +45,26 @@
           (vector? form)
           (let [tag (form 0)]
             (cond (keyword? tag)
-                  (if (keyword-identical? :<> tag)
-                    (make-fragment (element-arr -to-element (subvec form 1)))
-                    (let [[props children] (hiccup/parse-args form)
-                          [js-tag js-props] (format-props props (form 0))
-                          args (hiccup/reduce-flatten-seqs -to-element [js-tag js-props] conj children)]
-                      (apply react/createElement args)))
+                  (if (perf/identical? :<> tag)
+                    (fragment (rest form))
+                    (let [[tag props children] (hiccup/split-args form)]
+                      (->> (hiccup/reduce-flatten-seqs -to-element (vector-props tag props) j/push! children)
+                           (.apply react/createElement nil))))
                   (fn? tag) (-to-element (apply tag (rest form)))
-                  :else (make-fragment (element-arr -to-element form))))
+                  :else (throw (ex-info "Invalid hiccup vector" {:form form}))))
 
           (satisfies? IElement form)
-          (-to-element (to-element form))
+          (to-element form)
 
           (satisfies? IEmitHiccup form)
           (-to-element (to-hiccup form))
 
-          (seq? form)
-          (.apply react/createElement nil
-                  (reduce (fn [^js arr el]
-                            (doto arr
-                              (.push (-to-element el))))
-                          #js [react/Fragment nil] form))
+          (seq? form) (fragment form)
 
-          (= js/Array (.-constructor form))
+          (array? form)
           (if (fn? (first form))
             (.apply react/createElement nil (hiccup/clj->js-args! form -to-element))
-            (make-fragment form))
+            (fragment form))
 
           :else form)))
 

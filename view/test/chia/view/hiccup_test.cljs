@@ -8,8 +8,8 @@
 (enable-console-print!)
 
 (defn element-args [form]
-  (let [[_ k id classes] (hiccup/parse-key-memoized (form 0))
-        [props children] (hiccup/parse-args form)]
+  (let [[k id classes] (hiccup/parse-key-memoized (form 0))
+        [tag props children] (hiccup/split-args form)]
     (-> (into [k (hiccup/props->js k id classes props)] children)
         (update 1 js->clj :keywordize-keys true))))
 
@@ -62,24 +62,18 @@
            ["custom-element" {}])
         "Custom element tag")
 
-    (is (= (element-args [:custom-element/special])
-           ["custom-element:special" {}])
-        "Custom element tag with namespace")
 
 
-
-
-
-    (is (= (element-args [:special/effect#el.pink {:data-collapse true
-                                                   :aria-label    "hello"
-                                                   :class         "bg-black"
-                                                   #_#_:classes ["white"]
-                                                   :style         {:font-family "serif"
-                                                                   :font-size   12}}])
-           ["special:effect" {:data-collapse true
-                              :aria-label    "hello"
-                              :className     "pink bg-black"
-                              :style         {:fontFamily "serif"
-                                              :fontSize   12}
-                              :id            "el"}])
+    (is (= (element-args [:#el.pink {:data-collapse true
+                                     :aria-label    "hello"
+                                     :class         "bg-black"
+                                     #_#_:classes ["white"]
+                                     :style         {:font-family "serif"
+                                                     :font-size   12}}])
+           ["div" {:data-collapse true
+                   :aria-label    "hello"
+                   :className     "pink bg-black"
+                   :style         {:fontFamily "serif"
+                                   :fontSize   12}
+                   :id            "el"}])
         "All together")))

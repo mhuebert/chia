@@ -6,7 +6,15 @@
             [chia.view.impl :as impl]
             [chia.util :as u]))
 
-(impl/raf-polyfill!)
+(def -batch react-dom/unstable_batchedUpdates)
+
+(def -raf (or (j/get js/window :requestAnimationFrame)
+              (j/get js/window :webkitRequestAnimationFrame)
+              (j/get js/window :mozRequestAnimationFrame)
+              (j/get js/window :oRequestAnimationFrame)
+              (j/get js/window :msRequestAnimationFrame)
+              (fn [cb]
+                (js/setTimeout cb (/ 1000 60)))))
 
 (defonce ^:dynamic *immediate-updates*
          ;; When true, updates will not be queued.
@@ -24,15 +32,18 @@
 ;;
 ;; Render loop
 
-(defn flush!
-  "Render all queued updates immediately."
-  []
+(defn- flush* []
   (when-let [views (seq @to-render)]
     (vreset! to-render #{})
     (doseq [c (sort-by order views)]
       (when (and ^boolean (j/get c .-chia$toUpdate)
                  (not ^boolean (j/get c .-chia$unmounted)))
         (j/call c :forceUpdate)))))
+
+(defn flush!
+  "Render all queued updates immediately."
+  []
+  (-batch flush*))
 
 (defn force-update!
   "Force-updates `view` immediately."
@@ -48,7 +59,7 @@
     (do
       (j/assoc! view .-chia$toUpdate true)
       (vswap! to-render conj view)
-      (js/requestAnimationFrame flush!))))
+      (-raf flush!))))
 
 (defn apply-sync!
   "Wraps function `f` to flush the render loop before returning."
