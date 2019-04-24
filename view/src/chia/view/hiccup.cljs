@@ -18,9 +18,6 @@
 (defprotocol IElement
   (to-element [this] "Returns a React element representing `this`"))
 
-(defprotocol IEmitHiccup
-  (to-hiccup [this] "Returns a hiccup form representing `this`"))
-
 (defn vector-props [tag props]
   (let [[tag id classes] (hiccup/parse-key-memoized tag)]
     #js [tag (hiccup/props->js tag id classes props)]))
@@ -46,18 +43,12 @@
           (let [tag (form 0)]
             (cond (keyword? tag)
                   (if (perf/identical? :<> tag)
-                    (fragment (rest form))
+                    (fragment (subvec form 1))
                     (let [[tag props children] (hiccup/split-args form)]
                       (->> (hiccup/reduce-flatten-seqs -to-element (vector-props tag props) j/push! children)
                            (.apply react/createElement nil))))
                   (fn? tag) (-to-element (apply tag (rest form)))
                   :else (throw (ex-info "Invalid hiccup vector" {:form form}))))
-
-          (satisfies? IElement form)
-          (to-element form)
-
-          (satisfies? IEmitHiccup form)
-          (-to-element (to-hiccup form))
 
           (seq? form) (fragment form)
 
@@ -65,6 +56,10 @@
           (if (fn? (first form))
             (.apply react/createElement nil (hiccup/clj->js-args! form -to-element))
             (fragment form))
+
+
+          (satisfies? IElement form)
+          (to-element form)
 
           :else form)))
 

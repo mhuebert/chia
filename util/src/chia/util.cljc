@@ -106,6 +106,8 @@
                          (str "__")))
                (name k)))))
 
+(def ^:private lookup-sentinel #js{})
+
 (defn memoize-by
   "Like memoize, but uses `key-f` to compute the memoization key from passed-in args."
   [f key-f]

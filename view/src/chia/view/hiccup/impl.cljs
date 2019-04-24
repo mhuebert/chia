@@ -14,7 +14,7 @@
      id
      (some-> classes (str/replace "." " "))]))
 
-(def parse-key-memoized (u/memoize-1 parse-key))
+(defonce parse-key-memoized (u/memoize-1 parse-key))
 
 (defn reduce-flatten-seqs
   "Recursively apply f to nested vectors, unwrapping seqs. Similar to recursive `mapcat` but returns a vector."
@@ -35,12 +35,6 @@
                 (map? first-child))) (conj (subvec form 0 2) (subvec form 2))
           :else (conj [(nth form 0) nil] (subvec form 1)))))
 
-(defn update-attr [form attr f & args]
-  (let [[props children] form]
-    (into [(form 0)
-           (assoc props attr (apply f (get form attr) args))]
-          children)))
-
 (defn key->react-attr
   "Return js (react) key for keyword/string.
 
@@ -53,8 +47,8 @@
         (perf/identical? :for k) "htmlFor"
         :else
         (let [s (name k)]
-          (if (or (str/starts-with? s "data-")
-                  (str/starts-with? s "aria-"))
+          (if ^boolean (or (str/starts-with? s "data-")
+                           (str/starts-with? s "aria-"))
             s
             (u/camel-case s)))))
 
@@ -95,10 +89,12 @@
         props (if (map? props)
                 (props->js props)
                 (to-element props))]
-    (reduce-flatten-seqs to-element
-                         #js [(aget js-args 0) props]
-                         j/push!
-                         (.slice js-args 2))))
+    (->> (.slice js-args 2)
+         (reduce (fn [out x] (j/push! out (to-element x)))
+                 #js [(aget js-args 0) props]))))
 
-
-(def ^:dynamic *fragment* react/Fragment)
+#_(defn update-attr [form attr f & args]
+    (let [[props children] form]
+      (into [(form 0)
+             (assoc props attr (apply f (get form attr) args))]
+            children)))
