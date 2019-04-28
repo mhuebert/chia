@@ -4,64 +4,64 @@
             [chia.util.perf :as perf]
             [applied-science.js-interop :as j]))
 
-
-(enable-console-print!)
-(set! *warn-on-infer* true)
-
-;; patch IPrintWithWriter to print javascript symbols without throwing errors
-(when (exists? js/Symbol)
-  (extend-protocol IPrintWithWriter
-    js/Symbol
-    (-pr-writer [sym writer _]
-      (-write writer (str "\"" (.toString sym) "\"")))))
+(def -create-element react/createElement)
+(def -fragment react/Fragment)
+(def -valid-element? react/isValidElement)
 
 (defprotocol IElement
   (to-element [this] "Returns a React element representing `this`"))
 
-(defn vector-props [tag props]
-  (let [[tag id classes] (hiccup/parse-key-memoized tag)]
-    #js [tag (hiccup/props->js tag id classes props)]))
-
-(defn valid-err [label x]
-  (str label " are not valid hiccup elements: " x))
-
 (declare -to-element)
 
-(defn fragment [children]
-  (->> children
-       (reduce (fn [out el]
-                 (j/push! out (-to-element el))) #js[react/Fragment nil])
-       (.apply react/createElement nil)))
+(defn- make-element [tag js-props children first-child]
+  ;; fast-path for small vectors - idea from reagent
+  (case (- (count children) first-child)
+    0 (-create-element tag js-props)
+    1 (-create-element tag js-props
+                       (-to-element (nth children first-child)))
+    2 (-create-element tag js-props
+                       (-to-element (nth children first-child))
+                       (-to-element (nth children (inc first-child))))
+    (->> children
+         (reduce-kv (fn [out i el]
+                      (cond-> out
+                              (>= i first-child)
+                              (j/push! (-to-element el)))) #js[tag js-props])
+         (.apply -create-element nil))))
 
-(defn -to-element [form]
-  (when form
-    (assert (not (keyword? form)) (valid-err "Keywords" form))
-    (assert (not (map? form)) (valid-err "Maps" form))
+(defn- make-fragment [children]
+  (make-element -fragment nil children 1))
 
-    (cond (react/isValidElement form) form
-          (vector? form)
-          (let [tag (form 0)]
-            (cond (keyword? tag)
-                  (if (perf/identical? :<> tag)
-                    (fragment (subvec form 1))
-                    (let [[tag props children] (hiccup/split-args form)]
-                      (->> (hiccup/reduce-flatten-seqs -to-element (vector-props tag props) j/push! children)
-                           (.apply react/createElement nil))))
-                  (fn? tag) (-to-element (apply tag (rest form)))
-                  :else (throw (ex-info "Invalid hiccup vector" {:form form}))))
+(defn- -to-element [form]
+  {:pre [(not (keyword? form)) (not (map? form))]}
+  (case (goog/typeOf form)
+    "array" (if (fn? (nth form 0))
+              (let [props (nth form 1)
+                    props? (or (nil? props) (map? props))]
+                (make-element (nth form 0) (when props? (hiccup/props->js props)) form (if props? 2 1)))
+              (make-fragment form))
+    "object" (cond (not (identical? "object" (goog/typeOf form)))
+                   form
 
-          (seq? form) (fragment form)
+                   (vector? form) (let [tag (nth form 0)
+                                        props (nth form 1 nil)
+                                        props? (or (nil? props) (map? props))]
+                                    (cond (keyword? tag)
+                                          (if (perf/identical? :<> tag)
+                                            (make-fragment form)
+                                            (let [parsed-key (hiccup/parse-key (name tag))]
+                                              (make-element (.-tag parsed-key)
+                                                            (hiccup/props->js parsed-key (when props? props))
+                                                            form (if props? 2 1))))
+                                          (fn? tag) (-to-element (apply tag (rest form)))
+                                          :else (throw (ex-info "Invalid hiccup vector" {:form form}))))
 
-          (array? form)
-          (if (fn? (first form))
-            (.apply react/createElement nil (hiccup/clj->js-args! form -to-element))
-            (fragment form))
+                   (seq? form) (make-fragment (vec form))
 
+                   (satisfies? IElement form) (to-element form)
 
-          (satisfies? IElement form)
-          (to-element form)
-
-          :else form)))
+                   :else form)
+    form))
 
 (defn element
   "Converts Hiccup form into a React element. If a non-vector form
@@ -76,3 +76,12 @@
   ([{:keys [wrap-props]} form]
    (binding [hiccup/*wrap-props* wrap-props]
      (-to-element form))))
+
+
+
+;; patch IPrintWithWriter to print javascript symbols without throwing errors
+(when (exists? js/Symbol)
+  (extend-protocol IPrintWithWriter
+    js/Symbol
+    (-pr-writer [sym writer _]
+      (-write writer (str "\"" (.toString sym) "\"")))))

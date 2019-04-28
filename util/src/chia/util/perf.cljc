@@ -6,13 +6,15 @@
   #?(:cljs (:require-macros [chia.util.perf])))
 
 (m/defmacro str
-  [out x]
-  (m/case :cljs `(let [out# ~out
-                       x# ~x]
-                   (~'js* "~{} += ~{}" out# x#))
-          :clj `(core/str ~out ~x)))
+  [x y]
+  (m/case :cljs `(let [x# ~x
+                       x# (if (some? x#) x# "")]
+                   (if-some [y# ~y]
+                     (~'js* "~{} += ~{}" x# y#)
+                     x#))
+          :clj `(core/str ~x ~y)))
 
-(m/defmacro kw-identical? [x y]
+(m/defmacro kw== [x y]
   #?(:cljs `(core/keyword-identical? ~x ~y)
      :clj  `(core/identical? ~x ~y)))
 

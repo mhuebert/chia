@@ -17,7 +17,8 @@
                               lilactown/hx       {:mvn/version "0.4.0"}
                               roman01/uix        {:git/url "https://github.com/roman01la/uix.git"
                                                   :sha     "b94a6c2ea35e5ad18a924878de0690c058dca77f"}
-                              hicada             {:mvn/version "0.1.8"}}}}
+                              hicada             {:mvn/version "0.1.8"}
+                              re-view            {:mvn/version "0.4.15"}}}}
  :deps
         {org.clojure/clojure                 {:mvn/version "1.10.0"}
          org.clojure/clojurescript           {:mvn/version "1.10.520"}

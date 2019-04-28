@@ -8,9 +8,11 @@
 (enable-console-print!)
 
 (defn element-args [form]
-  (let [[k id classes] (hiccup/parse-key-memoized (form 0))
-        [tag props children] (hiccup/split-args form)]
-    (-> (into [k (hiccup/props->js k id classes props)] children)
+  (let [tag (nth form 0)
+        props (nth form 1 nil)
+        props? (or (nil? props) (map? props))
+        parsed-key (hiccup/parse-key (name tag))]
+    (-> (into [(.-tag parsed-key) (hiccup/props->js parsed-key (when props? props))] (drop (if props? 2 1) form))
         (update 1 js->clj :keywordize-keys true))))
 
 (deftest hiccup-test

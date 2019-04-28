@@ -1,6 +1,7 @@
 (ns chia.util
   (:require [chia.util.macros :as m]
-            [clojure.string :as str])
+            [clojure.string :as str]
+            #?(:cljs [applied-science.js-interop :as j]))
   #?(:cljs (:require-macros [chia.util])))
 
 (defn guard [x f]
@@ -106,12 +107,11 @@
                          (str "__")))
                (name k)))))
 
-(def ^:private lookup-sentinel #js{})
-
 (defn memoize-by
   "Like memoize, but uses `key-f` to compute the memoization key from passed-in args."
   [f key-f]
-  (let [mem (atom {})]
+  (let [mem (atom {})
+        lookup-sentinel #?(:cljs #js{} :clj ::not-found)]
     (fn [& args]
       (let [args-key (key-f args)]
         #?(:clj  (if-let [e (find @mem args-key)]
@@ -262,21 +262,28 @@
                      (assoc (keyword (name k)) v))
                  m)) m m))
 
-(m/defmacro rcomp [& fs]
-  `(comp ~@(reverse fs)))
-
-(defn memoize-1
+(defn memoize-str
   [f]
-  (let [mem (volatile! {})]
+  (let [mem #?(:cljs #js{} :clj (atom {}))]
     (fn [x]
-      (let [v (get @mem x lookup-sentinel)]
-        (if (identical? v lookup-sentinel)
-          (let [ret (f x)]
-            (vswap! mem assoc x ret)
-            ret)
-          v)))))
+      #?(:cljs (j/get mem x
+                      (let [v (f x)]
+                        (unchecked-set mem x v)
+                        v))
+         :clj  (let [v (get @mem x ::not-found)]
+                 (if (identical? v ::not-found)
+                   (let [ret (f x)]
+                     (swap! mem assoc x ret)
+                     ret)
+                   v))))))
 
 (defn camel-case* [s]
   (str/replace s #"-(.)" (fn [[_ s]] (str/upper-case s))))
 
-(def camel-case (memoize-1 camel-case*))
+(def camel-case (memoize-str camel-case*))
+
+(defn count-by [f s]
+  (reduce (fn [acc x]
+            (if #?(:cljs ^boolean (f x)
+                   :clj  (f x)) (inc acc) acc)) 0 s))
+

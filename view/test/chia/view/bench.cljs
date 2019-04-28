@@ -10,53 +10,58 @@
    [cljs.test :as t]
    [chia.view :as v]
    [chia.view.hiccup :as hiccup]
+   [chia.view.legacy :as vl]
    [sablono.interpreter :as sab]
-   [uix.compiler.reagent :as uix])
+   [uix.compiler.reagent :as uix]
+   #_[re-view.core :as rv])
   (:require-macros [chia.view.bench :refer [hicada]]))
 
 (def element react/createElement)
 (def to-string rdom/renderToString)
 
+(def sample-props {:style {:font-size 10}
+                   :class "red"})
+
 (defn reagent-render [{:keys [title body items]}]
   (reagent/as-element
-   [:div.card
-    [:div.card-title title]
-    [:div.card-body body]
+   [:div.card sample-props
+    [:div.card-title sample-props title]
+    [:div.card-body sample-props body]
     [:ul.card-list
      (for [item items]
        ^{:key item} [:li item])]
-    [:div.card-footer
-     [:div.card-actions
+    [:div.card-footer sample-props
+     [:div.card-actions sample-props
       [:button "ok"]
       [:button "cancel"]]]]))
 
 (defn uix-interpret [{:keys [title body items]}]
   (uix/as-element
-   [:div.card
-    [:div.card-title title]
-    [:div.card-body body]
+   [:div.card sample-props
+    [:div.card-title sample-props title]
+    [:div.card-body sample-props body]
     [:ul.card-list
      (for [item items]
        ^{:key item} [:li item])]
-    [:div.card-footer
-     [:div.card-actions
+    [:div.card-footer sample-props
+     [:div.card-actions sample-props
       [:button "ok"]
       [:button "cancel"]]]]))
 
 #_(defn shadow-render [{:keys [title body items]}]
     (to-string
      (shadow/<<
-      [:div.card
-       [:div.card-title title]
-       [:div.card-body body]
+      [:div.card sample-props
+       [:div.card-title sample-props title]
+       [:div.card-body sample-props body]
        [:ul.card-list
         (shadow/render-seq
          items
          identity
          (fn [item]
            (shadow/<< [:li item])))]
-       [:div.card-footer
-        [:div.card-actions
+       [:div.card-footer sample-props
+        [:div.card-actions sample-props
          [:button "ok"]
          [:button "cancel"]]]])))
 
@@ -77,27 +82,51 @@
                              (element "button" nil "cancel")))))
 
 (v/defn chia-view [{:keys [title body items]}]
-  [:div.card {:data-reactroot ""}
-   [:div.card-title title]
-   [:div.card-body body]
+  [:div.card sample-props
+   [:div.card-title sample-props title]
+   [:div.card-body sample-props body]
    [:ul.card-list
     (for [item items]
       [:li {:key item} item])]
-   [:div.card-footer
-    [:div.card-actions
+   [:div.card-footer sample-props
+    [:div.card-actions sample-props
+     [:button "ok"]
+     [:button "cancel"]]]])
+
+#_(rv/defview re-view [{:keys [title body items]}]
+              [:div.card sample-props
+               [:div.card-title sample-props title]
+               [:div.card-body sample-props body]
+               [:ul.card-list
+                (for [item items]
+                  [:li {:key item} item])]
+               [:div.card-footer sample-props
+                [:div.card-actions sample-props
+                 [:button "ok"]
+                 [:button "cancel"]]]])
+
+(vl/defview chia-legacy [{:keys [title body items]}]
+  [:div.card sample-props
+   [:div.card-title sample-props title]
+   [:div.card-body sample-props body]
+   [:ul.card-list
+    (for [item items]
+      [:li {:key item} item])]
+   [:div.card-footer sample-props
+    [:div.card-actions sample-props
      [:button "ok"]
      [:button "cancel"]]]])
 
 (defn chia-hiccup [{:keys [title body items]}]
   (hiccup/element
-   [:div.card
-    [:div.card-title title]
-    [:div.card-body body]
+   [:div.card sample-props
+    [:div.card-title sample-props title]
+    [:div.card-body sample-props body]
     [:ul.card-list
      (for [item items]
        [:li {:key item} item])]
-    [:div.card-footer
-     [:div.card-actions
+    [:div.card-footer sample-props
+     [:div.card-actions sample-props
       [:button "ok"]
       [:button "cancel"]]]]))
 
@@ -115,40 +144,40 @@
       [:button "cancel"]]]]))
 
 (rum/defc rum-render [{:keys [title body items]}]
-          [:div.card
-           [:div.card-title title]
-           [:div.card-body body]
+          [:div.card sample-props
+           [:div.card-title sample-props title]
+           [:div.card-body sample-props body]
            [:ul.card-list
             (for [item items]
               [:li {:key item} item])]
-           [:div.card-footer
-            [:div.card-actions
+           [:div.card-footer sample-props
+            [:div.card-actions sample-props
              [:button "ok"]
              [:button "cancel"]]]])
 
 (defn sablono-interpret [{:keys [title body items]}]
   (sab/interpret
-   [:div.card
-    [:div.card-title title]
-    [:div.card-body body]
+   [:div.card sample-props
+    [:div.card-title sample-props title]
+    [:div.card-body sample-props body]
     [:ul.card-list
      (for [item items]
        [:li {:key item} item])]
-    [:div.card-footer
-     [:div.card-actions
+    [:div.card-footer sample-props
+     [:div.card-actions sample-props
       [:button "ok"]
       [:button "cancel"]]]]))
 
 (defn hicada-render [{:keys [title body items]}]
   (hicada
-   [:div.card
-    [:div.card-title title]
-    [:div.card-body body]
+   [:div.card sample-props
+    [:div.card-title sample-props title]
+    [:div.card-body sample-props body]
     [:ul.card-list
      (for [item items]
        ^{:key item} [:li item])]
-    [:div.card-footer
-     [:div.card-actions
+    [:div.card-footer sample-props
+     [:div.card-actions sample-props
       [:button "ok"]
       [:button "cancel"]]]]))
 
@@ -187,44 +216,50 @@
     #_(println (hx-render test-data))
     #_(println "rum")
     #_(println (rum-render test-data))
-    (js/console.profile "chia")
-    (dotimes [n 10000] (to-string (chia-view test-data)))
-    (js/console.profileEnd)
+    ;(js/console.profile "chia")
+    ;(dotimes [n 10000] (to-string (chia-view test-data)))
+    ;(js/console.profileEnd)
 
-    (when-not (= (to-string (react-render test-data))
-                 (to-string (reagent-render test-data))
-                 (to-string (chia-view test-data))
-                 (to-string (chia-hiccup test-data))
-                 (to-string (hx-render test-data))
-                 (to-string (rum-render test-data))
-                 (to-string (sablono-interpret test-data))
-                 (to-string (uix-interpret test-data))
-                 (to-string (hicada-render test-data)))
-      (doseq [[n x] {'react-render      (to-string (react-render test-data))
-                     'reagent-render    (to-string (reagent-render test-data))
-                     'chia-view         (to-string (chia-view test-data))
-                     'chia-hiccup       (to-string (chia-hiccup test-data))
-                     'hx-render         (to-string (hx-render test-data))
-                     'rum-render        (to-string (rum-render test-data))
-                     'sablono-interpret (to-string (sablono-interpret test-data))
-                     'uix-interpret     (to-string (uix-interpret test-data))
-                     'hicada-render     (to-string (hicada-render test-data))}]
-        (print n)
-        (print x))
-      (throw (ex-info "not equal!" {})))
+    #_(when-not (= (to-string (react-render test-data))
+                   (to-string (reagent-render test-data))
+                   (to-string (chia-view test-data))
+                   (to-string (chia-hiccup test-data))
+                   (to-string (re-view test-data))
+                   (to-string (hx-render test-data))
+                   (to-string (rum-render test-data))
+                   (to-string (sablono-interpret test-data))
+                   (to-string (uix-interpret test-data))
+                   (to-string (hicada-render test-data)))
+        (doseq [[n x] {'react-render      (to-string (react-render test-data))
+                       'reagent-render    (to-string (reagent-render test-data))
+                       'chia-view         (to-string (chia-view test-data))
+                       'chia-hiccup       (to-string (chia-hiccup test-data))
+                       're-view           (to-string (re-view test-data))
+                       'hx-render         (to-string (hx-render test-data))
+                       'rum-render        (to-string (rum-render test-data))
+                       'sablono-interpret (to-string (sablono-interpret test-data))
+                       'uix-interpret     (to-string (uix-interpret test-data))
+                       'hicada-render     (to-string (hicada-render test-data))}]
+          (print n)
+          (print x))
+        (throw (ex-info "not equal!" {})))
+    (print :react "\n" (to-string (react-render test-data)))
+    (print :chia-legacy "\n" (to-string (chia-legacy test-data)))
 
     (-> suite
 
+
+        (.add "chia/interpret" (comp to-string #(chia-view test-data)))
+        (.add "chia-hiccup/interpret" (comp to-string #(chia-hiccup test-data)))
+        (.add "chia-legacy/interpret" (comp to-string #(chia-legacy test-data)))
         (.add "reagent/interpret" (comp to-string #(reagent-render test-data)))
         (.add "uix/interpret" (comp to-string #(uix-interpret test-data)))
-        (.add "chia-view/interpret" (comp to-string #(chia-view test-data)))
-        (.add "chia-hiccup/interpret" (comp to-string #(chia-hiccup test-data)))
-
-        (.add "react" (comp to-string #(react-render test-data)))
-        (.add "rum/macro" (comp to-string #(rum-render test-data)))
-        (.add "hicada/macro" (comp to-string #(hicada-render test-data)))
-        (.add "sablono/interpret" (comp to-string #(sablono-interpret test-data)))
-        (.add "hx/interpret" (comp to-string #(hx-render test-data)))
+        #_(.add "re-view/interpret" (comp to-string #(re-view test-data)))
+        #_(.add "react" (comp to-string #(react-render test-data)))
+        #_(.add "rum/macro" (comp to-string #(rum-render test-data)))
+        #_(.add "hicada/macro" (comp to-string #(hicada-render test-data)))
+        #_(.add "sablono/interpret" (comp to-string #(sablono-interpret test-data)))
+        #_(.add "hx/interpret" (comp to-string #(hx-render test-data)))
 
 
 

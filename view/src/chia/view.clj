@@ -20,26 +20,26 @@
                             (name (:name view-map))))))
 
 (defmacro defn [& args]
-  (let [{:keys [name
-                doc
-                view/options
-                body]
+  (let [{:keys     [name
+                    doc
+                    view/options
+                    body]
          view-name :view/name} (parse-functional-view-args args)
         {:view/keys [forward-ref?]} options
-        view-fn-sym (symbol (str "-" name))
-        key-fn-sym (gensym "key")
+        f-sym (symbol (str "-" name))
+        keyf-sym (gensym "key")
         key-fn (:key options)
         args-sym (gensym "args")]
-    `(let [~key-fn-sym ~key-fn
-           ~view-fn-sym (~'chia.view/-functional-render
-                         {:view/name ~(str view-name)
-                          :view/fn (fn ~name ~@body)
+    `(let [~keyf-sym ~key-fn
+           ~f-sym (~'chia.view/-functional-render
+                         {:view/name           ~(str view-name)
+                          :view/fn             (fn ~name ~@body)
                           :view/should-update? ~(:view/should-update? options `not=)
-                          :view/forward-ref? ~(:view/forward-ref? options false)})]
+                          :view/forward-ref?   ~(:view/forward-ref? options false)})]
        (core/defn ~name [& ~args-sym]
-         (let [props# (when ~(boolean (or key-fn-sym forward-ref?))
+         (let [props# (when ~(boolean (or keyf-sym forward-ref?))
                         (~'js-obj
                          ~@(cond-> []
-                                   key-fn (conj "key" `(apply ~key-fn-sym ~args-sym))
+                                   key-fn (conj "key" `(apply ~keyf-sym ~args-sym))
                                    forward-ref? (conj "ref" `(:ref (first ~args-sym))))))]
-           (.call ~'chia.view/-create-element nil ~view-fn-sym props# ~args-sym))))))
+           (~'chia.view/-create-element ~f-sym props# ~args-sym))))))
