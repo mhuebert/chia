@@ -16,14 +16,10 @@
               (fn [cb]
                 (js/setTimeout cb (/ 1000 60)))))
 
-(defonce ^:dynamic *immediate-updates*
-         ;; When true, updates will not be queued.
-         false)
+;; When true, updates will not be queued.
+(defonce ^:dynamic *immediate-updates* false)
 
 (defonce to-render (volatile! #{}))
-
-(defn- order [view]
-  (j/get view .-chia$order))
 
 (defn dequeue! [view]
   (j/assoc! view .-chia$toUpdate false))
@@ -35,7 +31,7 @@
 (defn- flush* []
   (when-let [views (seq @to-render)]
     (vreset! to-render #{})
-    (doseq [c (sort-by order views)]
+    (doseq [c views]
       (when (and ^boolean (j/get c .-chia$toUpdate)
                  (not ^boolean (j/get c .-chia$unmounted)))
         (j/call c :forceUpdate)))))

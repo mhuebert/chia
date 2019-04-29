@@ -10,10 +10,13 @@
   "Parses a hiccup key like :div#id.class1.class2 to return the tag name, id, and classes.
    If tag-name is ommitted, defaults to 'div'. Class names are padded with spaces."
   [x]
-  (let [match (.exec #"([^#.]+)?(?:#([^.]+))?(?:\.(.*))?" x)]
+  (let [match (.exec #"([^#.]+)?(?:#([^.]+))?(?:\.(.*))?" x)
+        classes (aget match 3)]
     (j/obj .-tag (or (aget match 1) "div")
            .-id (aget match 2)
-           .-classes (some-> (aget match 3) (str/replace "." " ")))))
+           .-classes (if (undefined? classes)
+                       classes
+                       (str/replace (aget match 3) "." " ")))))
 
 (def parse-key-memo (u/memoize-str parse-key))
 
@@ -54,22 +57,28 @@
   (or (identical? js-key "style")
       (identical? js-key "dangerouslySetInnerHTML")))
 
+(defn- defined? [x] (not (undefined? x)))
+
 (defn props->js
   "Returns a React-conformant javascript object. An alternative to clj->js,
   allowing for key renaming without an extra loop through every prop map."
   ([props] (props->js #js{} props))
   ([parsed-key props]
-   (->> (cond-> (or props {})
+   (->> (cond-> (if (some? props) props {})
                 (some? *wrap-props*) (*wrap-props* (.-tag parsed-key))
-                (.-id parsed-key) (assoc :id (.-id parsed-key))
-                (.-classes parsed-key) (update :class (fn [x]
-                                                        (if (some? x)
-                                                          (str (.-classes parsed-key) " " x)
-                                                          (.-classes parsed-key)))))
+
+                (defined? (.-id parsed-key))
+                (assoc :id (.-id parsed-key))
+
+                (defined? (.-classes parsed-key))
+                (update :class (fn [x]
+                                 (if (some? x)
+                                   (str (.-classes parsed-key) " " x)
+                                   (.-classes parsed-key)))))
         (reduce-kv
          (fn [js-props k v]
            (if-some [js-key (when-not (qualified-keyword? k)
                               (name->react-attr-memo (name k)))]
              (j/unchecked-set js-props js-key
                               (cond-> v (map-prop? js-key) (map->js)))
-             js-props)) (j/obj)))))
+             js-props)) (js-obj)))))

@@ -4,22 +4,16 @@
             [applied-science.js-interop :as j]
             [chia.view.registry :as registry]))
 
-;;;;;;;;;;;;;;
-;;
-;; Hook utils
 
-(def ^:private js-undefined (js* "void 0"))
+;; Hook utils
 
 (defn- wrap-effect [f]
   (fn []
     (let [destroy (f)]
-      ;; we must return `undefined` (and not null) if there is no fn to call on dispose
       (if (fn? destroy)
         destroy
-        js-undefined))))
+        js/undefined))))
 
-;;;;;;;;;;;;;;
-;;
 ;; ReactDOM
 
 (def -render react-dom/render)
@@ -30,26 +24,18 @@
            (string? node-or-id)
            (.getElementById js/document)))
 
-;;;;;;;;;;;;;;
-;;
+
 ;; Context
 
-(defonce lookup-context
-  ;; allow for lookup/creation of context by namespaced keyword
-  (memoize
-    (fn ^js [k]
-      (if (object? k)
-        k
-        (do
-          (assert (qualified-keyword? k)
-                  (str "Context lookup keywords must be namespaced. [" (str k) "]"))
-          (react/createContext))))))
+(def ^:private kw-context-cache
+  (memoize (fn [k] (react/createContext))))
 
-;;;;;;;;;;;;;;
-;;
+(defn lookup-context [k]
+  {:pre [(or (object? k) (qualified-keyword? k))]}
+  (if (object? k) k (kw-context-cache k)))
+
+
 ;; View memoization
-;;
-;; We can memoize views by default in CLJS, thanks to immutable data / cheap equality checks.
 
 (defn- args-not= [x y]
   (not= (j/get x :children)

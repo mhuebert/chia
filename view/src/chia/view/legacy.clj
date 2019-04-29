@@ -44,9 +44,7 @@
                      (~'.call ~'chia.view.legacy/Component ~this-name ~props-sym)
                      ;; init internal state
 
-                     (~'applied-science.js-interop/assoc! ~this-name
-                       ~'.-state (~'js-obj)
-                       ~'.-chia$order (~'vswap! ~'chia.view.registry/instance-counter inc))
+                     (~'applied-science.js-interop/assoc! ~this-name ~'.-state (~'js-obj))
 
                      ~(when initial-state
                         `(~'chia.view.legacy/populate-initial-state! ~this-name ~props-sym ~initial-state))

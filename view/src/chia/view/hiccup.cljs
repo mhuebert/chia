@@ -13,54 +13,49 @@
 
 (declare -to-element)
 
-(defn- make-element [tag js-props form child-index]
-  (let [form-count (count form)]
-    (case (- form-count child-index)
-      0 (-react-element tag js-props)                       ;; fast case for no children
-      1 (let [first-child (nth form child-index)]
-          (if (seq? first-child)
-            ;; a single seq child should not create intermediate fragment
-            (make-element tag js-props (vec first-child) 0)
-            (-react-element tag js-props (-to-element first-child))))
-      2 (-react-element tag js-props
-                        (-to-element (nth form child-index))
-                        (-to-element (nth form (inc child-index))))
-      3 (-react-element tag js-props
-                        (-to-element (nth form child-index))
-                        (-to-element (nth form (inc child-index)))
-                        (-to-element (nth form (+ 2 child-index))))
-      (let [out #js[tag js-props]
-            end (dec form-count)]
-        (loop [i child-index]
-          (do (.push out (-to-element (nth form i)))
-              (if (== i end)
-                (.apply -react-element nil out)
-                (recur (inc i)))))))))
+(defonce ^:private sentinel #js{})
+
+(defn- make-element
+  ([tag js-props form start]
+   (let [form-count (count form)]
+     (case (- form-count start)                       ;; fast cases for small numbers of children
+       0 (-react-element tag js-props)
+       1 (let [first-child (-nth form start)]
+           (if (seq? first-child)
+             ;; a single seq child should not create intermediate fragment
+             (make-element tag js-props (vec first-child) 0)
+             (-react-element tag js-props (-to-element first-child))))
+       (let [out #js[tag js-props]]
+         (loop [i start]
+           (if (== i form-count)
+             (.apply -react-element nil out)
+             (do
+               (.push out (-to-element (nth form i)))
+               (recur (inc i))))))))))
 
 (defn- make-fragment [children]
   (make-element -react-fragment nil children 1))
 
+(defonce sentinel #js{})
 (defn- -to-element [form]
   {:pre [(not (keyword? form)) (not (map? form))]}
   (case (goog/typeOf form)
-    "array" (if (fn? (nth form 0))
-              (let [props (nth form 1)
-                    props? (or (nil? props) (map? props))]
-                (make-element (nth form 0) (when props? (hiccup/props->js props)) form (if props? 2 1)))
+    "array" (if (fn? (aget form 0))
+              (let [props (-nth form 1 sentinel)
+                    props? (and (not (identical? props sentinel)) (or (nil? props) (map? props)))]
+                (make-element (aget form 0) (when props? (hiccup/props->js props)) form (if props? 2 1)))
               (make-fragment form))
     "object" (cond (not (identical? "object" (goog/typeOf form)))
                    form
 
-                   (vector? form) (let [tag (nth form 0)
-                                        props (nth form 1 nil)
-                                        props? (or (nil? props) (map? props))]
+                   (vector? form) (let [tag (-nth form 0)]
                                     (cond (keyword? tag)
-                                          (if (perf/identical? :<> tag)
-                                            (make-fragment form)
-                                            (let [parsed-key (hiccup/parse-key-memo (name tag))]
-                                              (make-element (.-tag parsed-key)
-                                                            (hiccup/props->js parsed-key (when props? props))
-                                                            form (if props? 2 1))))
+                                          (let [props (-nth form 1 sentinel)
+                                                props? (and (not (identical? props sentinel)) (or (nil? props) (map? props)))]
+                                            (if (perf/identical? :<> tag)
+                                              (make-fragment form)
+                                              (let [parsed-key (hiccup/parse-key-memo (name tag))]
+                                                (make-element (.-tag parsed-key) (hiccup/props->js parsed-key (when props? props)) form (if props? 2 1)))))
                                           (fn? tag) (-to-element (apply tag (rest form)))
                                           :else (throw (ex-info "Invalid hiccup vector" {:form form}))))
 

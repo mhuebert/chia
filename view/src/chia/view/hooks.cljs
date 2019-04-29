@@ -9,6 +9,8 @@
             [chia.view.hiccup :as hiccup]
             [chia.view.props :as props]))
 
+(defonce ^:private sentinel #js{})
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;; Why does this namespace exist? why not just use React hooks directly?
@@ -21,59 +23,69 @@
 ;; lastly, Chia has its own reactivity system which we want to support.
 
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;; Hooks
+
 
 ;; React hooks that have alternative implementations/wrappers in this ns
-(def -use-state react/useState)
 (def -use-effect react/useEffect)
 (def -use-context react/useContext)
 (def -use-memo react/useMemo)
 (def -use-layout-effect react/useLayoutEffect)
 
-;; React hooks to be used directly
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Built-in hooks to be used directly
+
+(def use-state react/useState)
 (def use-reducer react/useReducer)
 (def use-callback react/useCallback)
 (def use-ref react/useRef)
 (def use-imperative-handle react/useImperativeHandle)
 (def use-debug-value react/use-debug-value)
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Modified versions of built-in hooks
+
 (defn use-context
-  "Returns binding for context `context-k` (context or keyword)"
+  "Returns binding for context `context-k` (context can be a React context or a globally distinct keyword)"
   [context-k]
   (-use-context
    (impl/lookup-context context-k)))
 
-(defn use-effect
+(defn- effect*
   "`f` is called on every render, or each time `key` is not= to the previous `key`.
 
    If a function is returned from `f`, it will be called when the view unmounts."
-  ([f]
-   (-use-effect (impl/wrap-effect f)))
-  ([f key]
-   (let [key-ref (j/get (use-ref #js[key 0]) :current)
-         key-count (let [kcount (aget key-ref 1)]
-                     (if (not= key (aget key-ref 0))
-                       (aset key-ref 1 (inc kcount))
-                       kcount))]
-     (aset key-ref 0 key)
-     (-use-effect (impl/wrap-effect f)
-                  #js [key-count]))))
+  [native-use-effect]
 
-(defn use-layout-effect
+  (fn use-effect*
+    ([f] (native-use-effect (impl/wrap-effect f)))
+    ([f key] (use-effect* f = key))
+    ([f equal? key]
+     (let [key-ref (j/get (use-ref #js[key 0]) :current)
+           key-count (let [kcount (aget key-ref 1)]
+                       (if (not (equal? key (aget key-ref 0)))
+                         (aset key-ref 1 (inc kcount))
+                         kcount))]
+       (aset key-ref 0 key)
+       (native-use-effect (impl/wrap-effect f) #js [key-count])))))
+
+(def use-effect
+  "`f` is called on every render, or each time `key` is not= to the previous `key`.
+
+   If a function is returned from `f`, it will be called when the view unmounts."
+  ^{:arglists '([f] [f key] [f equal? key])}
+  (effect* -use-effect))
+
+(def use-layout-effect
   "Like `use-effect` but called synchronously, after DOM operations are complete."
-  ([f]
-   (-use-layout-effect (impl/wrap-effect f)))
-  ([f key]
-   (let [key-ref (j/get (use-ref #js[key 0]) :current)
-         key-count (let [kcount (aget key-ref 1)]
-                     (if (not= key (aget key-ref 0))
-                       (aset key-ref 1 (inc kcount))
-                       kcount))]
-     (aset key-ref 0 key)
-     (-use-layout-effect (impl/wrap-effect f)
-                         #js [key-count]))))
+  ^{:arglists '([f] [f key] [f equal? key])}
+  (effect* -use-layout-effect))
+
+;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Custom hooks
+;;
 
 (defn use-will-unmount
   "Evaluates `f` when component unmounts."
@@ -84,35 +96,31 @@
   "Evaluates `f` once, caches and returns result. Re-evaluates when `key` changes.
 
    Guaranteed to only evaluate once per lifecycle."
-  ([f]
-   (use-memo f ::key))
-  ([f key]
-   (assert (not (array? key))
-           "use-memo `key` should not be a JavaScript array - rather, a primitive or Clojure data structure")
-   (let [current (-> (use-ref #js[nil nil])
-                     (j/get :current))]
-     (if (not= (aget current 0) key)
-       (let [value (f)]
-         (doto current
-           (aset 0 key)
-           (aset 1 value))
-         value)
-       (aget current 1)))))
+  ([f] (use-memo f identical? sentinel))
+  ([f key] (use-memo f = key))
+  ([f equal? key]
+   (let [mem (-> (use-ref #js[nil nil])
+                 (j/get :current))]
+     (when-not (equal? (aget mem 0) key)
+       (j/assoc! mem 0 key 1 (f)))
+     (aget mem 1))))
+
+(deftype HookAtom [^:mutable state]
+  IDeref
+  (-deref [_] (aget state 0))
+  IReset
+  (-reset! [_ value] ((aget state 1) value))
+  ISwap
+  (-swap! [_ f] ((aget state 1) f))
+  (-swap! [_ f a] ((aget state 1) #(f % a)))
+  (-swap! [_ f a b] ((aget state 1) #(f % a b)))
+  (-swap! [_ f a b xs] ((aget state 1) #(apply f % a b xs))))
 
 (defn use-atom
   "Returns an atom with `initial-state`. Current view will re-render when value of atom changes."
   ([] (use-atom nil))
   ([initial-state]
-   (let [chia$view registry/*view*
-         state-atom (use-memo (fn []
-                                (let [state-atom (atom initial-state)]
-                                  (add-watch state-atom ::state-atom
-                                             (fn [_ _ old-state new-state]
-                                               (when (not= old-state new-state)
-                                                 (render-loop/schedule-update! chia$view))))
-                                  state-atom)))]
-     (use-will-unmount #(remove-watch state-atom ::state-atom))
-     state-atom)))
+   (HookAtom. (use-state initial-state))))
 
 (defn use-schedule-update
   "Returns a `forceUpdate`-like function for the current view (not synchronous)."
@@ -124,12 +132,11 @@
   [{:keys [interval
            now?
            key]} f]
-  (let [effect (fn []
-                 (when now? (f))
-                 (let [i (js/setInterval f interval)]
-                   #(js/clearInterval i)))]
-    (use-effect effect
-                [key interval])))
+  (use-effect (fn []
+                (when now? (f))
+                (let [i (js/setInterval f interval)]
+                  #(js/clearInterval i)))
+              [key interval]))
 
 (defn use-dom-ref
   "Returns a ref to be passed as the `:key` to a react view.

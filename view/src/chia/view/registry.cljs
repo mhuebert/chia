@@ -15,7 +15,4 @@
 (defn- ^:dev/before-load reload-count! []
   (vswap! reload-count inc))
 
-(def instance-counter
-  "For tracking the order in which components have been constructed (parent components are always constructed before their children)."
-  (volatile! 0))
 
