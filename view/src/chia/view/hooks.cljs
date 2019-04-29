@@ -105,30 +105,24 @@
        (j/assoc! mem 0 key 1 (f)))
      (aget mem 1))))
 
-(deftype HookAtom [^:mutable state update-state]
-  Object
-  (update [_ f]
-    (update-state
-     #(let [v (f %)]
-        (set! state v) v)))
+(deftype HookAtom [^:mutable state]
   IDeref
-  (-deref [_] state)
+  (-deref [_] (aget state 0))
   IReset
-  (-reset! [this value] (.update this (constantly value)))
+  (-reset! [_ value] ((aget state 1) (constantly value)))
   ISwap
-  (-swap! [this f] (.update this f))
-  (-swap! [this f a] (.update this #(f % a)))
-  (-swap! [this f a b] (.update this #(f % a b)))
-  (-swap! [this f a b xs] (.update this #(apply f % a b xs))))
+  (-swap! [_ f] ((aget state 1) f))
+  (-swap! [_ f a] ((aget state 1) #(f % a)))
+  (-swap! [_ f a b] ((aget state 1) #(f % a b)))
+  (-swap! [_ f a b xs] ((aget state 1) #(apply f % a b xs))))
 
 (defn use-atom
   "Returns an atom with `initial-state`. Current view will re-render when value of atom changes."
   ([] (use-atom nil))
   ([initial-state]
-   (let [hook-state (use-state initial-state)]
-     (-> (use-ref (HookAtom. nil (aget hook-state 1)))
-         (j/get :current)
-         (j/assoc! .-state (aget hook-state 0))))))
+   (-> (use-ref (HookAtom. nil))
+       (j/get :current)
+       (j/assoc! .-state (use-state initial-state)))))
 
 (defn use-schedule-update
   "Returns a `forceUpdate`-like function for the current view (not synchronous)."
