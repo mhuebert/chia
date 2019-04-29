@@ -24,44 +24,44 @@
 
 (defn reagent-render [{:keys [title body items]}]
   (reagent/as-element
-   [:div.card sample-props
-    [:div.card-title sample-props title]
-    [:div.card-body sample-props body]
+   [:div.card
+    [:div.card-title title]
+    [:div.card-body body]
     [:ul.card-list
      (for [item items]
        ^{:key item} [:li item])]
-    [:div.card-footer sample-props
-     [:div.card-actions sample-props
+    [:div.card-footer
+     [:div.card-actions
       [:button "ok"]
       [:button "cancel"]]]]))
 
 (defn uix-interpret [{:keys [title body items]}]
   (uix/as-element
-   [:div.card sample-props
-    [:div.card-title sample-props title]
-    [:div.card-body sample-props body]
+   [:div.card
+    [:div.card-title title]
+    [:div.card-body body]
     [:ul.card-list
      (for [item items]
        ^{:key item} [:li item])]
-    [:div.card-footer sample-props
-     [:div.card-actions sample-props
+    [:div.card-footer
+     [:div.card-actions
       [:button "ok"]
       [:button "cancel"]]]]))
 
 #_(defn shadow-render [{:keys [title body items]}]
     (to-string
      (shadow/<<
-      [:div.card sample-props
-       [:div.card-title sample-props title]
-       [:div.card-body sample-props body]
+      [:div.card
+       [:div.card-title title]
+       [:div.card-body body]
        [:ul.card-list
         (shadow/render-seq
          items
          identity
          (fn [item]
            (shadow/<< [:li item])))]
-       [:div.card-footer sample-props
-        [:div.card-actions sample-props
+       [:div.card-footer
+        [:div.card-actions
          [:button "ok"]
          [:button "cancel"]]]])))
 
@@ -82,51 +82,51 @@
                              (element "button" nil "cancel")))))
 
 (v/defn chia-view [{:keys [title body items]}]
-  [:div.card sample-props
-   [:div.card-title sample-props title]
-   [:div.card-body sample-props body]
+  [:div.card
+   [:div.card-title title]
+   [:div.card-body body]
    [:ul.card-list
     (for [item items]
       [:li {:key item} item])]
-   [:div.card-footer sample-props
-    [:div.card-actions sample-props
+   [:div.card-footer
+    [:div.card-actions
      [:button "ok"]
      [:button "cancel"]]]])
 
 #_(rv/defview re-view [{:keys [title body items]}]
-              [:div.card sample-props
-               [:div.card-title sample-props title]
-               [:div.card-body sample-props body]
+              [:div.card
+               [:div.card-title title]
+               [:div.card-body body]
                [:ul.card-list
                 (for [item items]
                   [:li {:key item} item])]
-               [:div.card-footer sample-props
-                [:div.card-actions sample-props
+               [:div.card-footer
+                [:div.card-actions
                  [:button "ok"]
                  [:button "cancel"]]]])
 
 (vl/defview chia-legacy [{:keys [title body items]}]
-  [:div.card sample-props
-   [:div.card-title sample-props title]
-   [:div.card-body sample-props body]
+  [:div.card
+   [:div.card-title title]
+   [:div.card-body body]
    [:ul.card-list
     (for [item items]
       [:li {:key item} item])]
-   [:div.card-footer sample-props
-    [:div.card-actions sample-props
+   [:div.card-footer
+    [:div.card-actions
      [:button "ok"]
      [:button "cancel"]]]])
 
 (defn chia-hiccup [{:keys [title body items]}]
   (hiccup/element
-   [:div.card sample-props
-    [:div.card-title sample-props title]
-    [:div.card-body sample-props body]
+   [:div.card
+    [:div.card-title title]
+    [:div.card-body body]
     [:ul.card-list
      (for [item items]
        [:li {:key item} item])]
-    [:div.card-footer sample-props
-     [:div.card-actions sample-props
+    [:div.card-footer
+     [:div.card-actions
       [:button "ok"]
       [:button "cancel"]]]]))
 
@@ -144,40 +144,40 @@
       [:button "cancel"]]]]))
 
 (rum/defc rum-render [{:keys [title body items]}]
-          [:div.card sample-props
-           [:div.card-title sample-props title]
-           [:div.card-body sample-props body]
+          [:div.card
+           [:div.card-title title]
+           [:div.card-body body]
            [:ul.card-list
             (for [item items]
               [:li {:key item} item])]
-           [:div.card-footer sample-props
-            [:div.card-actions sample-props
+           [:div.card-footer
+            [:div.card-actions
              [:button "ok"]
              [:button "cancel"]]]])
 
 (defn sablono-interpret [{:keys [title body items]}]
   (sab/interpret
-   [:div.card sample-props
-    [:div.card-title sample-props title]
-    [:div.card-body sample-props body]
+   [:div.card
+    [:div.card-title title]
+    [:div.card-body body]
     [:ul.card-list
      (for [item items]
        [:li {:key item} item])]
-    [:div.card-footer sample-props
-     [:div.card-actions sample-props
+    [:div.card-footer
+     [:div.card-actions
       [:button "ok"]
       [:button "cancel"]]]]))
 
 (defn hicada-render [{:keys [title body items]}]
   (hicada
-   [:div.card sample-props
-    [:div.card-title sample-props title]
-    [:div.card-body sample-props body]
+   [:div.card
+    [:div.card-title title]
+    [:div.card-body body]
     [:ul.card-list
      (for [item items]
        ^{:key item} [:li item])]
-    [:div.card-footer sample-props
-     [:div.card-actions sample-props
+    [:div.card-footer
+     [:div.card-actions
       [:button "ok"]
       [:button "cancel"]]]]))
 
@@ -248,15 +248,15 @@
 
     (-> suite
 
-
-        (.add "chia/interpret" (comp to-string #(chia-view test-data)))
-        (.add "chia-hiccup/interpret" (comp to-string #(chia-hiccup test-data)))
         (.add "chia-legacy/interpret" (comp to-string #(chia-legacy test-data)))
-        (.add "reagent/interpret" (comp to-string #(reagent-render test-data)))
+        (.add "chia-wrapped/interpret" (comp to-string #(chia-view test-data)))
+        (.add "chia-hiccup/interpret" (comp to-string #(chia-hiccup test-data)))
         (.add "uix/interpret" (comp to-string #(uix-interpret test-data)))
+        (.add "reagent/interpret" (comp to-string #(reagent-render test-data)))
+
         #_(.add "re-view/interpret" (comp to-string #(re-view test-data)))
-        #_(.add "react" (comp to-string #(react-render test-data)))
-        #_(.add "rum/macro" (comp to-string #(rum-render test-data)))
+        (.add "react" (comp to-string #(react-render test-data)))
+        (.add "rum/macro" (comp to-string #(rum-render test-data)))
         #_(.add "hicada/macro" (comp to-string #(hicada-render test-data)))
         #_(.add "sablono/interpret" (comp to-string #(sablono-interpret test-data)))
         #_(.add "hx/interpret" (comp to-string #(hx-render test-data)))

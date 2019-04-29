@@ -6,7 +6,7 @@
             [chia.util :as u]
             [goog.object :as gobj]))
 
-(defn parse-key*
+(defn parse-key
   "Parses a hiccup key like :div#id.class1.class2 to return the tag name, id, and classes.
    If tag-name is ommitted, defaults to 'div'. Class names are padded with spaces."
   [x]
@@ -15,7 +15,7 @@
            .-id (aget match 2)
            .-classes (some-> (aget match 3) (str/replace "." " ")))))
 
-(def parse-key (u/memoize-str parse-key*))
+(def parse-key-memo (u/memoize-str parse-key))
 
 (defn reduce-flatten-seqs
   "Recursively apply f to nested vectors, unwrapping seqs. Similar to recursive `mapcat` but returns a vector."
@@ -26,7 +26,7 @@
                    (reduce-flatten-seqs f c conj-fn x)
                    (conj-fn c (f x)))) init)))
 
-(defn name->react-attr*
+(defn name->react-attr
   "Return js (react) key for keyword/string.
 
   - Namespaced keywords are ignored
@@ -39,7 +39,7 @@
             (str/starts-with? s "aria-")) s
         :else (u/camel-case s)))
 
-(def name->react-attr (u/memoize-str name->react-attr*))
+(def name->react-attr-memo (u/memoize-str name->react-attr))
 
 (defn map->js
   "Return javascript object with camelCase keys (shallow)"
@@ -69,7 +69,7 @@
         (reduce-kv
          (fn [js-props k v]
            (if-some [js-key (when-not (qualified-keyword? k)
-                              (name->react-attr (name k)))]
+                              (name->react-attr-memo (name k)))]
              (j/unchecked-set js-props js-key
                               (cond-> v (map-prop? js-key) (map->js)))
              js-props)) (j/obj)))))

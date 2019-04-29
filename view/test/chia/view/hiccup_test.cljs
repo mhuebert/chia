@@ -11,7 +11,7 @@
   (let [tag (nth form 0)
         props (nth form 1 nil)
         props? (or (nil? props) (map? props))
-        parsed-key (hiccup/parse-key (name tag))]
+        parsed-key (hiccup/parse-key-memo (name tag))]
     (-> (into [(.-tag parsed-key) (hiccup/props->js parsed-key (when props? props))] (drop (if props? 2 1) form))
         (update 1 js->clj :keywordize-keys true))))
 

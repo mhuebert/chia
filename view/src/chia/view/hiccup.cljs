@@ -4,33 +4,41 @@
             [chia.util.perf :as perf]
             [applied-science.js-interop :as j]))
 
-(def -create-element react/createElement)
-(def -fragment react/Fragment)
-(def -valid-element? react/isValidElement)
+(def -react-element react/createElement)
+(def -react-fragment react/Fragment)
+(def -react-element? react/isValidElement)
 
 (defprotocol IElement
   (to-element [this] "Returns a React element representing `this`"))
 
 (declare -to-element)
 
-(defn- make-element [tag js-props children first-child]
-  ;; fast-path for small vectors - idea from reagent
-  (case (- (count children) first-child)
-    0 (-create-element tag js-props)
-    1 (-create-element tag js-props
-                       (-to-element (nth children first-child)))
-    2 (-create-element tag js-props
-                       (-to-element (nth children first-child))
-                       (-to-element (nth children (inc first-child))))
-    (->> children
-         (reduce-kv (fn [out i el]
-                      (cond-> out
-                              (>= i first-child)
-                              (j/push! (-to-element el)))) #js[tag js-props])
-         (.apply -create-element nil))))
+(defn- make-element [tag js-props form child-index]
+  (let [form-count (count form)]
+    (case (- form-count child-index)
+      0 (-react-element tag js-props)                       ;; fast case for no children
+      1 (let [first-child (nth form child-index)]
+          (if (seq? first-child)
+            ;; a single seq child should not create intermediate fragment
+            (make-element tag js-props (vec first-child) 0)
+            (-react-element tag js-props (-to-element first-child))))
+      2 (-react-element tag js-props
+                        (-to-element (nth form child-index))
+                        (-to-element (nth form (inc child-index))))
+      3 (-react-element tag js-props
+                        (-to-element (nth form child-index))
+                        (-to-element (nth form (inc child-index)))
+                        (-to-element (nth form (+ 2 child-index))))
+      (let [out #js[tag js-props]
+            end (dec form-count)]
+        (loop [i child-index]
+          (do (.push out (-to-element (nth form i)))
+              (if (== i end)
+                (.apply -react-element nil out)
+                (recur (inc i)))))))))
 
 (defn- make-fragment [children]
-  (make-element -fragment nil children 1))
+  (make-element -react-fragment nil children 1))
 
 (defn- -to-element [form]
   {:pre [(not (keyword? form)) (not (map? form))]}
@@ -49,7 +57,7 @@
                                     (cond (keyword? tag)
                                           (if (perf/identical? :<> tag)
                                             (make-fragment form)
-                                            (let [parsed-key (hiccup/parse-key (name tag))]
+                                            (let [parsed-key (hiccup/parse-key-memo (name tag))]
                                               (make-element (.-tag parsed-key)
                                                             (hiccup/props->js parsed-key (when props? props))
                                                             form (if props? 2 1))))
