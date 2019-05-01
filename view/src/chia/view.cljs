@@ -16,7 +16,7 @@
             [chia.util :as u]
 
             [applied-science.js-interop :as j])
-  (:require-macros [chia.view]))
+  (:require-macros [chia.view :as v]))
 
 ;;;;;;;;;;;;;;
 ;;
@@ -27,6 +27,7 @@
 (def -create-context react/createContext)
 (def -is-valid-element? react/isValidElement)
 (def -forward-ref react/forwardRef)
+(def to-element props/to-element)
 
 (defn element? [x]
   (and x (-is-valid-element? x)))
@@ -40,7 +41,7 @@
    `bindings` should be a map of {<keyword-or-Context>, <value-to-be-bound>}."
   [binding-map & body]
   (loop [bindings (seq binding-map)
-         out (props/to-element (vec (cons :<> body)))]
+         out (v/to-element (vec (cons :<> body)))]
     (if (empty? bindings)
       out
       (recur (rest bindings)
@@ -57,7 +58,6 @@
 
 (def merge-props props/merge-props)
 (def partial-props props/partial-props)
-(def to-element props/to-element)
 
 ;;;;;;;;;;;;;;;;;;
 ;;
@@ -68,9 +68,9 @@
   ([react-element dom-element]
    (render-to-dom react-element dom-element nil))
   ([react-element dom-element {:keys [reload?]
-                               :or {reload? true}}]
+                               :or   {reload? true}}]
    (binding [registry/*reload* reload?]
-     (impl/-render (to-element react-element)
+     (impl/-render (v/to-element react-element)
                    (impl/resolve-node dom-element)))))
 
 (def unmount-from-dom
@@ -80,7 +80,7 @@
 (defn portal
   "Mounts `element` at `dom-node` as React portal."
   [element dom-node]
-  (-create-portal (to-element element) (impl/resolve-node dom-node)))
+  (-create-portal (v/to-element element) (impl/resolve-node dom-node)))
 
 ;;;;;;;;;;;;;;;;;;
 ;;
@@ -118,13 +118,15 @@
      (let [[props children] (vu/parse-args args)
            props (props/adapt-props options props)]
        (->> (reduce j/push! #js[the-class props] children)
-            (to-element))))))
+            (v/to-element))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;; Internal - Chia reactivity + render loop
 
-(deftype FunctionalView [chia$name]
+(deftype FunctionalView [chia$name update!]
+  Object
+  (forceUpdate [this] (update!))
   IPrintWithWriter
   (-pr-writer [this writer opts]
     (-write writer (str "👁<" chia$name ">")))
@@ -135,8 +137,7 @@
 (defn -use-chia [view-name ^boolean ref]
   (let [force-update! (hooks/use-schedule-update)
         chia$view (hooks/use-memo (fn []
-                                    (cond-> (new FunctionalView view-name)
-                                            true (j/assoc! :forceUpdate force-update!)
+                                    (cond-> (FunctionalView. view-name force-update!)
                                             (not (::no-ref ref)) (j/assoc! .-chia$forwardRef ref))))]
     (hooks/use-will-unmount
      (fn []
@@ -147,14 +148,16 @@
          (f))))
     chia$view))
 
-(defn -functional-render [{:keys [view/should-update?]
-                           view-name :view/name
-                           view-fn :view/fn
+(defn -functional-render [{:keys         [view/should-update?]
+                           view-name     :view/name
+                           view-fn       :view/fn
                            ^boolean ref? :view/forward-ref?}]
   (-> (fn [props ref]
-        (binding [registry/*view* (-use-chia view-name (if ref? ref ::no-ref))]
-          (r/with-dependency-tracking! registry/*view*
-                                       (props/to-element (apply view-fn (j/get props :children))))))
-      (doto (js/Object.defineProperty "name" #js{:value view-name}))
+        (let [children (j/get props :children)]
+          (binding [registry/*view* (-use-chia view-name (if ref? ref ::no-ref))]
+            (r/with-dependency-tracking! {:schedule hooks/use-effect
+                                          :reader   registry/*view*}
+              (v/to-element (apply view-fn children))))))
+      (doto (js/Object.defineProperty "name" (j/obj :value view-name)))
       (cond-> ref? (-forward-ref))
       (impl/memoize-view should-update?)))

@@ -1,13 +1,14 @@
 (ns chia.view
   (:refer-clojure :exclude [defn])
   (:require [clojure.core :as core]
-            [clojure.spec.alpha :as s]))
+            [clojure.spec.alpha :as s]
+            [applied-science.js-interop :as j]))
 
-(core/defn to-element [x]
-  ;; TODO
-  ;; upgrade hiccup/element to work partly at macroexpansion time
-  `(~'chia.view.hiccup/element {:wrap-props ~'chia.view.props/wrap-props}
-    ~x))
+(core/defmacro to-element [x]
+  `(binding [~'chia.view.hiccup.impl/*wrap-props* ~'chia.view.props/wrap-props]
+     ;; TODO
+     ;; upgrade hiccup/element to work partly at macroexpansion time
+     (~'chia.view.hiccup/-to-element ~x)))
 
 (core/defn parse-functional-view-args [args]
   (let [view-map (s/conform (s/cat :name (s/? symbol?)
@@ -32,14 +33,16 @@
         args-sym (gensym "args")]
     `(let [~keyf-sym ~key-fn
            ~f-sym (~'chia.view/-functional-render
-                         {:view/name           ~(str view-name)
-                          :view/fn             (fn ~name ~@body)
-                          :view/should-update? ~(:view/should-update? options `not=)
-                          :view/forward-ref?   ~(:view/forward-ref? options false)})]
+                   {:view/name           ~(str view-name)
+                    :view/fn             (fn ~name ~@body)
+                    :view/should-update? ~(:view/should-update? options `not=)
+                    :view/forward-ref?   ~(:view/forward-ref? options false)})]
        (core/defn ~name [& ~args-sym]
-         (let [props# (when ~(boolean (or keyf-sym forward-ref?))
-                        (~'js-obj
-                         ~@(cond-> []
-                                   key-fn (conj "key" `(apply ~keyf-sym ~args-sym))
-                                   forward-ref? (conj "ref" `(:ref (first ~args-sym))))))]
+         (let [props# (when ~(or keyf-sym forward-ref?)
+                        (j/obj
+                         ~@(when key-fn
+                             [:key `(apply ~keyf-sym ~args-sym)])
+                         ~@(when forward-ref?
+                             [:ref `(:ref (first ~args-sym))])))]
            (~'chia.view/-create-element ~f-sym props# ~args-sym))))))
+

@@ -31,7 +31,7 @@
   "Wrap body in anonymous function form."
   [name argv body pure?]
   `(~'fn ~(symbol (str "__" name)) ~argv
-     ~(cond-> (v/to-element `(do ~@body))
+     ~(cond-> `(v/to-element (do ~@body))
               (not pure?) (wrap-current-view-binding))))
 
 (core/defn- make-constructor [the-name initial-state]

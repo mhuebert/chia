@@ -1,10 +1,16 @@
 (ns chia.view.state-test
   (:require
    [cljs.test :refer [deftest is are testing]]
+   ["react-test-renderer" :as test-utils]
    [chia.db :as d]
    [chia.view :as v]
    [chia.view.legacy :as vl]
    [chia.view.util :as vu]))
+
+(defn act! [f & args]
+  (test-utils/act #(do (apply f args) js/undefined)))
+
+(defn flush! [] (act! v/flush!))
 
 (defn get-el []
   (vu/find-or-append-element "chia-view-state-test" "div"))
@@ -25,11 +31,11 @@
         (render (view))
         (is (= @log [0]))
         (swap! @local-state inc)
-        (v/flush!)
+        (flush!)
 
         (is (= @log [0 1]))
         (reset! @local-state "x")
-        (v/flush!)
+        (flush!)
         (is (= @log [0 1 "x"]))))))
 
 (deftest db
@@ -45,19 +51,19 @@
           view (vl/view x [{:keys [db/id]}]
                  (swap! log conj (d/get id :name))
                  [:div "hello"])
-          render #(v/render-to-dom (view {:db/id %}) el)]
+          render #(act! v/render-to-dom (view {:db/id %}) el)]
 
       (render 1)
       (is (= 1 (count @log)))
 
       (d/transact! [[:db/add 1 :name "Frank"]])
-      (v/flush!)
+      (flush!)
 
       (is (= 2 (count @log)))
       (is (= "Frank" (last @log)))
 
       (d/transact! [{:db/id 2 :name "Gertrude"}])
-      (v/flush!)
+      (flush!)
 
       (is (= 2 (count @log)))
 

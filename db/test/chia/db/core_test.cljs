@@ -195,7 +195,7 @@
 
       (is (-> (r/with-dependency-log reader-1
                                      (d/entity db [:person/children "peter"]))
-              (second)
+              .-deps
               (get db)
               (= {:_av #{[:person/children "peter"]}}))
           "Lookup ref logs attr-val listener when target entity does not exist")
@@ -204,7 +204,7 @@
 
       (is (-> (r/with-dependency-log reader-1
                                      (d/entity db [:person/children "peter"]))
-              (second)
+              .-deps
               (get db)
               (= {:_av #{[:person/children "peter"]}
                   :e__ #{"mary"}}))
@@ -222,7 +222,7 @@
                          IFn
                          (-invoke [this]
                            (swap! state update :renders inc)
-                           (r/with-dependency-tracking! this
+                           (r/with-dependency-tracking! {:reader this}
                              (d/entity db [:person/children "peter"])))))
             reader-dependencies #(-> @r/dependencies
                                      (get-in [reader-2 db]))

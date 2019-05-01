@@ -1,6 +1,7 @@
 (ns chia.reactive
   "Central point where reactivity is coordinated"
-  (:require [chia.util.macros :as m])
+  (:require [chia.util.macros :as m]
+            [applied-science.js-interop :as j])
   #?(:cljs (:require-macros [chia.reactive :as r])))
 
 (def ^:dynamic *reader*
@@ -63,11 +64,13 @@
   (-invalidate! [reader info]
     "Recomputes the value of a reader"))
 
-(defn invalidate! [reader info]
-  (when-not *silent*
-    (if (satisfies? IReadReactively reader)
-      (-invalidate! reader info)
-      (reader info))))
+(defn invalidate!
+  ([reader] (invalidate! reader nil))
+  ([reader info]
+   (when-not *silent*
+     (if (satisfies? IReadReactively reader)
+       (-invalidate! reader info)
+       (reader info)))))
 
 (defn get-readers [source]
   (keys (get @dependents source)))
@@ -139,6 +142,7 @@
 (defn update-reader-deps!
   "`next-deps` should be a map of {<source>, <patterns>}."
   [reader next-deps]
+  {:pre [reader]}
   (let [prev-deps (get @dependencies reader)]
     (doseq [source (-> (set (keys next-deps))
                        (into (keys prev-deps)))]
@@ -155,16 +159,20 @@
   `(binding [*reader* ~reader
              *reader-dependency-log* (volatile! {})]
      (let [value# (do ~@body)]
-       [value# @*reader-dependency-log*])))
+       (j/obj .-value value#
+              .-deps @*reader-dependency-log*))))
 
 (m/defmacro with-dependency-tracking!
   "Evaluates `body`, creating dependencies for `reader` with arbitrary data sources."
-  [reader & body]
-  `(let [[value# dependencies#] (~'chia.reactive/with-dependency-log
-                                 ~reader
-                                 ~@body)]
-     (update-reader-deps! ~reader dependencies#)
-     value#))
+  [{:as   options
+    :keys [schedule
+           reader]
+    :or   {schedule '.call}} & body]
+  {:pre [(map? options)]}
+  `(let [reader# ~reader
+         result# (~'chia.reactive/with-dependency-log reader# ~@body)]
+     (~schedule #(update-reader-deps! reader# (.-deps result#)))
+     (.-value result#)))
 
 (m/defmacro silently
   [& body]
@@ -176,15 +184,21 @@
 ;; For implementing data sources
 ;;
 
+(defn- log-read
+  ([source v]
+   (when *reader*
+     (vswap! *reader-dependency-log* assoc source v))
+   source))
+
 (defn log-read!
   "Logs read of a pattern-supporting dependency. `source` must satisfy IWatchableByPattern.
 
    `f` will be called by the existing patterns for the current source/reader, and `args`."
   ([source]
-   (when *reader*
-     (vswap! *reader-dependency-log* assoc source ::simple))
-   source)
-  ([source f & args]
-   (when *reader*
-     (vswap! *reader-dependency-log* assoc source (apply f (get @*reader-dependency-log* source) args)))
-   source))
+   (log-read source ::simple))
+  ([source f]
+   (log-read source (f (get @*reader-dependency-log* source))))
+  ([source f x]
+   (log-read source (f (get @*reader-dependency-log* source) x)))
+  ([source f x & args]
+   (log-read source (apply f (get @*reader-dependency-log* source) x args))))

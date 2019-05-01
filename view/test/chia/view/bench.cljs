@@ -248,11 +248,14 @@
 
     (-> suite
 
+        (.add "reagent/interpret" (comp to-string #(reagent-render test-data)))
+        #_(.add "uix/interpret" (comp to-string #(uix-interpret test-data)))
+
+
         (.add "chia-legacy/interpret" (comp to-string #(chia-legacy test-data)))
         (.add "chia-wrapped/interpret" (comp to-string #(chia-view test-data)))
         (.add "chia-hiccup/interpret" (comp to-string #(chia-hiccup test-data)))
-        #_(.add "uix/interpret" (comp to-string #(uix-interpret test-data)))
-        (.add "reagent/interpret" (comp to-string #(reagent-render test-data)))
+
 
         #_(.add "re-view/interpret" (comp to-string #(re-view test-data)))
         #_(.add "react" (comp to-string #(react-render test-data)))

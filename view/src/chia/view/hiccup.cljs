@@ -16,28 +16,29 @@
 (defonce ^:private sentinel #js{})
 
 (defn- make-element
-  ([tag js-props form start]
-   (let [form-count (count form)]
-     (case (- form-count start)                       ;; fast cases for small numbers of children
-       0 (-react-element tag js-props)
-       1 (let [first-child (-nth form start)]
-           (if (seq? first-child)
-             ;; a single seq child should not create intermediate fragment
-             (make-element tag js-props (vec first-child) 0)
-             (-react-element tag js-props (-to-element first-child))))
-       (let [out #js[tag js-props]]
-         (loop [i start]
-           (if (== i form-count)
-             (.apply -react-element nil out)
-             (do
-               (.push out (-to-element (nth form i)))
-               (recur (inc i))))))))))
+  [tag js-props form start]
+  (let [form-count (count form)]
+    (case (- form-count start)                              ;; fast cases for small numbers of children
+      0 (-react-element tag js-props)
+      1 (let [first-child (-nth form start)]
+          (if (seq? first-child)
+            ;; a single seq child should not create intermediate fragment
+            (make-element tag js-props (vec first-child) 0)
+            (-react-element tag js-props (-to-element first-child))))
+      (let [out #js[tag js-props]]
+        (loop [i start]
+          (if (== i form-count)
+            (.apply -react-element nil out)
+            (do
+              (.push out (-to-element (nth form i)))
+              (recur (inc i)))))))))
 
 (defn- make-fragment [children]
   (make-element -react-fragment nil children 1))
 
 (defonce sentinel #js{})
-(defn- -to-element [form]
+
+(defn -to-element [form]
   {:pre [(not (keyword? form)) (not (map? form))]}
   (case (goog/typeOf form)
     "array" (if (fn? (aget form 0))

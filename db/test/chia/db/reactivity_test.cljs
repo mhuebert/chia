@@ -18,25 +18,25 @@
     (testing "capture access patterns"
 
       (is (= #{1} (-> (r/with-dependency-log reader
-                       (d/entity 1))
-                      second
+                                             (d/entity 1))
+                      .-deps
                       (get d/*db*)
                       :e__))
           "entity pattern")
 
       (is (= #{[1 :name]} (-> (r/with-dependency-log reader
-                               (d/get 1 :name)
-                               (d/get 1 :name))
-                              second
+                                                     (d/get 1 :name)
+                                                     (d/get 1 :name))
+                              .-deps
                               (get d/*db*)
                               :ea_))
           "entity-attr pattern")
 
       (is (= #{[1 :name]
                [1 :dog]} (-> (r/with-dependency-log reader
-                              (d/get 1 :name)
-                              (d/get 1 :dog))
-                             second
+                                                    (d/get 1 :name)
+                                                    (d/get 1 :dog))
+                             .-deps
                              (get d/*db*)
                              :ea_))
           "two entity-attr patterns")
@@ -44,10 +44,10 @@
       (is (= {:e__ #{1}
               :ea_ #{[1 :name]}}
              (-> (r/with-dependency-log reader
-                  (d/get 1 :name)
-                  (d/entity 1)
-                  (d/get 1 :name))
-                 second
+                                        (d/get 1 :name)
+                                        (d/entity 1)
+                                        (d/get 1 :name))
+                 .-deps
                  (get d/*db*)
                  (select-keys [:e__ :ea_])))
           "entity pattern"))))

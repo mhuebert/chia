@@ -88,8 +88,8 @@
       (fn []
         (this-as ^js this
           (j/assoc! this .-chia$toUpdate false)             ;; avoids double-render in render loop
-          (r/with-dependency-tracking! this
-                                       (legacy/apply-fn f this))))
+          (r/with-dependency-tracking! {:reader this}
+            (legacy/apply-fn f this))))
       :view/did-update
       (fn []
         (this-as ^js this

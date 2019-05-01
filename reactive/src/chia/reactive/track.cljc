@@ -31,8 +31,8 @@
 
      r/IReadReactively
      (r/invalidate! [this]
-       (r/with-dependency-tracking! this
-                                    (reset! source-atom (apply f args))))
+       (r/with-dependency-tracking! {:reader this}
+         (reset! source-atom (apply f args))))
 
      IEquiv
      (-equiv [this ^js other]

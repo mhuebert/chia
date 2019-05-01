@@ -6,12 +6,12 @@
             [clojure.core :as core]
             [chia.util :as u]))
 
-(defonce ^{:doc "Index of path-based dependencies, per atom."}
-         readers-by-path
+(defonce ^{:doc "Trie containing active readers within a path (per atom)"}
+         listeners-by-path
          (volatile! {}))
 
 (def ^:dynamic *write-paths*
-  "A nested map representing paths that may be changed by a mutation."
+  "Trie representing paths that may be changed by a mutation"
   nil)
 
 (def conj-set (fnil conj #{}))
@@ -26,13 +26,13 @@
 ;;
 
 (defn deref
-  "Reactively dereferences any atom, creates a dependency on it for the current reader (ie. chia.reactive/*reader*)"
+  "Reactively dereferences `ref`, creates a dependency for the current reader"
   [ref]
   (r/log-read! ref conj-set [::value])
   (core/deref ref))
 
 (defn get
-  "Like Clojure's `get`, creates dependency on key `k`."
+  "Like Clojure `get`, creates dependency on key `k`."
   ([ref k]
    (r/log-read! ref conj-set [k ::value])
    (core/get (core/deref ref) k))
@@ -41,7 +41,7 @@
    (core/get (core/deref ref) k not-found)))
 
 (defn get-in
-  "Like Clojure's `get-in`, creates dependency on `path`."
+  "Like Clojure `get-in`, creates dependency on `path`."
   ([ref path]
    (r/log-read! ref conj-set (conj path ::value))
    (core/get-in (core/deref ref) path))
@@ -77,7 +77,7 @@
 ;; API - Writing Values
 ;;
 ;; The following functions mimic core Clojure functions, but operate directly on atoms (mutating them!),
-;; keeping track of keys/paths so that we can efficiently update only those readers which are affected.
+;; keeping track of keys/paths so that we can efficiently update dependent readers.
 ;;
 
 (defn reset! [ref value]
@@ -87,7 +87,7 @@
   (core/reset! ref (apply f (core/deref ref) f args)))
 
 (defn assoc!
-  "Like Clojure's `assoc`, but mutates an atom, limiting reactive dependency comparisons to the modified keys."
+  "Like Clojure `assoc`, but mutates `ref`, limiting reactive dependency comparisons to the modified keys."
   [ref k v & kvs]
   (let [paths (reduce (fn [m k] (assoc m k nil)) {k nil} (take-nth 2 kvs))
         ret (apply assoc (core/deref ref) k v kvs)]
@@ -95,13 +95,13 @@
       (core/reset! ref ret))))
 
 (defn assoc-in!
-  "Like Clojure's `assoc-in`, but mutates an atom, limiting reactive dependency comparisons to the supplied `path`."
+  "Like Clojure `assoc-in`, but mutates `ref`, limiting reactive dependency comparisons to the supplied `path`."
   [ref path value]
   (binding [*write-paths* (assoc-in {} path nil)]
     (core/swap! ref assoc-in path value)))
 
 (defn dissoc!
-  "Like Clojure's `dissoc`, but mutates an atom, limiting reactive dependency comparisons to the supplied key `k`."
+  "Like Clojure `dissoc`, but mutates `ref`, limiting reactive dependency comparisons to the supplied key `k`."
   [ref k]
   (binding [*write-paths* {k nil}]
     (core/swap! ref dissoc k)))
@@ -113,12 +113,12 @@
     (core/swap! ref u/dissoc-in path)))
 
 (defn update!
-  "Like Clojure's `update`, but mutates an atom, limiting reactive dependency comparisons to the supplied key `k`."
+  "Like Clojure `update`, but mutates `ref`, limiting reactive dependency comparisons to the supplied key `k`."
   [ref k f & args]
   (assoc! ref k (apply f (core/get (core/deref ref) k) args)))
 
 (defn update-in!
-  "Like Clojure's `update-in`, but mutates an atom, limiting reactive dependency comparisons to the supplied `path`."
+  "Like Clojure `update-in`, but mutates `ref`, limiting reactive dependency comparisons to the supplied `path`."
   [ref path f & args]
   (assoc-in! ref path (apply f (core/get-in (core/deref ref) path) args)))
 
@@ -168,7 +168,7 @@
                   write-paths))))
 
 (defn invalidate-path! [source path]
-  (let [index (get @readers-by-path source)
+  (let [index (get @listeners-by-path source)
         {value-readers ::value
          fn-readers ::fns} (core/get-in index path)]
     (doseq [reader (into value-readers (vals fn-readers))]
@@ -179,10 +179,10 @@
   [_ source oldval newval]
   (let [readers (if *write-paths*
                   (invalidated-readers-at-write-paths *write-paths*
-                                                      (core/get (core/deref readers-by-path) source)
+                                                      (core/get (core/deref listeners-by-path) source)
                                                       oldval
                                                       newval)
-                  (invalidated-readers (core/get (core/deref readers-by-path) source)
+                  (invalidated-readers (core/get (core/deref listeners-by-path) source)
                                        oldval
                                        newval))]
     (doseq [reader readers]
@@ -200,7 +200,7 @@
    ;; update nested index of paths->readers
     (let [added (set/difference next-patterns prev-patterns)
           removed (set/difference prev-patterns next-patterns)]
-      (vswap! readers-by-path update source
+      (vswap! listeners-by-path update source
               (fn [index]
                 (as-> index index
                       (reduce (fn [m path]
