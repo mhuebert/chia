@@ -20,15 +20,6 @@
 
 (def parse-key-memo (u/memoize-str parse-key))
 
-(defn reduce-flatten-seqs
-  "Recursively apply f to nested vectors, unwrapping seqs. Similar to recursive `mapcat` but returns a vector."
-  [f init conj-fn coll]
-  (->> coll
-       (reduce (fn [c x]
-                 (if (seq? x)
-                   (reduce-flatten-seqs f c conj-fn x)
-                   (conj-fn c (f x)))) init)))
-
 (defn name->react-attr
   "Return js (react) key for keyword/string.
 

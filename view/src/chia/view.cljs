@@ -113,12 +113,14 @@
   See props/adapt-props for options."
   ([the-class]
    (adapt-react-class nil the-class))
-  ([options the-class]
+  ([options react-class]
    (fn [& args]
-     (let [[props children] (vu/parse-args args)
-           props (props/adapt-props options props)]
-       (->> (reduce j/push! #js[the-class props] children)
-            (v/to-element))))))
+     (let [props (hiccup/get-props args 0)
+           props? (hiccup/props? props)]
+       (hiccup/make-element react-class
+                            (props/adapt-props options (if props? props {}))
+                            args
+                            (if props? 1 0))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;

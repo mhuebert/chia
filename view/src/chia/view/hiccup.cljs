@@ -1,8 +1,8 @@
 (ns chia.view.hiccup
-  (:require [chia.view.hiccup.impl :as hiccup]
-            ["react" :as react]
-            [chia.util.perf :as perf]
+  (:require ["react" :as react]
             [applied-science.js-interop :as j]
+            [chia.view.hiccup.impl :as hiccup]
+            [chia.util.perf :as perf]
             [chia.util :as u]))
 
 (def -react-element react/createElement)
@@ -91,6 +91,14 @@
 
                    :else form)
     form))
+
+(defn update-props [el f & args]
+  {:pre [(vector? el)]}
+  (let [props (get-props el 1)
+        props? (props? props)]
+    (if props?
+      (assoc el 1 (apply f props args))
+      (into [(el 0) (apply f {} args)] (subvec el 1)))))
 
 (defn element
   "Converts Hiccup form into a React element. If a non-vector form
