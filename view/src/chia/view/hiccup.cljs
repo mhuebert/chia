@@ -2,7 +2,8 @@
   (:require [chia.view.hiccup.impl :as hiccup]
             ["react" :as react]
             [chia.util.perf :as perf]
-            [applied-science.js-interop :as j]))
+            [applied-science.js-interop :as j]
+            [chia.util :as u]))
 
 (def -react-element react/createElement)
 (def -react-fragment react/Fragment)
@@ -16,11 +17,13 @@
 (defonce ^:private sentinel #js{})
 
 (defn make-element
+  "Returns React element. `tag` may be a string or React class.
+  Children will be read from `form` beginning at index `start`."
   [tag js-props form start]
   (let [form-count (count form)]
     (case (- form-count start)                              ;; fast cases for small numbers of children
       0 (-react-element tag js-props)
-      1 (let [first-child (-nth form start)]
+      1 (let [first-child (nth form start)]
           (if (seq? first-child)
             ;; a single seq child should not create intermediate fragment
             (make-element tag js-props (vec first-child) 0)
@@ -44,11 +47,11 @@
 (defn get-props
   "Returns props at index `i` in `form`, or a sentinel value if props were not found.
    Props can be `nil` or a Clojure map.
-   You should call `props?` on the result to detect of there is a usable props map.
-   Props will be nil, a map, or the sentinel 'not-props' value."
+   Call `props?` on the result to determine if props were found.
+   Props can be nil or a Clojure map."
   [form i]
-  {:post [(or (nil? %) (map? %) (identical? % sentinel))]}
-  (let [props (-nth form i sentinel)]
+  {:post [(or (identical? % sentinel) ((u/nilable map?) %))]}
+  (let [props (nth form i sentinel)]
     (if (identical? props sentinel)
       sentinel
       (if (or (nil? props) (map? props))
@@ -61,23 +64,28 @@
     "array" (if (fn? (aget form 0))
               (let [props (get-props form 1)
                     props? (props? props)]
-                (make-element (aget form 0) (when props? (hiccup/props->js props)) form (if props? 2 1)))
+                (make-element (aget form 0)
+                              (when props? (hiccup/props->js props))
+                              form
+                              (if props? 2 1)))
               (make-fragment form))
-    "object" (cond (not (identical? "object" (goog/typeOf form)))
-                   form
+    "object" (cond (not (identical? "object" (goog/typeOf form))) form
 
                    (vector? form) (let [tag (-nth form 0)]
                                     (cond (keyword? tag)
-                                          (let [props (get-props form 1)
-                                                props? (props? props)]
-                                            (if (perf/identical? :<> tag)
-                                              (make-fragment form)
-                                              (let [parsed-key (hiccup/parse-key-memo (name tag))]
-                                                (make-element (.-tag parsed-key) (hiccup/props->js parsed-key (when props? props)) form (if props? 2 1)))))
+                                          (if (perf/identical? :<> tag)
+                                            (make-fragment form)
+                                            (let [parsed-key (hiccup/parse-key-memo (name tag))
+                                                  props (get-props form 1)
+                                                  props? (props? props)]
+                                              (make-element (.-tag parsed-key)
+                                                            (hiccup/props->js parsed-key (when props? props))
+                                                            form
+                                                            (if props? 2 1))))
                                           (fn? tag) (-to-element (apply tag (rest form)))
                                           :else (throw (ex-info "Invalid hiccup vector" {:form form}))))
 
-                   (seq? form) (make-fragment (vec form))
+                   (seq? form) (make-fragment form)
 
                    (satisfies? IElement form) (to-element form)
 
