@@ -3,7 +3,7 @@
   (:require [chia.util.macros :as m]
             [chia.util.perf :as perf]
             [applied-science.js-interop :as j])
-  #?(:cljs (:require-macros [chia.reactive :as r])))
+  #?(:cljs (:require-macros [chia.reactive :as r :refer [log-read*]])))
 
 (def ^:dynamic *reader*
   "The currently-computing reader"
@@ -192,21 +192,23 @@
 ;; For implementing data sources
 ;;
 
-(defn- log-read
-  ([source v]
-   (when *reader*
-     (vswap! *reader-dependency-log* assoc source v))
-   source))
+(m/defmacro ^:private log-read* [source expr]
+  `(when (some? *reader*)
+     (vswap! *reader-dependency-log* assoc ~source ~expr)))
 
 (defn log-read!
   "Logs read of a pattern-supporting dependency. `source` must satisfy IReactiveSource.
 
    `f` will be called by the existing patterns for the current source/reader, and `args`."
   ([source]
-   (log-read source ::simple))
+   (log-read* source ::simple)
+   source)
   ([source f]
-   (log-read source (f (get @*reader-dependency-log* source))))
+   (log-read* source (f (get @*reader-dependency-log* source)))
+   source)
   ([source f x]
-   (log-read source (f (get @*reader-dependency-log* source) x)))
+   (log-read* source (f (get @*reader-dependency-log* source) x))
+   source)
   ([source f x & args]
-   (log-read source (apply f (get @*reader-dependency-log* source) x args))))
+   (log-read* source (apply f (get @*reader-dependency-log* source) x args))
+   source))
