@@ -1,6 +1,7 @@
 (ns chia.reactive
   "Central point where reactivity is coordinated"
   (:require [chia.util.macros :as m]
+            [chia.util.perf :as perf]
             [applied-science.js-interop :as j])
   #?(:cljs (:require-macros [chia.reactive :as r])))
 
@@ -62,14 +63,18 @@
 
 (defprotocol IReadReactively
   (-invalidate! [reader info]
-    "Recomputes the value of a reader"))
+    "We 'invalidate' a reader whenever one of its dependencies has changed.
+     Implementors should ensure that a call to `invalidate` will cause the
+     reader to re-evaluate."))
 
 (defn invalidate!
-  ([reader] (invalidate! reader nil))
+  ([reader]
+   (invalidate! reader nil))
   ([reader info]
    (when-not *silent*
      (if (satisfies? IReadReactively reader)
        (-invalidate! reader info)
+       ;; in the simplest case, a reader is simply a function.
        (reader info)))))
 
 (defn get-readers [source]
@@ -77,28 +82,31 @@
 
 (defn invalidate-readers! [source]
   (doseq [reader (keys (get @dependents source))]
-    (invalidate! reader nil)))
+    (invalidate! reader nil))
+  source)
 
 (defn invalidate-readers-for-sources! [sources]
-  (let [readers (into [] (comp (mapcat get-readers)
-                               (distinct)) sources)]
-    (doseq [reader readers]
-      (invalidate! reader nil))))
+  (doseq [reader (into [] (comp (mapcat get-readers)
+                                (distinct)) sources)]
+    (invalidate! reader nil))
+  sources)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;; Reactive data sources
 ;;
 
-(defprotocol IWatchableByPattern
+(defprotocol IReactiveSource
   "Protocol which enables a reactive data source to support pattern-based dependencies."
-  (update-pattern-watches! [source reader prev-patterns next-patterns source-transition]
-    "a reactive `source` should implement this function to update internal indexes/listeners.
+  (update-reader-deps [source reader prev-patterns next-patterns transition]
+    "a reactive `source` should implement this function to keep track of dependent readers.
 
-     `next-patterns` will be nil, or the result of successive applications of `log-pattern-update!` during a compute cycle.
-     `prev-patterns` will be nil, or the return value of the previous call to `update-pattern-watches!`.
-
-     The return value of this function is important -- it is what you will receive as `prev-patterns` after the next read cycle.
+     `next-patterns` is the result of successive applications of `log-read!` during a read.
+     `prev-patterns` is for comparison with the last read.
+     `source-transition` will be one of:
+       :added   - `source` did not have any registered readers before this cycle
+       :removed - `source` will have no remaining readers after this cycle
+       nil      - not the first, nor last, read depending on `source`
 
      When `patterns` are invalidated, `source` should call `chia.reactive/invalidate!`, passing in `reader`."))
 
@@ -116,21 +124,21 @@
   "Updates watch for a source<>reader combo. Handles effectful updating of `source`."
   [source reader prev-patterns next-patterns]
   (when (not= prev-patterns next-patterns)
-    (if (or (= prev-patterns ::simple)
-            (= next-patterns ::simple))
+    (if (or (perf/identical? ::simple prev-patterns)
+            (perf/identical? ::simple next-patterns))
       (update-simple! source reader prev-patterns next-patterns)
       (let [new-source? (empty? (get @dependents source))]
         (if (empty? next-patterns)
           (remove-edge! source reader)
           (add-edge! source reader next-patterns))
-        (update-pattern-watches! source
-                                 reader
-                                 prev-patterns
-                                 next-patterns
-                                 (cond (and (not new-source?)
-                                            (empty? (get @dependents source))) :removed
-                                       (and new-source?
-                                            (not (empty? next-patterns))) :added))))))
+        (update-reader-deps source
+                            reader
+                            prev-patterns
+                            next-patterns
+                            (cond (and (not new-source?)
+                                       (empty? (get @dependents source))) :removed
+                                  (and new-source?
+                                       (not (empty? next-patterns))) :added))))))
 
 (defn dispose-reader!
   "Removes reader from reactive graph."
@@ -191,7 +199,7 @@
    source))
 
 (defn log-read!
-  "Logs read of a pattern-supporting dependency. `source` must satisfy IWatchableByPattern.
+  "Logs read of a pattern-supporting dependency. `source` must satisfy IReactiveSource.
 
    `f` will be called by the existing patterns for the current source/reader, and `args`."
   ([source]

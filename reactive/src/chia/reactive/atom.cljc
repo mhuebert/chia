@@ -195,8 +195,8 @@
          (volatile! {}))
 
 (extend-type Atom
-  r/IWatchableByPattern
-  (r/update-pattern-watches! [source reader prev-patterns next-patterns source-transition]
+  r/IReactiveSource
+  (r/update-reader-deps [source reader prev-patterns next-patterns source-transition]
    ;; update nested index of paths->readers
     (let [added (set/difference next-patterns prev-patterns)
           removed (set/difference prev-patterns next-patterns)]

@@ -410,8 +410,8 @@
                 :ave {}
                 :schema schema})
      (specify!
-       r/IWatchableByPattern
-       (update-pattern-watches! [source reader prev-patterns next-patterns source-transition]
+       r/IReactiveSource
+       (update-reader-deps [source reader prev-patterns next-patterns source-transition]
 
          (when (not= next-patterns prev-patterns)
            (when next-patterns
