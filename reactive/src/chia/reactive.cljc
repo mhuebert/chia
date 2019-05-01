@@ -196,19 +196,10 @@
   `(when (some? *reader*)
      (vswap! *reader-dependency-log* assoc ~source ~expr)))
 
-(defn log-read!
-  "Logs read of a pattern-supporting dependency. `source` must satisfy IReactiveSource.
-
-   `f` will be called by the existing patterns for the current source/reader, and `args`."
+(m/defmacro log-read!
   ([source]
-   (log-read* source ::simple)
-   source)
-  ([source f]
-   (log-read* source (f (get @*reader-dependency-log* source)))
-   source)
-  ([source f x]
-   (log-read* source (f (get @*reader-dependency-log* source) x))
-   source)
-  ([source f x & args]
-   (log-read* source (apply f (get @*reader-dependency-log* source) x args))
-   source))
+   `(do (log-read* ~source ::simple)
+        ~source))
+  ([source f & args]
+   `(do (log-read* ~source (~f (get @*reader-dependency-log* ~source) ~@args))
+        ~source)))
