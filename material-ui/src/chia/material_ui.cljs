@@ -2,8 +2,22 @@
   (:require [chia.view :as v]
             [chia.view.util]
             [clojure.string :as str]
+            [chia.view.hiccup :as hiccup]
+            [chia.view.props :as props]
             ["@material-ui/core/IconButton" :default IconButton*])
   (:require-macros [chia.material-ui :as m]))
+
+(defn wrap-class [react-class options]
+  (let [options (-> options
+                    (update :lift-nses (fnil conj #{}) "material")
+                    (update :->js-keys (fnil conj []) :classes))]
+    (fn [& args]
+      (let [props (hiccup/get-props args 0)
+            props? (hiccup/props? props)]
+        (hiccup/make-element react-class
+                             (props/adapt-props options (if props? props {}))
+                             args
+                             (if props? 1 0))))))
 
 (def icon-adjustments
   {:add  #(assoc % :font-weight "bold")

@@ -1,4 +1,5 @@
 {:paths ["src"]
 
  :deps {org.clojure/clojurescript  {:mvn/version "1.10.520"}
+        chia/view {:local/root "../view"}
         chia/util {:local/root "../util"}}}

@@ -15,7 +15,7 @@
 
 (defonce ^:private sentinel #js{})
 
-(defn- make-element
+(defn make-element
   [tag js-props form start]
   (let [form-count (count form)]
     (case (- form-count start)                              ;; fast cases for small numbers of children
@@ -38,12 +38,29 @@
 
 (defonce sentinel #js{})
 
+(defn props? [props]
+  (not (identical? props sentinel)))
+
+(defn get-props
+  "Returns props at index `i` in `form`, or a sentinel value if props were not found.
+   Props can be `nil` or a Clojure map.
+   You should call `props?` on the result to detect of there is a usable props map.
+   Props will be nil, a map, or the sentinel 'not-props' value."
+  [form i]
+  {:post [(or (nil? %) (map? %) (identical? % sentinel))]}
+  (let [props (-nth form i sentinel)]
+    (if (identical? props sentinel)
+      sentinel
+      (if (or (nil? props) (map? props))
+        props
+        sentinel))))
+
 (defn -to-element [form]
   {:pre [(not (keyword? form)) (not (map? form))]}
   (case (goog/typeOf form)
     "array" (if (fn? (aget form 0))
-              (let [props (-nth form 1 sentinel)
-                    props? (and (not (identical? props sentinel)) (or (nil? props) (map? props)))]
+              (let [props (get-props form 1)
+                    props? (props? props)]
                 (make-element (aget form 0) (when props? (hiccup/props->js props)) form (if props? 2 1)))
               (make-fragment form))
     "object" (cond (not (identical? "object" (goog/typeOf form)))
@@ -51,8 +68,8 @@
 
                    (vector? form) (let [tag (-nth form 0)]
                                     (cond (keyword? tag)
-                                          (let [props (-nth form 1 sentinel)
-                                                props? (and (not (identical? props sentinel)) (or (nil? props) (map? props)))]
+                                          (let [props (get-props form 1)
+                                                props? (props? props)]
                                             (if (perf/identical? :<> tag)
                                               (make-fragment form)
                                               (let [parsed-key (hiccup/parse-key-memo (name tag))]

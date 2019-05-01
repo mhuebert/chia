@@ -16,6 +16,10 @@
   (when (and s (string? s) (not= s ""))
     s))
 
+(defn nilable [pred]
+  (fn [x]
+    (or (nil? x) (pred x))))
+
 ;; from https://github.com/clojure/core.incubator/blob/master/src/main/clojure/clojure/core/incubator.clj
 (defn dissoc-in
   "Dissociates an entry from a nested associative structure returning a new
