@@ -6,10 +6,10 @@
   ([the-name]
    `(~'chia.material-ui/defm ~the-name {}))
   ([the-name options]
-   (let [class-name ~(-> the-name
-                         (name)
-                         (str/capitalize)
-                         (u/camel-case)
-                         (symbol))]
+   (let [class-name (-> the-name
+                        (name)
+                        (str/capitalize)
+                        (u/camel-case)
+                        (symbol))]
      `(def ~the-name
         (~'chia.material-ui/wrap-class ~class-name ~options)))))
