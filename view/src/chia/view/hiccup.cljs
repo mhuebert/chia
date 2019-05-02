@@ -17,8 +17,8 @@
 (defonce ^:private sentinel #js{})
 
 (defn make-element
-  "Returns React element. `tag` may be a string or React class.
-  Children will be read from `form` beginning at index `start`."
+  "Returns a React element. `tag` may be a string or a React component (a class or a function).
+   Children will be read from `form` beginning at index `start`."
   [tag js-props form start]
   (let [form-count (count form)]
     (case (- form-count start)                              ;; fast cases for small numbers of children
