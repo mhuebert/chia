@@ -12,4 +12,4 @@
                         (u/camel-case)
                         (symbol))]
      `(def ~the-name
-        (~'chia.material-ui/wrap-class ~class-name ~options)))))
+        (~'chia.material-ui/wrap-component ~class-name ~options)))))
