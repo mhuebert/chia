@@ -7,14 +7,14 @@
             ["@material-ui/core/IconButton" :default IconButton*])
   (:require-macros [chia.material-ui :as m]))
 
-(defn wrap-class [react-class options]
+(defn wrap-component [component options]
   (let [options (-> options
                     (update :lift-nses (fnil conj #{}) "material")
                     (update :->js-keys (fnil conj []) :classes))]
     (fn [& args]
       (let [props (hiccup/get-props args 0)
             props? (hiccup/props? props)]
-        (hiccup/make-element react-class
+        (hiccup/make-element component
                              (props/adapt-props options (if props? props {}))
                              args
                              (if props? 1 0))))))
