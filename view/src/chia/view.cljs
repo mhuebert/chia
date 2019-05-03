@@ -107,17 +107,17 @@
 ;;
 ;; Vanilla React interop
 
-(defn adapt-react-class
-  "Wraps a vanilla React class so that it can be used like any other view.
+(defn adapt-js-component
+  "Wraps a vanilla React component so that it can be used like any other view.
 
   See props/adapt-props for options."
-  ([the-class]
-   (adapt-react-class nil the-class))
-  ([options react-class]
+  ([js-component]
+   (adapt-js-component nil js-component))
+  ([options js-component]
    (fn [& args]
      (let [props (hiccup/get-props args 0)
            props? (hiccup/props? props)]
-       (hiccup/make-element react-class
+       (hiccup/make-element js-component
                             (props/adapt-props options (if props? props {}))
                             args
                             (if props? 1 0))))))
