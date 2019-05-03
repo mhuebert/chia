@@ -170,12 +170,8 @@
 (defn- get-prop [this k not-found]
   (get (get-special this :view/props nil) k not-found))
 
-
-
-(when Component
-  (extend-type Component
-    ;; for convenience, we allow reading keys from a component's props by looking them up
-    ;; directly on the component. this enables destructuring in lifecycle/render method arglist.
+(def ChiaLegacyClass
+  (specify! #js{}
     ILookup
     (-lookup
       ([this k]
@@ -203,6 +199,7 @@
 
   (gobj/extend (.-prototype constructor)
                (.-prototype Component)
+               ChiaLegacyClass
                (wrap-methods lifecycle-keys [:view/should-update
                                              :view/will-unmount
                                              :view/did-update]))
