@@ -4,12 +4,6 @@
             [clojure.spec.alpha :as s]
             [applied-science.js-interop :as j]))
 
-(core/defmacro to-element [x]
-  `(binding [~'chia.view.hiccup.impl/*wrap-props* ~'chia.view.props/wrap-props]
-     ;; TODO
-     ;; upgrade hiccup/element to work partly at macroexpansion time
-     (~'chia.view.hiccup/-to-element ~x)))
-
 (core/defn parse-functional-view-args [args]
   (let [view-map (s/conform (s/cat :name (s/? symbol?)
                                    :doc (s/? string?)

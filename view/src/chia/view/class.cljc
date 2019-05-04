@@ -23,15 +23,15 @@
 
 (core/defn wrap-current-view-binding [body]
   `(~'this-as this#
-     (binding [~'chia.view.registry/*view* this#]
-       ~body)))
+    (binding [~'chia.view.registry/*view* this#]
+      ~body)))
 
 (core/defn- wrap-render-body
   "Wrap body in anonymous function form."
   [name argv body pure?]
   `(~'fn ~(symbol (str "__" name)) ~argv
-     ~(cond-> `(~'chia.view/to-element (do ~@body))
-              (not pure?) (wrap-current-view-binding))))
+    ~(cond-> `(~'chia.view.props/to-element (do ~@body))
+             (not pure?) (wrap-current-view-binding))))
 
 (core/defn- make-constructor [the-name initial-state]
   (let [this-name (gensym)
@@ -62,7 +62,7 @@
                              (if (fn? v#)
                                (fn [& args#]
                                  (~'this-as this#
-                                   (apply v# this# args#)))
+                                  (apply v# this# args#)))
                                v#)))) {} m))
 
 (def __deprecated-keys #{:view/will-receive-props
@@ -103,12 +103,12 @@
                     (symbol (name (ns-name *ns*))
                             (name (:name view-map))))))
 
-(core/defn make-class [{:keys      [name
-                                    doc
-                                    view/options
-                                    view/arglist
-                                    view/body]
-                         view-name :view/name}]
+(core/defn make-class [{:keys     [name
+                                   doc
+                                   view/options
+                                   view/arglist
+                                   view/body]
+                        view-name :view/name}]
   (let [display-name (get-display-name *ns* name)
         {pure? :pure} (meta name)
         {:as   methods
@@ -140,20 +140,19 @@
     the argslist and body for the render function, which should
     return a Hiccup vector or React element."
   [& args]
-  (let [{:as       view-map
-         :keys     [name]
-         view-name :view/name} (parse-class-args args)
+  (let [{:as   view-map
+         :keys [name]} (parse-class-args args)
         name (with-meta name (merge
-                               (meta name)
-                               (select-keys view-map [:doc
-                                                      :view/arglist
-                                                      :view/name])))]
+                              (meta name)
+                              (select-keys view-map [:doc
+                                                     :view/arglist
+                                                     :view/name])))]
     `(def ~name ~(make-class view-map))))
 
 (defmacro extend-view [view & args]
   `(~'cljs.core/specify!
-     (~'goog.object/getValueByKeys ~view "chia$constructor" "prototype")
-     ~@args))
+    (~'goog.object/getValueByKeys ~view "chia$constructor" "prototype")
+    ~@args))
 
 (defmacro once
   "Evaluates `body` once per component mount or, if :key is provided, once per unique key (per component mount).
@@ -177,7 +176,7 @@
               (~js-assoc! ~this-sym ~key-sym ~val-sym)
               ~(when on-unmount
                  `(~'chia.view/on-unmount! ~this-sym ~key-sym
-                    (fn [this#] (~on-unmount this# ~val-sym))))
+                   (fn [this#] (~on-unmount this# ~val-sym))))
               ~val-sym))))))
 
 (defmacro defspec [kw doc & args]
@@ -194,6 +193,6 @@
     (if-let [[ctx-sym ctx-k] (first bindings)]
       (recur (rest bindings)
              `(~'chia.view.class/consume*
-                (~'chia.view.impl/lookup-context ~ctx-k)
-                (fn [~ctx-sym] ~out)))
+               (~'chia.view.impl/lookup-context ~ctx-k)
+               (fn [~ctx-sym] ~out)))
       out)))

@@ -18,7 +18,7 @@
             [chia.util :as u]
 
             [applied-science.js-interop :as j])
-  (:require-macros [chia.view :as v]))
+  (:require-macros chia.view))
 
 ;;;;;;;;;;;;;;
 ;;
@@ -44,7 +44,7 @@
    `bindings` should be a map of {<keyword-or-Context>, <value-to-be-bound>}."
   [binding-map & body]
   (loop [bindings (seq binding-map)
-         out (v/to-element (vec (cons :<> body)))]
+         out (to-element (vec (cons :<> body)))]
     (if (empty? bindings)
       out
       (recur (rest bindings)
@@ -77,7 +77,7 @@
   ([react-element dom-element {:keys [reload?]
                                :or   {reload? true}}]
    (binding [registry/*reload* reload?]
-     (impl/-render (v/to-element react-element)
+     (impl/-render (to-element react-element)
                    (impl/resolve-node dom-element)))))
 
 (def unmount-from-dom
@@ -87,7 +87,7 @@
 (defn portal
   "Mounts `element` at `dom-node` as React portal."
   [element dom-node]
-  (-create-portal (v/to-element element) (impl/resolve-node dom-node)))
+  (-create-portal (to-element element) (impl/resolve-node dom-node)))
 
 ;;;;;;;;;;;;;;;;;;
 ;;
@@ -166,7 +166,7 @@
           (binding [registry/*view* (-use-chia view-name (if ref? ref ::no-ref))]
             (r/with-dependency-tracking! {:schedule hooks/use-effect
                                           :reader   registry/*view*}
-              (v/to-element (apply view-fn children))))))
+              (to-element (apply view-fn children))))))
       (doto (js/Object.defineProperty "name" (j/obj :value view-name)))
       (cond-> ref? (-forward-ref))
       (impl/memoize-view should-update?)))

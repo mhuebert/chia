@@ -19,6 +19,7 @@
 (defn to-element
   "Converts hiccup to React element."
   [x]
+
   (hiccup/element {:wrap-props wrap-props} x))
 
 (defn adapt-props
