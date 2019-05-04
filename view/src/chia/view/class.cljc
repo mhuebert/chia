@@ -1,9 +1,8 @@
-(ns chia.view.legacy
+(ns chia.view.class
   (:require [clojure.core :as core]
             [clojure.string :as str]
             [clojure.spec.alpha :as s]
-            [chia.view :as v]
-            [chia.view.legacy.util :as legacy-util]
+            [chia.view.class.util :as class-util]
             [chia.util :as u]))
 
 (defmacro ^:private apply-fn [f this]
@@ -31,7 +30,7 @@
   "Wrap body in anonymous function form."
   [name argv body pure?]
   `(~'fn ~(symbol (str "__" name)) ~argv
-     ~(cond-> `(v/to-element (do ~@body))
+     ~(cond-> `(~'chia.view/to-element (do ~@body))
               (not pure?) (wrap-current-view-binding))))
 
 (core/defn- make-constructor [the-name initial-state]
@@ -41,13 +40,13 @@
     `(fn ~fn-name [~props-sym]
        (core/this-as ~this-name
                      ;; super()
-                     (~'.call ~'chia.view.legacy/Component ~this-name ~props-sym)
+                     (~'.call ~'chia.view.class/Component ~this-name ~props-sym)
                      ;; init internal state
 
                      (~'applied-science.js-interop/assoc! ~this-name ~'.-state (~'js-obj))
 
                      ~(when initial-state
-                        `(~'chia.view.legacy/populate-initial-state! ~this-name ~props-sym ~initial-state))
+                        `(~'chia.view.class/populate-initial-state! ~this-name ~props-sym ~initial-state))
 
                      ;; return component
                      ~this-name))))
@@ -80,15 +79,20 @@
                    (let [[group-k v] (case (namespace k)
                                        "static" [:static-keys v]
                                        "spec" [:spec-keys `(when ~'js/goog.DEBUG ~v)]
-                                       "view" (do (assert (legacy-util/lifecycle-keys k)
+                                       "view" (do (assert (class-util/lifecycle-keys k)
                                                           (str "Unknown chia/view key: " k))
                                                   [:lifecycle-keys v])
-                                       nil [:unqualified-keys v]
+                                       nil (case (name k)
+                                             ("key"
+                                              "doc"
+                                              "display-name") [:react-keys v]
+                                             [:unqualified-keys v])
                                        [:qualified-keys v])]
                      (assoc-in m [group-k k] v))) {} methods)
+      (update :react-keys ->js-with-camelCase)
       (update :unqualified-keys (comp ->js-with-camelCase bind-vals))))
 
-(core/defn parse-view-args [args]
+(defn parse-class-args [args]
   (let [view-map (s/conform (s/cat :name (s/? symbol?)
                                    :doc (s/? string?)
                                    :view/options (s/? map?)
@@ -99,7 +103,7 @@
                     (symbol (name (ns-name *ns*))
                             (name (:name view-map))))))
 
-(core/defn- field-view [{:keys     [name
+(core/defn make-class [{:keys      [name
                                     doc
                                     view/options
                                     view/arglist
@@ -123,13 +127,13 @@
 
     (if pure? (:view/render lifecycle-keys)
               (let [constructor (make-constructor name (:view/initial-state options))]
-                `(~'chia.view.legacy/view* ~methods ~constructor)))))
+                `(~'chia.view.class/view* ~methods ~constructor)))))
 
 (defmacro view
   [& args]
-  (field-view (parse-view-args args)))
+  (make-class (parse-class-args args)))
 
-(defmacro defview
+(defmacro defclass
   "Define a view function.
 
    Expects optional docstring and methods map, followed by
@@ -138,13 +142,13 @@
   [& args]
   (let [{:as       view-map
          :keys     [name]
-         view-name :view/name} (parse-view-args args)
+         view-name :view/name} (parse-class-args args)
         name (with-meta name (merge
                                (meta name)
                                (select-keys view-map [:doc
                                                       :view/arglist
                                                       :view/name])))]
-    `(def ~name ~(field-view view-map))))
+    `(def ~name ~(make-class view-map))))
 
 (defmacro extend-view [view & args]
   `(~'cljs.core/specify!
@@ -181,7 +185,7 @@
                      [doc args]
                      [nil (cons doc args)])]
     `(when ~'js/goog.DEBUG
-       (swap! ~'chia.view.legacy.view-specs/spec-meta assoc ~kw {:doc ~doc})
+       (swap! ~'chia.view.class.view-specs/spec-meta assoc ~kw {:doc ~doc})
        (clojure.spec.alpha/def ~kw ~@args))))
 
 (defmacro consume [bindings & body]
@@ -189,7 +193,7 @@
          out (cons 'do body)]
     (if-let [[ctx-sym ctx-k] (first bindings)]
       (recur (rest bindings)
-             `(~'chia.view.legacy/consume*
+             `(~'chia.view.class/consume*
                 (~'chia.view.impl/lookup-context ~ctx-k)
                 (fn [~ctx-sym] ~out)))
       out)))

@@ -1,6 +1,6 @@
 (ns chia-demo.app
   (:require [chia.view :as v]
-            [chia.view.legacy :as legacy]
+            [chia.view.class :as class]
             [chia.jss :as jss]
             [chia-demo.styles]
 
@@ -21,10 +21,10 @@
                components/demo
                context/demo])
 
-(legacy/defview show-section
-  {:key (fn [_ handler] (legacy/class-get handler :demo/title))}
+(v/defclass show-section
+  {:key (fn [_ handler] (class/class-get handler :demo/title))}
   [_ handler & args]
-  (let [label (legacy/class-get handler :demo/title)
+  (let [label (class/class-get handler :demo/title)
         expanded? (db/get-in [:section label :expanded?] true)]
     (cond-> [:div.pa2.bg-darken-2.hover-bg-darken-3.pointer.flex.flex-row.items-center.bt.bw1.b--darken-4
              {:on-click #(db/assoc-in! [:section label :expanded?] (not expanded?))}
@@ -34,7 +34,7 @@
             (cons
              (list [:div.pa2 (handler)])))))
 
-(legacy/defview layout []
+(v/defclass layout []
   (map show-section sections))
 
 (defn ^:dev/after-load ^:export render []

@@ -1,4 +1,5 @@
 (ns chia.view.props
+  (:refer-clojure :exclude [partial])
   (:require [chia.util :as u]
             [chia.view.hiccup.impl :as hiccup-impl]
             [chia.view.render-loop :as render-loop]
@@ -52,10 +53,10 @@
                      (select-keys m1 [:style])
                      (select-keys m2 [:style]))))
 
-(defn partial-props
-  "Partially applies props to view. Keys will be merged with other props."
-  [view initial-props]
-  (fn [props & children]
+(defn partial
+      "Partially applies props to view. Keys will be merged with other props."
+      [view initial-props]
+      (fn [props & children]
     (let [[props children] (if (or (map? props)
                                    (nil? props)) [props children]
                                                  [{} (cons props children)])]

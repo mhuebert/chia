@@ -61,7 +61,7 @@
   (binding [env/*compiler* compiler]
     (ana/resolve-var (assoc @compiler :ns ns) sym)))
 
-(legacy/defview view-egg
+(v/defclass view-egg
   {:key :name}
   [{the-var :view/props
     the-ns :ns
@@ -142,7 +142,7 @@
     [:div {:classes [:opacity-70]}
      (first (str/split-lines doc))]))
 
-(legacy/defview view-def
+(v/defclass view-def
   {:key :name}
   [{var-name :name
     the-ns :ns
@@ -159,7 +159,7 @@
       (name var-name)]
      (doc-line doc)]))
 
-(legacy/defview ^:lark/egg view-namespace
+(v/defclass ^:lark/egg view-namespace
   "Displays a namespace line-item"
   {:key :name}
   [{the-ns :view/props
@@ -224,7 +224,7 @@
                                     (common-prefix-count (:segments (peek out))
                                                          segments)))))) [])))
 
-(legacy/defview carton [{compiler :view/state}]
+(v/defclass carton [{compiler :view/state}]
   [:div
    {:classes [:text/pre-wrap
               :pad/right-3]}

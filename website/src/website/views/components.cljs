@@ -1,5 +1,5 @@
 (ns website.views.components
-  (:require [chia.view.legacy :as v :refer-macros [defview view]]
+  (:require [chia.view.class :as v :refer-macros [defclass view]]
             [goog.dom.classes :as classes]
             [chia.routing :as routing]
             [re-view.material.example :as material-example]
@@ -30,7 +30,7 @@
                                            :docstring docstring
                                            :kind      :re-view/component}))))))
 
-(defview component-card
+(defclass component-card
          {:key :label}
          [{:keys [view/state
                   label
@@ -66,7 +66,7 @@
                                      (.log js/console e)
                                      "Error")))]]]))
 
-(defview component-detail
+(defclass component-detail
          {:key :label}
          [{:keys [view/state
                   label
@@ -108,11 +108,11 @@
 
 (def theme-mods {:accent "mdc-theme--accent-bg mdc-theme--text-primary-on-accent"})
 
-(defview test-view
+(defclass test-view
          [this & body]
          [:div "Tested this" body])
 
-(defview fixed-content
+(defclass fixed-content
          {:view/did-mount    #(classes/add js/document.body "overflow-hidden")
           :view/will-unmount #(classes/remove js/document.body "overflow-hidden")}
          [{:keys [on-close]} content]
@@ -131,7 +131,7 @@
             {:class (str (if (d/get :ui/globals :theme/dark?) "bg-dark-gray b--gray" "bg-white b--light-gray"))}
             content]]])
 
-(defview library
+(defclass library
          [{:keys [detail-view
                   view/state]}]
          (let [query (d/get-in :router/location [:query :search])]

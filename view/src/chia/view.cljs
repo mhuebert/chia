@@ -1,4 +1,5 @@
 (ns chia.view
+  (:refer-clojure :exclude [partial])
   (:require ["react-dom" :as react-dom]
             ["react" :as react]
 
@@ -8,6 +9,7 @@
             [chia.view.render-loop :as render-loop]
             [chia.view.registry :as registry]
             [chia.view.util :as vu]
+            [chia.view.class]
 
             [chia.view.hiccup :as hiccup]
             [chia.view.hiccup.impl :as hiccup-impl]
@@ -28,6 +30,7 @@
 (def -is-valid-element? react/isValidElement)
 (def -forward-ref react/forwardRef)
 (def to-element props/to-element)
+(def dom-node react-dom/findDOMNode)
 
 (defn element? [x]
   (and x (-is-valid-element? x)))
@@ -57,7 +60,11 @@
 ;; Props & Conversions
 
 (def merge-props props/merge-props)
-(def partial-props props/partial-props)
+(def partial props/partial)
+
+(defn swap-silently! [ref & args]
+      (r/silently
+       (apply swap! ref args)))
 
 ;;;;;;;;;;;;;;;;;;
 ;;

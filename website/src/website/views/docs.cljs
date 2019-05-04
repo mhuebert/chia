@@ -1,5 +1,5 @@
 (ns website.views.docs
-  (:require [chia.view.legacy :as vl :refer [defview]]
+  (:require [chia.view.class :as vl :refer [defclass]]
             [website.views.markdown :refer [md]]
             [goog.string.path :as path]
             [clojure.string :as string]
@@ -48,7 +48,7 @@
                                                   (assoc-in m (concat (path->keys path) (list :*file)) doc)) {})))
                              (cb)))))
 
-(defview doc-page
+(defclass doc-page
   {:view/did-mount (fn [{:keys [view/state
                                 edit-url] :as this} url]
                      (when-not index (get-index #(v/force-update! this))))}

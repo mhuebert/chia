@@ -1,11 +1,11 @@
 (ns website.views.code
-  (:require [chia.view.legacy :as v :refer [defview]]
+  (:require [chia.view :as v]
             [website.views :as views]
             [goog.string.path :as path]
             [chia.view.props :as props]))
 
 
-(defview repo-file-page
+(v/defclass repo-file-page
   [this repo file-path]
   (views/markdown-page (merge {:read (-> (str "https://raw.githubusercontent.com/braintripping/re-view/master/" (munge repo))
                                          (path/join file-path))
@@ -14,7 +14,7 @@
                               (:view/props this))))
 
 
-(defview repository-row
+(v/defclass repository-row
   {:key (fn [_ owner repo] (str owner repo))}
   [_ owner repo]
   [:.f6.flex.items-center
@@ -25,7 +25,7 @@
 (defn repository-page [repo]
   (views/page nil [:.pv3 (repository-row repo)]))
 
-(defview repositories-index []
+(v/defclass repositories-index []
 
   (views/page nil
               [:div.pb3

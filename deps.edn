@@ -9,6 +9,7 @@
                                 roman01/uix        {:git/url "https://github.com/roman01la/uix.git"
                                                     :sha     "8dcbac34fde7db42586e25a6b7882008f2db8d17"}
                                 hicada             {:mvn/version "0.1.8"}
+
                                 re-view            {:mvn/version "0.4.15"}}}}
  :deps    {org.clojure/clojure       {:mvn/version "1.10.0"}
            org.clojure/clojurescript {:mvn/version "1.10.520"}

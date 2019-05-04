@@ -36,9 +36,6 @@
               (.push out (-to-element (nth form i)))
               (recur (inc i)))))))))
 
-(defn- make-fragment [children]
-  (make-element -react-fragment nil children 1))
-
 (defonce sentinel #js{})
 
 (defn props? [props]
@@ -68,13 +65,13 @@
                               (when props? (hiccup/props->js props))
                               form
                               (if props? 2 1)))
-              (make-fragment form))
+              (make-element -react-fragment nil form 0))
     "object" (cond (not (identical? "object" (goog/typeOf form))) form
 
                    (vector? form) (let [tag (-nth form 0)]
                                     (cond (keyword? tag)
                                           (if (perf/identical? :<> tag)
-                                            (make-fragment form)
+                                            (make-element -react-fragment nil form 1)
                                             (let [parsed-key (hiccup/parse-key-memo (name tag))
                                                   props (get-props form 1)
                                                   props? (props? props)]
@@ -85,7 +82,7 @@
                                           (fn? tag) (-to-element (apply tag (rest form)))
                                           :else (throw (ex-info "Invalid hiccup vector" {:form form}))))
 
-                   (seq? form) (make-fragment form)
+                   (seq? form) (make-element -react-fragment nil form 0)
 
                    (satisfies? IElement form) (to-element form)
 

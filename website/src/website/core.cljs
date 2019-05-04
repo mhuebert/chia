@@ -2,7 +2,6 @@
   (:require [cljs.core.match :refer-macros [match]]
 
             [chia.view :as v]
-            [chia.view.legacy :as vl :refer-macros [defview]]
             [chia.routing :as r]
             [chia.db :as d]
 
@@ -46,7 +45,7 @@
                  :theme/dark? false
                  :layout/drawer-open? (not mobile?)}]))
 
-(defview layout [this
+(v/defclass layout [this
                  main-content]
   (let [{:keys [theme/dark?
                 media/mobile?
@@ -92,7 +91,7 @@
         [:.ph4-ns.ph3.pv1.relative
          main-content])]))
 
-(defview root
+(v/defclass root
   "The root component reads current router location from re-db,
    and will therefore re-render whenever this value changes."
   []

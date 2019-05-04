@@ -10,7 +10,6 @@
    [cljs.test :as t]
    [chia.view :as v]
    [chia.view.hiccup :as hiccup]
-   [chia.view.legacy :as vl]
    [sablono.interpreter :as sab]
    [uix.compiler.reagent :as uix]
    #_[re-view.core :as rv])
@@ -93,7 +92,7 @@
      [:button "ok"]
      [:button "cancel"]]]])
 
-#_(rv/defview re-view [{:keys [title body items]}]
+#_(rv/defclass re-view [{:keys [title body items]}]
               [:div.card
                [:div.card-title title]
                [:div.card-body body]
@@ -105,8 +104,8 @@
                  [:button "ok"]
                  [:button "cancel"]]]])
 
-(vl/defview chia-legacy [{:keys [title body items]}]
-  [:div.card
+(v/defclass chia-legacy [{:keys [title body items]}]
+                [:div.card
    [:div.card-title title]
    [:div.card-body body]
    [:ul.card-list

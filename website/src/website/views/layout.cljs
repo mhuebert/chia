@@ -1,5 +1,5 @@
 (ns website.views.layout
-  (:require [chia.view.legacy :as v :refer [defview]]
+  (:require [chia.view.class :as v :refer [defclass]]
             [chia.db :as d]
             [clojure.string :as string]
             [website.util :as util]))

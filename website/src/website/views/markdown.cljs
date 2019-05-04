@@ -1,5 +1,5 @@
 (ns website.views.markdown
-  (:require [chia.view.legacy :as v :refer [defview]]
+  (:require [chia.view.class :as v :refer [defclass]]
             [goog.object :as gobj]
             [clojure.string :as string]
             ["highlight.js/lib/highlight" :as hljs]
@@ -43,7 +43,7 @@
       (some-> (.getElementById js/document (subs hash 1))
               (.scrollIntoView)))))
 
-(defview md
+(defclass md
   {:view/did-update scroll-to-anchor
    :view/did-mount  scroll-to-anchor}
   [{:keys [view/props]} s]

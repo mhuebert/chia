@@ -1,6 +1,5 @@
 (ns chia-demo.views.reactive-triple
   (:require [chia.view :as v]
-            [chia.view.legacy :as legacy]
             [chia.reactive.atom-db :as db]
             [chia.db :as t]
             [chia-demo.views.util :as u]
@@ -15,7 +14,7 @@
                   {:db/id child-id
                    :color (rand-nth u/color-names)}])))
 
-(legacy/defview color-box
+(v/defclass color-box
   {:key :id
    :props/consumed #{:path}}
   [{:keys [id
@@ -47,7 +46,7 @@
                          (add-color! id))}
     (u/icon :add-circle)]])
 
-(legacy/defview demo
+(v/defclass demo
   {:view/initial-state {:renders 1}
    :demo/title "Triple-DB Demo"
    ;:view/will-unmount #(db/assoc! ::colors {})

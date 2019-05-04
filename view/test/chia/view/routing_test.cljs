@@ -1,6 +1,6 @@
 (ns chia.view.routing-test
   (:require [chia.view.util :refer [find-or-append-element]]
-            [chia.view.legacy :as vlegacy :refer [defview]]
+            [chia.view.class :as vlegacy :refer [defclass]]
             [cljs.test :refer [deftest is are testing]]
             [chia.db :as d]
             [chia.routing :as routing]
@@ -34,22 +34,22 @@
                             ;; (triggers render of views that reference this data)
                             (d/transact! [(assoc location :db/id :router/location)])))))
 
-(defview index
-  [this]
-  (swap! view-log conj :index)
-  [:div])
+(defclass index
+          [this]
+          (swap! view-log conj :index)
+          [:div])
 
-(defview not-found [this]
-  (swap! view-log conj :not-found)
-  [:div])
+(defclass not-found [this]
+          (swap! view-log conj :not-found)
+          [:div])
 
-(defview page [{:keys [page-id]}]
-  (swap! view-log conj [:page page-id])
-  [:div])
+(defclass page [{:keys [page-id]}]
+          (swap! view-log conj [:page page-id])
+          [:div])
 
-(defview root [_]
-  ;; using core.match to pattern-match on location segments.
-  (match (d/get :router/location :segments)
+(defclass root [_]
+          ;; using core.match to pattern-match on location segments.
+          (match (d/get :router/location :segments)
          [] (index)
          ["page" page-id] (page {:page-id page-id})
          :else (not-found)))
