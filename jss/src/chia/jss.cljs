@@ -17,45 +17,44 @@
              (jss/create presets)))))
 
 (defonce global-reset!
-         (memoize
-          (fn []
-            (-> ^js (JSS)
-                (.createStyleSheet reset-jss)
-                (.attach)))))
+  (memoize
+    (fn []
+      (some-> (JSS)
+              (j/call :createStyleSheet reset-jss)
+              (j/call :attach)))))
 
 (defonce ^:private ^js page-styles
-         (memoize
-          (fn []
-            (when (exists? js/window)
-              (-> ^js (JSS)
-                  (.createStyleSheet #js {})
-                  (doto (j/call :attach)))))))
+  (memoize
+    (fn []
+      (some-> (JSS)
+              (j/call :createStyleSheet #js {})
+              (j/call :attach)))))
 
 (defonce classes!
-         (memoize
-          (fn [styles]
-            (-> (JSS)
-                (j/call :createStyleSheet (clj->js styles))
-                (j/call :attach)
-                (j/get :classes)
-                (js->clj :keywordize-keys true)))))
+  (memoize
+    (fn [styles]
+      (some-> (JSS)
+              (j/call :createStyleSheet (clj->js styles))
+              (j/call :attach)
+              (j/get :classes)
+              (js->clj :keywordize-keys true)))))
 
 (def counter (volatile! 0))
 
 (defonce class!
-         (memoize
-          (fn class!
-            ([selector styles]
-             (.addRule (page-styles) selector (clj->js styles))
-             nil)
-            ([styles]
-             (some-> (.addRule (page-styles)
-                               (str "inline-" (vswap! counter inc))
-                               (clj->js styles))
-                     (j/get :selectorText)
-                     (subs 1))))))
+  (memoize
+    (fn class!
+      ([selector styles]
+       (.addRule (page-styles) selector (clj->js styles))
+       nil)
+      ([styles]
+       (some-> (.addRule (page-styles)
+                         (str "inline-" (vswap! counter inc))
+                         (clj->js styles))
+               (j/get :selectorText)
+               (subs 1))))))
 
 (defn to-string [styles]
-  (-> ^js (JSS)
-      (.createStyleSheet (clj->js styles))
-      (str)))
+  (some-> (JSS)
+          (j/call :createStyleSheet (clj->js styles))
+          (str)))
