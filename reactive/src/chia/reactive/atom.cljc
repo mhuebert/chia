@@ -195,8 +195,8 @@
          (volatile! {}))
 
 (extend-type Atom
-  r/IReactiveSource
-  (r/update-reader-deps [source reader prev-patterns next-patterns source-transition]
+  r/ILogReadPatterns
+  (update-reader-deps [source reader prev-patterns next-patterns]
    ;; update nested index of paths->readers
     (let [added (set/difference next-patterns prev-patterns)
           removed (set/difference prev-patterns next-patterns)]
@@ -208,16 +208,16 @@
                       (reduce (fn [m path]
                                 (u/disj-in m path reader)) index removed)))))
 
-    (case source-transition
-      :added (add-watch source :chia.reactive/atom handle-atom-reset)
-      :removed (remove-watch source :chia.reactive/atom)
-      nil)
-
     (if (empty? next-patterns)
       (vswap! readers u/disj-in [source] reader)
       (vswap! readers update source conj-set reader))
 
-    next-patterns))
+    next-patterns)
+  r/ITransition
+  (on-transition [source transition]
+    (case transition
+      :observed (add-watch source :chia.reactive/atom handle-atom-reset)
+      :un-observed (remove-watch source :chia.reactive/atom))))
 
 
 

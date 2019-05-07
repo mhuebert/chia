@@ -10,9 +10,9 @@
 (def -react-element? react/isValidElement)
 
 (defprotocol IElement
-  (to-element [this] "Returns a React element representing `this`"))
+  (-to-element [this] "Returns a React element representing `this`"))
 
-(declare -to-element)
+(declare to-element)
 
 (defonce ^:private sentinel #js{})
 
@@ -27,13 +27,13 @@
           (if (seq? first-child)
             ;; a single seq child should not create intermediate fragment
             (make-element tag js-props (vec first-child) 0)
-            (-react-element tag js-props (-to-element first-child))))
+            (-react-element tag js-props (to-element first-child))))
       (let [out #js[tag js-props]]
         (loop [i start]
           (if (== i form-count)
             (.apply -react-element nil out)
             (do
-              (.push out (-to-element (nth form i)))
+              (.push out (to-element (nth form i)))
               (recur (inc i)))))))))
 
 (defonce sentinel #js{})
@@ -55,8 +55,7 @@
         props
         sentinel))))
 
-(defn -to-element [form]
-  {:pre [(not (keyword? form)) (not (map? form))]}
+(defn to-element [form]
   (case (goog/typeOf form)
     "array" (if (fn? (aget form 0))
               (let [props (get-props form 1)
@@ -79,15 +78,17 @@
                                                             (hiccup/props->js parsed-key (when props? props))
                                                             form
                                                             (if props? 2 1))))
-                                          (fn? tag) (-to-element (apply tag (rest form)))
+                                          (fn? tag) (to-element (apply tag (rest form)))
                                           :else (throw (ex-info "Invalid hiccup vector" {:form form}))))
 
                    (seq? form) (make-element -react-fragment nil form 0)
 
-                   (satisfies? IElement form) (to-element form)
+                   (satisfies? IElement form) (-to-element form)
 
-                   :else form)
-    form))
+                   :else (do (assert (and (not (keyword? form)) (not (map? form))))
+                             form))
+    (cond-> form
+            (satisfies? IElement form) (-to-element))))
 
 (defn update-props [el f & args]
   {:pre [(vector? el)]}
@@ -106,10 +107,10 @@
    :wrap-props (fn) is applied to all props maps during parsing.
    :create-element (fn) overrides React.createElement."
   ([form]
-   (-to-element form))
+   (to-element form))
   ([{:keys [wrap-props]} form]
    (binding [hiccup/*wrap-props* wrap-props]
-     (-to-element form))))
+     (to-element form))))
 
 
 

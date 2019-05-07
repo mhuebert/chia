@@ -163,10 +163,11 @@
                            ^boolean ref? :view/forward-ref?}]
   (-> (fn [props ref]
         (let [children (j/get props :children)]
-          (binding [registry/*view* (-use-chia view-name (if ref? ref ::no-ref))]
-            (r/with-dependency-tracking! {:schedule hooks/use-effect
-                                          :reader   registry/*view*}
-              (to-element (apply view-fn children))))))
+          (r/with-dependency-tracking! {:schedule hooks/use-layout-effect
+                                        ;; use-layout-effect is necessary to ensure that we don't
+                                        ;; miss
+                                        :reader   (-use-chia view-name (if ref? ref ::no-ref))}
+            (to-element (apply view-fn children)))))
       (doto (js/Object.defineProperty "name" (j/obj :value view-name)))
       (cond-> ref? (-forward-ref))
       (impl/memoize-view should-update?)))

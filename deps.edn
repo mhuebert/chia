@@ -1,7 +1,6 @@
 {:paths   []
  :aliases {:test {:extra-paths ["view/test"
-                                "db/test"
-                                "cell/test"]
+                                "db/test"]
                   :extra-deps  {reagent            {:mvn/version "0.8.1"}
                                 rum                {:mvn/version "0.11.3"}
                                 fulcrologic/fulcro {:mvn/version "2.8.11"}
@@ -23,5 +22,4 @@
            chia/jss                  {:local/root "jss"}
            chia/util                 {:local/root "util"}
            chia/view                 {:local/root "view"}
-           chia/material-ui          {:local/root "material-ui"}
-           chia/cell                 {:local/root "cell"}}}
+           chia/material-ui          {:local/root "material-ui"}}}

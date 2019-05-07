@@ -2,6 +2,7 @@
   (:require ["react" :as react]
             ["react-dom" :as react-dom]
             [applied-science.js-interop :as j]
+            [chia.reactive :as r]
             [chia.view.registry :as registry]))
 
 

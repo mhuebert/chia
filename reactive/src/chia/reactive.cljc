@@ -21,6 +21,15 @@
 ;;
 ;; Dependency graph, with edge data
 ;;
+(defprotocol ITransition
+  (on-transition [source transition]
+    "Notify `source` when it is added or removed from the reactive graph.
+     - :observed means source has listeners
+     - :un-observed means source does not have listeners"))
+
+(defn transition [source kind]
+  (when (satisfies? ITransition source)
+    (on-transition source kind)))
 
 (defonce ^{:doc "{<source> {<reader> <pattern>}}"}
          dependents
@@ -47,6 +56,7 @@
     (dissoc dependencies reader)))
 
 (defn add-edge! [source reader edge-data]
+  (when-not (contains? @dependents source) (transition source :observed))
   (vswap! dependents add-dependent source reader edge-data)
   (vswap! dependencies add-dependency reader source edge-data)
   edge-data)
@@ -54,6 +64,7 @@
 (defn remove-edge! [source reader]
   (vswap! dependents remove-dependent source reader)
   (vswap! dependencies remove-dependency reader source)
+  (when-not (contains? @dependents source) (transition source :un-observed))
   nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -96,17 +107,13 @@
 ;; Reactive data sources
 ;;
 
-(defprotocol IReactiveSource
+(defprotocol ILogReadPatterns
   "Protocol which enables a reactive data source to support pattern-based dependencies."
-  (update-reader-deps [source reader prev-patterns next-patterns transition]
+  (update-reader-deps [source reader prev-patterns next-patterns]
     "a reactive `source` should implement this function to keep track of dependent readers.
 
      `next-patterns` is the result of successive applications of `log-read!` during a read.
      `prev-patterns` is for comparison with the last read.
-     `source-transition` will be one of:
-       :added   - `source` did not have any registered readers before this cycle
-       :removed - `source` will have no remaining readers after this cycle
-       nil      - not the first, nor last, read depending on `source`
 
      When `patterns` are invalidated, `source` should call `chia.reactive/invalidate!`, passing in `reader`."))
 
@@ -127,18 +134,14 @@
     (if (or (perf/identical? ::simple prev-patterns)
             (perf/identical? ::simple next-patterns))
       (update-simple! source reader prev-patterns next-patterns)
-      (let [new-source? (empty? (get @dependents source))]
+      (do
         (if (empty? next-patterns)
           (remove-edge! source reader)
           (add-edge! source reader next-patterns))
         (update-reader-deps source
                             reader
                             prev-patterns
-                            next-patterns
-                            (cond (and (not new-source?)
-                                       (empty? (get @dependents source))) :removed
-                                  (and new-source?
-                                       (not (empty? next-patterns))) :added))))))
+                            next-patterns)))))
 
 (defn dispose-reader!
   "Removes reader from reactive graph."
@@ -147,17 +150,18 @@
     (update-watch! source reader patterns nil))
   reader)
 
-(defn update-reader-deps!
+(defn update-deps!
   "`next-deps` should be a map of {<source>, <patterns>}."
   [reader next-deps]
   {:pre [reader]}
   (let [prev-deps (get @dependencies reader)]
     (doseq [source (-> (set (keys next-deps))
                        (into (keys prev-deps)))]
-      (let [next-dep (get next-deps source)]
-        (update-watch! source reader (get prev-deps source) next-dep)))
+      (update-watch! source
+                     reader
+                     (get prev-deps source)
+                     (get next-deps source)))
     reader))
-
 
 (m/defmacro with-dependency-log
   "Evaluates `body`, returns value and logged dependencies.
@@ -179,7 +183,7 @@
   {:pre [(map? options)]}
   `(let [reader# ~reader
          result# (~'chia.reactive/with-dependency-log reader# ~@body)]
-     (~schedule #(update-reader-deps! reader# (.-deps result#)))
+     (~schedule #(update-deps! reader# (.-deps result#)))
      (.-value result#)))
 
 (m/defmacro silently
@@ -193,13 +197,12 @@
 ;;
 
 (m/defmacro ^:private log-read* [source expr]
-  `(when (some? *reader*)
-     (vswap! *reader-dependency-log* assoc ~source ~expr)))
+  `(do (when (some? *reader*)
+         (vswap! *reader-dependency-log* assoc ~source ~expr))
+       ~source))
 
 (m/defmacro log-read!
   ([source]
-   `(do (log-read* ~source ::simple)
-        ~source))
+   `(log-read* ~source ::simple))
   ([source f & args]
-   `(do (log-read* ~source (~f (get @*reader-dependency-log* ~source) ~@args))
-        ~source)))
+   `(log-read* ~source (~f (get @*reader-dependency-log* ~source) ~@args))))

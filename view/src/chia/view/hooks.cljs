@@ -166,9 +166,9 @@
   "Returns a `ref` which will be forwarded to parent.
   Requires `:view/forward-ref?` option on this view to be true."
   []
-  (let [forwarded-ref (j/get registry/*view* .-chia$forwardRef)
+  (let [forwarded-ref (j/get r/*reader* .-chia$forwardRef)
         ref (use-ref)]
-    (assert (j/contains? registry/*view* .-chia$forwardRef) "use-forwarded-ref requires :view/forward-ref? to be true")
+    (assert (j/contains? r/*reader* .-chia$forwardRef) "use-forwarded-ref requires :view/forward-ref? to be true")
     (use-imperative-handle forwarded-ref
                            (fn [] (j/get ref :current)))
     ref))

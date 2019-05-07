@@ -11,7 +11,7 @@
             [applied-science.js-interop :as j]
             [chia.view.registry :as registry]))
 
-(def concurrent? true)
+(def concurrent? false)
 (def test-renderer? false)
 
 (defn act [f] ((if test-renderer? rtest/act dtest/act) #(do (f) js/undefined)))

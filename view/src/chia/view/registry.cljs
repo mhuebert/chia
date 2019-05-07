@@ -1,9 +1,5 @@
 (ns chia.view.registry)
 
-(def ^:dynamic *view*
-  "Tracks the currently-rendering component."
-  nil)
-
 (def ^:dynamic ^boolean *reload*
   "When true, all components re-render, regardless of shouldComponentUpdate."
   false)

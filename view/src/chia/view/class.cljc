@@ -21,17 +21,11 @@
          (or given-name
              (gensym "view")))))
 
-(core/defn wrap-current-view-binding [body]
-  `(~'this-as this#
-    (binding [~'chia.view.registry/*view* this#]
-      ~body)))
-
 (core/defn- wrap-render-body
   "Wrap body in anonymous function form."
-  [name argv body pure?]
+  [name argv body]
   `(~'fn ~(symbol (str "__" name)) ~argv
-    ~(cond-> `(~'chia.view.props/to-element (do ~@body))
-             (not pure?) (wrap-current-view-binding))))
+    (~'chia.view.props/to-element (do ~@body))))
 
 (core/defn- make-constructor [the-name initial-state]
   (let [this-name (gensym)
@@ -39,22 +33,23 @@
         props-sym (gensym "props")]
     `(fn ~fn-name [~props-sym]
        (core/this-as ~this-name
-                     ;; super()
-                     (~'.call ~'chia.view.class/Component ~this-name ~props-sym)
-                     ;; init internal state
+         ;; super()
+         (~'.call ~'chia.view.class/Component ~this-name ~props-sym)
+         ;; init internal state
 
-                     (~'applied-science.js-interop/assoc! ~this-name ~'.-state (~'js-obj))
+         (~'applied-science.js-interop/assoc! ~this-name ~'.-state (~'js-obj))
 
-                     ~(when initial-state
-                        `(~'chia.view.class/populate-initial-state! ~this-name ~props-sym ~initial-state))
+         ~(when initial-state
+            `(~'chia.view.class/populate-initial-state! ~this-name ~props-sym ~initial-state))
 
-                     ;; return component
-                     ~this-name))))
+         ;; return component
+         ~this-name))))
 
-(core/defn- ->js-with-camelCase [m]
-  `(~'js-obj ~@(->> m
-                    (reduce-kv (fn [out k v]
-                                 (into out [(u/camel-case (name k)) v])) []))))
+(core/defn- ->js-with-camelCase [renamable? m]
+  (let [m (u/update-keys m (comp (if renamable?
+                                   (fn [s] (symbol (str ".-" s)))
+                                   keyword) u/camel-case name))]
+    `(~'applied-science.js-interop/obj ~@(apply concat m))))
 
 (core/defn- bind-vals [m]
   (reduce-kv (fn [m k v]
@@ -89,8 +84,8 @@
                                              [:unqualified-keys v])
                                        [:qualified-keys v])]
                      (assoc-in m [group-k k] v))) {} methods)
-      (update :react-keys ->js-with-camelCase)
-      (update :unqualified-keys (comp ->js-with-camelCase bind-vals))))
+      (update :react-keys (partial ->js-with-camelCase false))
+      (update :unqualified-keys (comp (partial ->js-with-camelCase true) bind-vals))))
 
 (defn parse-class-args [args]
   (let [view-map (s/conform (s/cat :name (s/? symbol?)
@@ -103,31 +98,22 @@
                     (symbol (name (ns-name *ns*))
                             (name (:name view-map))))))
 
-(core/defn make-class [{:keys     [name
-                                   doc
-                                   view/options
-                                   view/arglist
-                                   view/body]
-                        view-name :view/name}]
+(core/defn make-class [{:keys [name
+                               doc
+                               view/options
+                               view/arglist
+                               view/body]}]
   (let [display-name (get-display-name *ns* name)
-        {pure? :pure} (meta name)
-        {:as   methods
-         :keys [lifecycle-keys]} (-> options
-                                     (dissoc :view/initial-state)
-                                     (merge (cond-> {;; TODO
-                                                     ;; keep track of dev- vs prod-time, elide display-name and docstring in prod
-                                                     :display-name display-name
-                                                     :view/render  (wrap-render-body name arglist body pure?)}
-                                                    doc (assoc :doc doc)))
-                                     (group-methods))]
-    (when (and pure? (seq (dissoc lifecycle-keys :view/render)))
-      (throw (ex-info "Warning: lifecycle methods are not supported on pure components." {:name    view-name
-                                                                                          :methods methods})))
-
-
-    (if pure? (:view/render lifecycle-keys)
-              (let [constructor (make-constructor name (:view/initial-state options))]
-                `(~'chia.view.class/view* ~methods ~constructor)))))
+        methods (-> options
+                    (dissoc :view/initial-state)
+                    (merge (cond-> {;; TODO
+                                    ;; keep track of dev- vs prod-time, elide display-name and docstring in prod
+                                    :display-name display-name
+                                    :view/render  (wrap-render-body name arglist body)}
+                                   doc (assoc :doc doc)))
+                    (group-methods))]
+    (let [constructor (make-constructor name (:view/initial-state options))]
+      `(~'chia.view.class/view* ~methods ~constructor))))
 
 (defmacro view
   [& args]
@@ -170,7 +156,7 @@
          val-sym (gensym "val")]
      `(let [~key-sym ~(if key `(str ~gname "/" ~key)
                               gname)
-            ~this-sym ~'chia.view.registry/*view*]
+            ~this-sym ~'chia.reactive/*reader*]
         (or (~js-get ~this-sym ~key-sym)
             (let [~val-sym ~body]
               (~js-assoc! ~this-sym ~key-sym ~val-sym)

@@ -410,8 +410,8 @@
                 :ave {}
                 :schema schema})
      (specify!
-       r/IReactiveSource
-       (update-reader-deps [source reader prev-patterns next-patterns source-transition]
+       r/ILogReadPatterns
+       (update-reader-deps [source reader prev-patterns next-patterns]
 
          (when (not= next-patterns prev-patterns)
            (when next-patterns
