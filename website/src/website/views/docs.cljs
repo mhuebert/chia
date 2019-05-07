@@ -51,7 +51,7 @@
 (defclass doc-page
   {:view/did-mount (fn [{:keys [view/state
                                 edit-url] :as this} url]
-                     (when-not index (get-index #(v/force-update! this))))}
+                     (when-not index (get-index #(v/force-update this))))}
   [this url]
   (let [path-ks (path->keys url)
         {{file-path :path} :*file

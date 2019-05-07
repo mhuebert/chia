@@ -41,7 +41,7 @@
   []
   (-batch flush*))
 
-(defn force-update!
+(defn force-update
   "Force-updates `view` immediately."
   [view]
   (vswap! to-render disj view)
@@ -51,7 +51,7 @@
   [view]
   "Queues a force-update for `component`"
   (if (true? *immediate-updates*)
-    (force-update! view)
+    (force-update view)
     (do
       (j/assoc! view .-chia$toUpdate true)
       (vswap! to-render conj view)

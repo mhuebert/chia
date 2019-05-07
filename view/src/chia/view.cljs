@@ -106,9 +106,9 @@
   "Flush pending operations to DOM"
   render-loop/flush!)
 
-(def force-update!
+(def force-update
   "Force a component to update"
-  render-loop/force-update!)
+  render-loop/force-update)
 
 ;;;;;;;;;;;;;;;;;;
 ;;
@@ -144,9 +144,9 @@
     (render-loop/schedule-update! this)))
 
 (defn -use-chia [view-name ^boolean ref]
-  (let [force-update! (hooks/use-schedule-update)
+  (let [force-update (hooks/use-schedule-update)
         chia$view (hooks/use-memo (fn []
-                                    (cond-> (FunctionalView. view-name force-update!)
+                                    (cond-> (FunctionalView. view-name force-update)
                                             (not (::no-ref ref)) (j/assoc! .-chia$forwardRef ref))))]
     (hooks/use-will-unmount
      (fn []
