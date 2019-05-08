@@ -5,7 +5,6 @@
   {:view/initial-state                  "chia$initialState"
    :view/did-catch                      "componentDidCatch"
    :view/did-mount                      "componentDidMount"
-   :static/get-derived-state-from-props "getDerivedStateFromProps"
    :view/will-receive-state             "componentWillReceiveState"
    :view/should-update                  "shouldComponentUpdate"
    :view/did-update                     "componentDidUpdate"
