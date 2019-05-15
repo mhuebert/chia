@@ -24,22 +24,22 @@
 (test/deftest view-context
 
   (is (do (render! (vl/view x []
-                     (v/provide {::first-name "Herman"
-                                 ::last-name "Früling"}
-                                (vl/consume [first-name ::first-name
-                                             last-name ::last-name]
-                                            (record! :F first-name
-                                                     :L last-name)))))
+                            (v/provide {::first-name "Herman"
+                                        ::last-name  "Früling"}
+                                       (vl/consume [first-name ::first-name
+                                                    last-name ::last-name]
+                                                   (record! :F first-name
+                                                            :L last-name)))))
           (= (results :F :L)
              ["Herman" "Früling"]))
       "Contexts are propagated correctly")
 
   (test/testing "Context reactivity"
     (let [state (atom {})
-          helper (fn [k]
-                   (swap! state update-in [k :count] inc)
-                   (ra/get-in state [k :trigger])
-                   nil)
+          read-state (fn [k]
+                       (swap! state update-in [k :count] inc)
+                       (ra/get-in state [k :trigger])
+                       nil)
           get-count (fn [k]
                       (get-in @state [k :count] 0))
           trigger! (fn [k]
@@ -47,13 +47,13 @@
                      (v/flush!))
           count-outer-inner #(mapv get-count [:outer :inner])]
       (render! (vl/view x []
-                 (v/provide {::x "X"
-                             ::y "Y"}
-                            (vl/consume [x ::x]
-                                        [:div
-                                         (helper :outer)
-                                         (vl/consume [y ::y]
-                                                     (helper :inner))]))))
+                        (v/provide {::x "X"
+                                    ::y "Y"}
+                                   (vl/consume [x ::x]
+                                               [:div
+                                                (read-state :outer)
+                                                (vl/consume [y ::y]
+                                                            (read-state :inner))]))))
 
       (is (= (count-outer-inner) [1 1])
           "Basic render-count works")

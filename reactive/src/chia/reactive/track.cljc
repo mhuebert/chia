@@ -29,7 +29,7 @@
          (reset! source-atom nil)
          (set! initialized? false)))
 
-     r/IReadReactively
+     r/IInvalidate
      (r/invalidate! [this]
        (r/with-dependency-tracking! {:reader this}
          (reset! source-atom (apply f args))))

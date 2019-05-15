@@ -139,8 +139,8 @@
   IPrintWithWriter
   (-pr-writer [this writer opts]
     (-write writer (str "👁<" chia$name ">")))
-  r/IReadReactively
-  (-invalidate! [this _]
+  r/IInvalidate
+  (-invalidate! [this]
     (render-loop/schedule-update! this)))
 
 (defn -use-chia [view-name ^boolean ref]

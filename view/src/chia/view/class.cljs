@@ -186,8 +186,8 @@
        (case (namespace k)
          "view" (get-special this k not-found)
          (get-prop this k not-found))))
-    r/IReadReactively
-    (-invalidate! [this _]
+    r/IInvalidate
+    (-invalidate! [this]
       (render-loop/schedule-update! this))
     INamed
     (-name [this] (j/unchecked-get this :displayName))

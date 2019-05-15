@@ -58,10 +58,10 @@
         "Index has been removed")
 
     (d/transact! db [{:db/id "me"
-                      :dog "herman"
-                      :name "Matt"}])
+                      :dog   "herman"
+                      :name  "Matt"}])
     (d/transact! db [{:db/id "me"
-                      :dog nil}])
+                      :dog   nil}])
 
     (is (= (d/entity db "me") {:db/id "me" :name "Matt"})
         "Setting a value to nil is equivalent to retracting it")
@@ -83,34 +83,34 @@
 (deftest refs
   (let [db (-> (d/create {:owner {:db/type :db.type/ref}})
                (d/transact! [{:db/id "fred"
-                              :name "Fred"}
+                              :name  "Fred"}
                              {:db/id "ball"
-                              :name "Ball"
+                              :name  "Ball"
                               :owner "fred"}]))]
-    (is (= {:db/id "fred"
-            :name "Fred"
+    (is (= {:db/id  "fred"
+            :name   "Fred"
             :_owner #{"ball"}} (d/touch db (d/entity db "fred")))
         "touch adds refs to entity"))
 
-  (let [db (-> (d/create {:authors {:db/type :db.type/ref
+  (let [db (-> (d/create {:authors {:db/type        :db.type/ref
                                     :db/cardinality :db.cardinality/many}})
                (d/transact! [{:db/id "fred"
-                              :name "Fred"}
+                              :name  "Fred"}
                              {:db/id "mary"
-                              :name "Mary"}
-                             {:db/id "1"
-                              :name "One"
+                              :name  "Mary"}
+                             {:db/id   "1"
+                              :name    "One"
                               :authors #{"fred" "mary"}}]))]
-    (is (= {:db/id "fred"
-            :name "Fred"
+    (is (= {:db/id    "fred"
+            :name     "Fred"
             :_authors #{"1"}} (d/touch db (d/entity db "fred")))
         "refs with cardinality-many")))
 
 (deftest cardinality-many
-  (let [db (-> (d/create {:db/id {:db/index :db.index/unique}
+  (let [db (-> (d/create {:db/id    {:db/index :db.index/unique}
                           :children {:db/cardinality :db.cardinality/many
-                                     :db/index true}})
-               (d/transact! [{:db/id "fred"
+                                     :db/index       true}})
+               (d/transact! [{:db/id    "fred"
                               :children #{"pete"}}]))]
 
     (is (true? (contains? (get-in @db [:ave :children]) "pete"))
@@ -141,9 +141,9 @@
 
     (testing "unique attrs, duplicates"
 
-      (d/merge-schema! db {:ssn {:db/index :db.index/unique}
+      (d/merge-schema! db {:ssn  {:db/index :db.index/unique}
                            :pets {:db/cardinality :db.cardinality/many
-                                  :db/index :db.index/unique}})
+                                  :db/index       :db.index/unique}})
 
 
       ;; cardinality single
@@ -158,26 +158,24 @@
       (throws (d/transact! db [[:db/add "herman" :pets #{"fido"}]])
               "Two entities with same unique :db.cardinality/many attr")
       (throws (d/transact! db [{:db/id "herman"
-                                :pets #{"fido"}}])
+                                :pets  #{"fido"}}])
               "Two entities with same unique :db.cardinality/many attr"))))
 
 (deftest pattern-listeners
   (let [db (d/create {:person/children {:db/cardinality :db.cardinality/many
-                                        :db/index :db.index/unique}})
+                                        :db/index       :db.index/unique}})
         log (atom {})
         reader-1 (fn [path]
-                   (reify
-                     r/IReadReactively
-                     (-invalidate! [_ {:keys [::d/datoms]}]
-                       (swap! log assoc path datoms))))]
+                   (fn [{:keys [::d/datoms]}]
+                     (swap! log assoc path datoms)))]
 
     (testing "entity pattern"
       (d/transact! db [{:db/id "mary"
-                        :name "Mary"}
+                        :name  "Mary"}
                        [:db/add "mary"
                         :person/children #{"john"}]
                        {:db/id "john"
-                        :name "John"}])
+                        :name  "John"}])
 
       (is (= "Mary" (d/get db [:person/children "john"] :name))
           "Get attribute via lookup ref")
@@ -193,47 +191,47 @@
 
       (d/transact! db [{:db/id "peter" :name "Peter"}])
 
-      (is (-> (r/with-dependency-log reader-1
-                                     (d/entity db [:person/children "peter"]))
-              .-deps
-              (get db)
-              (= {:_av #{[:person/children "peter"]}}))
+      (is (do
+            (r/with-dependency-tracking! {:reader reader-1}
+                                         (d/entity db [:person/children "peter"]))
+            (-> (get-in @r/dependencies [reader-1 db])
+                (= {:_av #{[:person/children "peter"]}})))
           "Lookup ref logs attr-val listener when target entity does not exist")
 
       (d/transact! db [[:db/add "mary" :person/children #{"peter"}]])
 
-      (is (-> (r/with-dependency-log reader-1
-                                     (d/entity db [:person/children "peter"]))
-              .-deps
-              (get db)
-              (= {:_av #{[:person/children "peter"]}
-                  :e__ #{"mary"}}))
+      (is (do
+            (r/with-dependency-tracking! {:reader reader-1}
+                                         (d/entity db [:person/children "peter"]))
+            (-> (get-in @r/dependencies [reader-1 db])
+                (= {:_av #{[:person/children "peter"]}
+                    :e__ #{"mary"}})))
           "Lookup ref logs attr-val & entity listeners when entity exists")
 
       (let [reader-2 (let [state (atom {:invalidations 0
-                                        :renders 0})]
+                                        :renders       0})]
                        (reify
                          IDeref
                          (-deref [_] @state)
-                         r/IReadReactively
-                         (-invalidate! [this _]
+                         r/IInvalidate
+                         (-invalidate! [this]
                            (swap! state update :invalidations inc)
                            (this))
                          IFn
                          (-invoke [this]
                            (swap! state update :renders inc)
                            (r/with-dependency-tracking! {:reader this}
-                             (d/entity db [:person/children "peter"])))))
+                                                        (d/entity db [:person/children "peter"])))))
             reader-dependencies #(-> @r/dependencies
                                      (get-in [reader-2 db]))
-            log! #(prn % {:reader @reader-2
+            log! #(prn % {:reader       @reader-2
                           :dependencies (reader-dependencies)})]
 
         (reader-2)
 
         (is (= @reader-2
                {:invalidations 0
-                :renders 1}))
+                :renders       1}))
 
         (is (-> (reader-dependencies)
                 :e__
@@ -243,7 +241,7 @@
 
         (is (= @reader-2
                {:invalidations 1
-                :renders 2}))
+                :renders       2}))
 
         (is (-> (reader-dependencies)
                 :e__

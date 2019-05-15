@@ -1,16 +1,17 @@
 (ns chia.reactive
   "Central point where reactivity is coordinated"
   (:require [chia.util.macros :as m]
-            [chia.util.perf :as perf]
             [applied-science.js-interop :as j])
-  #?(:cljs (:require-macros [chia.reactive :as r :refer [log-read*]])))
+  #?(:cljs (:require-macros [chia.reactive :as r :refer [log-observation*]])))
+
+(declare transition! dependencies dependents)
 
 (def ^:dynamic *reader*
-  "The currently-computing reader"
+  "The reader being evaluated"
   nil)
 
 (def ^:dynamic *silent*
-  "Prevents changes from triggering recomputation"
+  "Flag to temporarily suspend reactivity"
   false)
 
 (def ^:dynamic *reader-dependency-log*
@@ -19,160 +20,25 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;; Dependency graph, with edge data
-;;
-(defprotocol ITransition
-  (on-transition [source transition]
-    "Notify `source` when it is added or removed from the reactive graph.
-     - :observed means source has listeners
-     - :un-observed means source does not have listeners"))
-
-(defn transition [source kind]
-  (when (satisfies? ITransition source)
-    (on-transition source kind)))
-
-(defonce ^{:doc "{<source> {<reader> <pattern>}}"}
-         dependents
-         (volatile! {}))
-
-(defonce ^{:doc "{<reader> {<source> <pattern>}}"}
-         dependencies
-         (volatile! {}))
-
-(defn add-dependent [dependents source reader edge-data]
-  (assoc-in dependents [source reader] edge-data))
-
-(defn remove-dependent [dependents source reader]
-  (if (> (count (get dependents source)) 1)
-    (update dependents source dissoc reader)
-    (dissoc dependents source)))
-
-(defn add-dependency [dependencies reader source edge-data]
-  (assoc-in dependencies [reader source] edge-data))
-
-(defn remove-dependency [dependencies reader source]
-  (if (> (count (get dependencies reader)) 1)
-    (update dependencies reader dissoc source)
-    (dissoc dependencies reader)))
-
-(defn add-edge! [source reader edge-data]
-  (when-not (contains? @dependents source) (transition source :observed))
-  (vswap! dependents add-dependent source reader edge-data)
-  (vswap! dependencies add-dependency reader source edge-data)
-  edge-data)
-
-(defn remove-edge! [source reader]
-  (vswap! dependents remove-dependent source reader)
-  (vswap! dependencies remove-dependency reader source)
-  (when-not (contains? @dependents source) (transition source :un-observed))
-  nil)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
 ;; Reactive readers
 ;;
-
-(defprotocol IReadReactively
-  (-invalidate! [reader info]
-    "We 'invalidate' a reader whenever one of its dependencies has changed.
-     Implementors should ensure that a call to `invalidate` will cause the
-     reader to re-evaluate."))
-
-(defn invalidate!
-  ([reader]
-   (invalidate! reader nil))
-  ([reader info]
-   (when-not *silent*
-     (if (satisfies? IReadReactively reader)
-       (-invalidate! reader info)
-       ;; in the simplest case, a reader is simply a function.
-       (reader info)))))
-
-(defn get-readers [source]
-  (keys (get @dependents source)))
-
-(defn invalidate-readers! [source]
-  (doseq [reader (keys (get @dependents source))]
-    (invalidate! reader nil))
-  source)
-
-(defn invalidate-readers-for-sources! [sources]
-  (doseq [reader (into [] (comp (mapcat get-readers)
-                                (distinct)) sources)]
-    (invalidate! reader nil))
-  sources)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; A reactive reader does two things:
 ;;
-;; Reactive data sources
+;; 1. Wraps its evaluation in the `with-dependency-tracking!` macro
+;;    (to handle dependency bookkeeping)
+;;
+;; 2. Implements `invalidate!`, to recompute when a dependency changes
 ;;
 
-(defprotocol ILogReadPatterns
-  "Protocol which enables a reactive data source to support pattern-based dependencies."
-  (update-reader-deps [source reader prev-patterns next-patterns]
-    "a reactive `source` should implement this function to keep track of dependent readers.
-
-     `next-patterns` is the result of successive applications of `log-read!` during a read.
-     `prev-patterns` is for comparison with the last read.
-
-     When `patterns` are invalidated, `source` should call `chia.reactive/invalidate!`, passing in `reader`."))
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;; Read functions
-;;
-
-(defn update-simple! [source reader prev next]
-  (cond (nil? prev) (add-edge! source reader ::simple)
-        (nil? next) (remove-edge! source reader)))
-
-(defn update-watch!
-  "Updates watch for a source<>reader combo. Handles effectful updating of `source`."
-  [source reader prev-patterns next-patterns]
-  (when (not= prev-patterns next-patterns)
-    (if (or (perf/identical? ::simple prev-patterns)
-            (perf/identical? ::simple next-patterns))
-      (update-simple! source reader prev-patterns next-patterns)
-      (do
-        (if (empty? next-patterns)
-          (remove-edge! source reader)
-          (add-edge! source reader next-patterns))
-        (update-reader-deps source
-                            reader
-                            prev-patterns
-                            next-patterns)))))
-
-(defn dispose-reader!
-  "Removes reader from reactive graph."
-  [reader]
-  (doseq [[source patterns] (get @dependencies reader)]
-    (update-watch! source reader patterns nil))
-  reader)
-
-(defn update-deps!
-  "`next-deps` should be a map of {<source>, <patterns>}."
+(defn handle-next-deps!
   [reader next-deps]
   {:pre [reader]}
   (let [prev-deps (get @dependencies reader)]
     (doseq [source (-> (set (keys next-deps))
                        (into (keys prev-deps)))]
-      (update-watch! source
-                     reader
-                     (get prev-deps source)
-                     (get next-deps source)))
-    reader))
-
-(m/defmacro with-dependency-log
-  "Evaluates `body`, returns value and logged dependencies.
-
-   `reader` must satisfy IReadReactively."
-  [reader & body]
-  `(binding [*reader* ~reader
-             *reader-dependency-log* (volatile! {})]
-     (let [value# (do ~@body)]
-       (j/obj .-value value#
-              .-deps @*reader-dependency-log*))))
+      (transition! source reader
+                   (get prev-deps source)
+                   (get next-deps source)))))
 
 (m/defmacro with-dependency-tracking!
   "Evaluates `body`, creating dependencies for `reader` with arbitrary data sources."
@@ -182,9 +48,141 @@
     :or   {schedule '.call}} & body]
   {:pre [(map? options)]}
   `(let [reader# ~reader
-         result# (~'chia.reactive/with-dependency-log reader# ~@body)]
-     (~schedule #(update-deps! reader# (.-deps result#)))
+         result# (binding [*reader* reader#
+                           *reader-dependency-log* (volatile! {})]
+                   (let [value# (do ~@body)]
+                     (j/obj .-value value#
+                            .-deps @*reader-dependency-log*)))]
+     (~schedule #(handle-next-deps! reader# (.-deps result#)))
      (.-value result#)))
+
+(defprotocol IInvalidate
+  (-invalidate! [reader]
+    "We 'invalidate' a reader whenever one of its dependencies has changed.
+     Implementors should ensure that a call to `invalidate` will cause the
+     reader to re-evaluate."))
+
+(defn invalidate!
+  "Invalidates `reader` (triggers re-evaluation)"
+  ([reader] (invalidate! reader nil))
+  ([reader info]
+   (when-not *silent*
+     (if (satisfies? IInvalidate reader)
+       (-invalidate! reader)
+       ;; in the simplest case, a reader is simply a function.
+       (reader info)))))
+
+(defn invalidate-readers!
+  "Invalidates all readers of `source`"
+  [source]
+  (doseq [reader (keys (get @dependents source))]
+    (invalidate! reader))
+  source)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Reactive data sources
+;;
+;; There are two kinds of sources:
+;; 1. simple sources, which only know if they are observed or not-observed,
+;; 2. pattern sources, which track per-reader 'patterns' to support dependency
+;;    on a subset of a source.
+
+;; A simple source:
+;; - calls `observe-simple!` when its value is dereferenced
+;; - implements `on-transition` to know when its `observed?` state changes
+;; - calls `invalidate-readers!` when its value changes
+
+(defprotocol ITransitionSimple
+  (on-transition [source observed?]
+    "Called when `source` is added or removed from the reactive graph."))
+
+;; A pattern source:
+;; - calls `observe-pattern!` when its value is accessed
+;; - implements `on-transition-pattern` to know when each reader's patterns change,
+;;   maintains its own index of readers and patterns
+;; - when its value changes, calls `invalidate-reader!` for readers
+;;   whose patterns are associated with data that has changed
+
+(defprotocol ITransitionPattern
+  "Protocol which enables a reactive data source to support pattern-based dependencies."
+  (on-transition-pattern [source reader prev-patterns next-patterns]
+    "Called when a reader has evaluated, and `source` is in prev- or next-patterns.
+
+    `next-patterns` is the result of successive applications of `observe-pattern!` during a read.
+    `prev-patterns` is for comparison with the last read."))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Dependency graph, with edge data
+;;
+
+;; {<source> {<reader> <pattern>}}
+(defonce ^:private dependents (volatile! {}))
+
+;; {<reader> {<source> <pattern>}}
+(defonce ^:private dependencies (volatile! {}))
+
+(defn- add-dependent [dependents source reader edge-data]
+  (assoc-in dependents [source reader] edge-data))
+
+(defn- remove-dependent [dependents source reader]
+  (if (> (count (get dependents source)) 1)
+    (update dependents source dissoc reader)
+    (dissoc dependents source)))
+
+(defn- add-dependency [dependencies reader source edge-data]
+  (assoc-in dependencies [reader source] edge-data))
+
+(defn- remove-dependency [dependencies reader source]
+  (if (> (count (get dependencies reader)) 1)
+    (update dependencies reader dissoc source)
+    (dissoc dependencies reader)))
+
+(defn- add-dependent! [source reader edge-data]
+  (let [first-edge? (not (contains? @dependents source))]
+    (vswap! dependents add-dependent source reader edge-data)
+    (vswap! dependencies add-dependency reader source edge-data)
+    ;; returns true if this is the first edge from `source`
+    first-edge?))
+
+(defn- remove-dependent! [source reader]
+  (vswap! dependents remove-dependent source reader)
+  (vswap! dependencies remove-dependency reader source)
+  ;; returns true if this was the last edge from `source`
+  (not (contains? @dependents source)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Read functions
+;;
+
+(defn transition-simple! [source reader prev next]
+  (cond (nil? prev) (let [first-dep? (add-dependent! source reader ::simple)]
+                      (when (true? first-dep?) (on-transition source true)))
+        (nil? next) (let [last-dep? (remove-dependent! source reader)]
+                      (when (true? last-dep?) (on-transition source false)))))
+
+(defn transition-patterns! [source reader prev next]
+  (if (empty? next)
+    (remove-dependent! source reader)
+    (add-dependent! source reader next))
+  (on-transition-pattern source reader prev next))
+
+(defn transition!
+  "Updates watch for a source<>reader combo. Handles effectful updating of `source`."
+  [source reader prev-patterns next-patterns]
+  (when (not= prev-patterns next-patterns)
+    (if (or (keyword? prev-patterns) (keyword? next-patterns))
+      (transition-simple! source reader prev-patterns next-patterns)
+      (transition-patterns! source reader prev-patterns next-patterns))))
+
+(defn dispose-reader!
+  "Removes reader from reactive graph."
+  [reader]
+  (doseq [[source patterns] (get @dependencies reader)]
+    (transition! source reader patterns nil))
+  reader)
 
 (m/defmacro silently
   [& body]
@@ -196,13 +194,18 @@
 ;; For implementing data sources
 ;;
 
-(m/defmacro ^:private log-read* [source expr]
+(m/defmacro ^:private log-observation* [source expr]
   `(do (when (some? *reader*)
          (vswap! *reader-dependency-log* assoc ~source ~expr))
        ~source))
 
-(m/defmacro log-read!
-  ([source]
-   `(log-read* ~source ::simple))
-  ([source f & args]
-   `(log-read* ~source (~f (get @*reader-dependency-log* ~source) ~@args))))
+(m/defmacro observe-simple!
+  "Logs simple observation of `source`, which should implement `ITransitionSimple`"
+  [source]
+  `(log-observation* ~source ::simple))
+
+(m/defmacro observe-pattern!
+  "Logs observation of `source`, which should implement `ITransitionPattern`.
+   `f` will be called with result of previous call to `observe-pattern!` for `source`"
+  [source f & args]
+  `(log-observation* ~source (~f (get @*reader-dependency-log* ~source) ~@args)))

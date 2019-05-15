@@ -8,48 +8,47 @@
 
 (deftest reactivity
   (let [reader (reify
-                 r/IReadReactively
-                 (-invalidate! [_ _]))]
+                 r/IInvalidate
+                 (-invalidate! [_]))]
     (d/transact! [{:db/id 1
-                   :name "Peter"}
+                   :name  "Peter"}
                   {:db/id 2
-                   :name "Victoria"}])
+                   :name  "Victoria"}])
 
     (testing "capture access patterns"
 
-      (is (= #{1} (-> (r/with-dependency-log reader
-                                             (d/entity 1))
-                      .-deps
-                      (get d/*db*)
-                      :e__))
+      (is (do
+            (r/with-dependency-tracking! {:reader reader} (d/entity 1))
+            (= #{1} (-> (get-in @r/dependencies [reader d/*db*])
+                        :e__)))
           "entity pattern")
 
-      (is (= #{[1 :name]} (-> (r/with-dependency-log reader
-                                                     (d/get 1 :name)
-                                                     (d/get 1 :name))
-                              .-deps
-                              (get d/*db*)
-                              :ea_))
+
+      (is (do (r/with-dependency-tracking! {:reader reader}
+                                           (d/get 1 :name)
+                                           (d/get 1 :name))
+              (= #{[1 :name]} (-> (get-in @r/dependencies [reader d/*db*])
+                                  :ea_)))
           "entity-attr pattern")
 
       (is (= #{[1 :name]
-               [1 :dog]} (-> (r/with-dependency-log reader
-                                                    (d/get 1 :name)
-                                                    (d/get 1 :dog))
-                             .-deps
-                             (get d/*db*)
-                             :ea_))
+               (do
+                 (r/with-dependency-tracking! {:reader reader}
+                                              (d/get 1 :name)
+                                              (d/get 1 :dog))
+                 [1 :dog])} (-> (get-in @r/dependencies [reader d/*db*])
+                                :ea_))
           "two entity-attr patterns")
 
       (is (= {:e__ #{1}
               :ea_ #{[1 :name]}}
-             (-> (r/with-dependency-log reader
-                                        (d/get 1 :name)
-                                        (d/entity 1)
-                                        (d/get 1 :name))
-                 .-deps
-                 (get d/*db*)
-                 (select-keys [:e__ :ea_])))
+             (do
+               (r/with-dependency-tracking! {:reader reader}
+                                            (d/get 1 :name)
+                                            (d/entity 1)
+                                            (d/get 1 :name))
+               (-> (get-in @r/dependencies [reader d/*db*])
+                   (select-keys [:e__ :ea_]))))
           "entity pattern"))))
 
 #_(deftest compute
