@@ -51,7 +51,8 @@
   (let [props (nth form i sentinel)]
     (if (identical? props sentinel)
       sentinel
-      (if (or (nil? props) (map? props))
+      (if (and (or (nil? props) (map? props))
+               (not (satisfies? IElement props)))
         props
         sentinel))))
 
