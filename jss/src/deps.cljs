@@ -1,4 +1,3 @@
-{:npm-deps {"jss" "^9"
-            "jss-global" "^3"
-            "jss-preset-default" "^4"
-            "reset-jss" "^1"}}
+{:npm-deps {"jss" "^10"
+            "jss-preset-default" "^10"
+            "reset-jss" "^10"}}

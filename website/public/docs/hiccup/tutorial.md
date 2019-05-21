@@ -63,9 +63,7 @@ Create a paragraph with a sentence of text which includes a link to Apple's webs
 
 ### Adding classes
 
-There are three ways to add classes, and each has a purpose. 
-
-The keyword method is concise:
+There are two ways to add classes. The keyword method is concise:
 
 ```clj
 [:div.active]
@@ -77,19 +75,11 @@ The `:class` attribute is more flexible because we can choose the class at runti
 [:div {:class (if active? "active" "inactive")}]
 ```
 
-The `:classes` key is most flexible. We can add multiple classes at runtime, based on conditions:
-
-```clj
-[:div {:classes [(when active? "active")
-                 (when admin? "edit-mode")]}]
-```
-
 All classes will be combined:
 
 ```clj
-[:div.text-center {:class "text-shadow"
-                   :classes ["red" "big-border"]}]
-;; => <div class="text-center text-shadow red big-border"></div>
+[:div.text-center {:class "text-shadow"}]
+;; => <div class="text-center text-shadow"></div>
 ```
 
 ## Include React components

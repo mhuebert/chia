@@ -11,7 +11,7 @@
             [website.views.markdown :refer [md]]
             [website.views.layout :as layout]
 
-   #_[website.views.components :as examples]
+    #_[website.views.components :as examples]
             [website.util :as u]
 
             [clojure.string :as string]
@@ -33,20 +33,18 @@
                           #_["Code" "/code"]))
 
 
-(enable-console-print!)
 (let [display-mobile? #(<= (.-innerWidth js/window) 500)
       mobile? (display-mobile?)]
   (events/listen js/window "resize" (gf/throttle #(let [mobile? (display-mobile?)]
-                                                    (d/transact! [{:db/id :ui/globals
-                                                                   :media/mobile? mobile?
+                                                    (d/transact! [{:db/id               :ui/globals
+                                                                   :media/mobile?       mobile?
                                                                    :layout/drawer-open? (not mobile?)}])) 300))
-  (d/transact! [{:db/id :ui/globals
-                 :media/mobile? mobile?
-                 :theme/dark? false
+  (d/transact! [{:db/id               :ui/globals
+                 :media/mobile?       mobile?
+                 :theme/dark?         false
                  :layout/drawer-open? (not mobile?)}]))
 
-(v/defclass layout [this
-                 main-content]
+(v/defn layout [main-content]
   (let [{:keys [theme/dark?
                 media/mobile?
                 layout/drawer-open?]} (d/entity :ui/globals)
@@ -55,7 +53,7 @@
      (layout/page-meta)
      (for [[label href] main-nav-items]
        [:a.dib.pa2.mh2.no-underline.relative.color-inherit
-        {:href href
+        {:href  href
          :class (when (layout/active? href) "mdc-toolbar--active-link")} label])
      [:.ph4-ns.ph3.pv1.relative
       main-content]
@@ -64,34 +62,34 @@
      ;; TODO
      ;; re-implement below content in 'new' material-ui
      #_(ui/ToolbarWithContent
-        {:classes ["z-3"
-                   (when dark? "mdc-theme--dark")]
-         :style {:background-color (if dark? "#464646" "#eaeaea")
-                 :color "inherit"}
-         :waterfall true
-         :fixed true}
-        (ui/ToolbarRow
-         {:class "ph4-ns ph3"}
-         (ui/ToolbarSection
-          {:classes ["flex items-center mw-page center"]}
-          (for [[label href] main-nav-items]
-            [:a.pv2.mh2.no-underline.relative.color-inherit
-             {:href href
-              :class (when (layout/active? href) "mdc-toolbar--active-link")} label])
+         {:classes   ["z-3"
+                      (when dark? "mdc-theme--dark")]
+          :style     {:background-color (if dark? "#464646" "#eaeaea")
+                      :color            "inherit"}
+          :waterfall true
+          :fixed     true}
+         (ui/ToolbarRow
+           {:class "ph4-ns ph3"}
+           (ui/ToolbarSection
+             {:classes ["flex items-center mw-page center"]}
+             (for [[label href] main-nav-items]
+               [:a.pv2.mh2.no-underline.relative.color-inherit
+                {:href  href
+                 :class (when (layout/active? href) "mdc-toolbar--active-link")} label])
 
-          [:.flex-auto]
-          ((if mobile? ui/Switch ui/SwitchField)
-           (cond-> {:id "theme"
-                    :color (when dark? :accent)
-                    :checked dark?
-                    :on-change #(d/transact! [[:db/update-attr :ui/globals :theme/dark? not]])}
-                   (not mobile?) (assoc :label "Dark theme"
-                                        :field-classes ["ph2"])))))
+             [:.flex-auto]
+             ((if mobile? ui/Switch ui/SwitchField)
+              (cond-> {:id        "theme"
+                       :color     (when dark? :accent)
+                       :checked   dark?
+                       :on-change #(d/transact! [[:db/update-attr :ui/globals :theme/dark? not]])}
+                      (not mobile?) (assoc :label "Dark theme"
+                                           :field-classes ["ph2"])))))
 
-        [:.ph4-ns.ph3.pv1.relative
-         main-content])]))
+         [:.ph4-ns.ph3.pv1.relative
+          main-content])]))
 
-(v/defclass root
+(v/defn root
   "The root component reads current router location from re-db,
    and will therefore re-render whenever this value changes."
   []
@@ -99,9 +97,9 @@
     (match segments
            [] [layout [:div
                        [:.serif.tc.mw-page.center.mv3
-                        [:.f0.pt4 "Chia"]
+                        [:.pt4 {:style {:font-size "4rem"}} "Chia"]
                         [:.f4 "Simple React apps in ClojureScript."]]
-                       (code/repo-file-page {:toc? false} "docs" "intro.md")]]
+                       (code/repo-file-page {:toc? false} nil "intro.md")]]
            #_#_["components"] (layout (examples/library {}))
            #_#_["components" id] (layout (examples/library {:detail-view id}))
            ["docs"] [layout (docs/doc-page "/")]
@@ -113,11 +111,11 @@
            :else [:div "not found"])))
 
 (defn ^:dev/after-load render []
-  (v/render-to-dom (root) "website"))
+  (v/render-to-dom (root) "website" {:reload? true}))
 
-(defn ^:export init []
+(defn init []
   (r/listen
-   (fn [route]
-     (prn :route route)
-     (d/transact! [(assoc route :db/id :router/location)])))
+    (fn [route]
+      (prn :route route)
+      (d/transact! [(assoc route :db/id :router/location)])))
   (render))

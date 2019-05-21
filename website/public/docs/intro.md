@@ -1,4 +1,4 @@
-_Re-View_ is a beginner-friendly, production-strength library for building [React](https://facebook.github.io/react/) apps in ClojureScript. (See [demo](/components).)
+_Chia_ is a beginner-friendly, production-strength library for building [React](https://facebook.github.io/react/) apps in ClojureScript. (See [demo](/components).)
 
 ## Objectives
 
@@ -30,7 +30,7 @@ Require the core namespace like so:
 
 ```clj
 (ns app.core
-  (:require [re-view.core :as v]))
+  (:require [chia.view :as v]))
 ```
 
 `defview`, similar to Clojure's `defn`, is how we create views. The first argument to a view is always its React component.
@@ -40,7 +40,7 @@ Require the core namespace like so:
   [:div "Hello, world!"])
 ```
 
-(Note the [hiccup syntax](/docs/hiccup/syntax-guide).)
+(Note the [hiccup syntax](/docs/hiccup/tutorial).)
 
 When called, views return React elements that can be rendered to the page using the `render-to-dom` function.
 

@@ -13,3 +13,5 @@ project.clj
 target
 demo/public
 **/compiled/**
+website/public/js
+website/public/*.html

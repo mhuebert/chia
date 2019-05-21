@@ -6,10 +6,10 @@
 
 
 (v/defclass repo-file-page
-  [this repo file-path]
-  (views/markdown-page (merge {:read (-> (str "https://raw.githubusercontent.com/braintripping/re-view/master/" (munge repo))
+  [this category file-path]
+  (views/markdown-page (merge {:read (-> (str "/docs/" (munge category))
                                          (path/join file-path))
-                               :edit (-> (str "https://github.com/braintripping/re-view/edit/master/" (munge repo))
+                               :edit (-> (str "https://github.com/mhuebert/chia/edit/master/website/docs/" (munge category))
                                          (path/join file-path))}
                               (:view/props this))))
 
@@ -18,7 +18,7 @@
   {:key (fn [_ owner repo] (str owner repo))}
   [_ owner repo]
   [:.f6.flex.items-center
-   [:a.mr2 {:href (str "https://www.github.com/braintripping/re-view/tree/master/" (munge repo))} "source"]
+   [:a.mr2 {:href (str "https://www.github.com/mhuebert/chia/tree/master/" (munge repo))} "source"]
    [:a.mr2 {:href (str "/code/" repo "/CHANGELOG.md")} "changelog"]
    (views/clickable-version owner repo)])
 

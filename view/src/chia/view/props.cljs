@@ -1,6 +1,7 @@
 (ns chia.view.props
   (:refer-clojure :exclude [partial])
-  (:require [chia.util :as u]
+  (:require [clojure.core :as core]
+            [chia.util :as u]
             [chia.view.hiccup.impl :as hiccup-impl]
             [chia.view.render-loop :as render-loop]
             [chia.view.hiccup :as hiccup]))
@@ -30,14 +31,17 @@
   lift-nses:      coll of namespaces (as strings), keys of these namespaces
                     will be included (all other namespaced keys are elided)
   wrap-props:     arbitrary fn to modify props map after other transformations"
-  [{:keys [->element-keys
+  [{:keys [->element
            ->js-keys
+           ->js-props
            lift-nses
-           wrap-props]} props]
+           wrap-props]
+    :as opts} props]
   (-> props
       (cond-> lift-nses (u/lift-nses lift-nses)
-              ->element-keys (u/update-some-keys ->element-keys to-element)
+              ->element (u/update-some-keys ->element to-element)
               ->js-keys (u/update-some-keys ->js-keys clj->js)
+              ->js-props (u/update-some-keys ->js-props (core/partial adapt-props opts))
               wrap-props (wrap-props))
       (update-change-prop)
       (hiccup-impl/props->js)))

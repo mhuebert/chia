@@ -1,11 +1,15 @@
 {:paths ["src"]
 
- :deps {org.clojure/clojurescript  {:mvn/version "1.10.520"}
+ :deps  {org.clojure/clojure       {:mvn/version "1.9.0"}
+         org.clojure/clojurescript {:mvn/version "1.10.520"}
 
-        chia/view {:local/root "../view"}
-        chia/routing {:local/root "../routing"}
-        chia/db {:local/root "../db"}
-        chia/jss {:local/root "../jss"}
-        chia/material-ui {:local/root "../material-ui"}
+         chia/view                 {:local/root "../view"}
+         chia/routing              {:local/root "../routing"}
+         chia/db                   {:local/root "../db"}
+         chia/jss                  {:local/root "../jss"}
+         chia/material-ui          {:local/root "../material-ui"}
 
-        org.clojure/core.match {:mvn/version "0.3.0-alpha5"}}}
+         mhuebert/cljs-static      {:git/url "https://www.github.com/mhuebert/cljs-static"
+                                    :sha "3aadc9c0821d4af3febd2af464de325e937449ec"}
+
+         org.clojure/core.match    {:mvn/version "0.3.0-alpha5"}}}

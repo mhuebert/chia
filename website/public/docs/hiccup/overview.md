@@ -1,18 +1,18 @@
 # Hiccup
 
-If you're new to hiccup, check out the **[syntax guide](syntax-guide)**.
+If you're new to hiccup, check out the **[tutorial](tutorial)**.
 
 ----
 
 # API
 
-**`re-view.hiccup.core/element`** accepts a `hiccup` vector and returns a React element. If a non-vector form is supplied, it is returned untouched. You may pass an options map with a `:wrap-props` function to be applied to all props maps during parsing.
+**`chia.hiccup/element`** accepts a `hiccup` vector and returns a React element. If a non-vector form is supplied, it is returned untouched. You may pass an options map with a `:wrap-props` function to be applied to all props maps during parsing.
 
 **Example:**
 
 ```clj
 (ns my-app.core 
-  (:require [re-view.hiccup.core :as hiccup]))
+  (:require [chia.hiccup :as hiccup]))
 
 (hiccup/element [:div {:style {:color "red"}} "Hello, world!"])
 ```
@@ -22,9 +22,7 @@ If you're new to hiccup, check out the **[syntax guide](syntax-guide)**.
 
 ### Attributes
 
-Unlike React, we support `:for` and `:class` attributes, instead of `:html-for`, and `:className`. This is to be more consistent with HTML syntax (vs. the javascript DOM api).
-
-The `:classes` attribute accepts a collection (eg. a vector or set) of classes, which are joined and concatenated to other supplied classes.
+Unlike React, we support `:for` and `:class` attributes, instead of `:html-for`, and `:className`. This is to be more consistent with HTML (vs. the javascript DOM api).
 
 Use dashed prop and style keys, eg. `:font-size`; keys are converted to `camelCase` as necessary (`data-` and `aria-` attributes remain hyphenated as required by React).
 

@@ -1,7 +1,10 @@
 {:deps true
  :dev-http {8706 "public"}
  :builds {:browser {:target :browser
-                    :modules {:website {:entries [website.core]}}
+                    :modules {:website {:init-fn website.core/init}}
                     :output-dir "public/js"
                     :asset-path "/js"
-                    :compiler-options {:language-in :es5}}}}
+                    :compiler-options {:language-in :es5}
+                    :build-hooks [(cljs-static.shadow/write-assets!
+                                    {:public-path "public"
+                                     "index.html" website.static/index})]}}}
