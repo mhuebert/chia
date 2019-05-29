@@ -81,6 +81,13 @@
 
         (satisfies? IElement form) (-to-element form)
 
+        (array? form) (let [props (get-props form 1)
+                            props? (props? props)]
+                        (make-element (aget form 0)
+                                      (when props? (hiccup/props->js props))
+                                      form
+                                      (if props? 2 1)))
+
         :else form))
 
 (defn update-props [el f & args]

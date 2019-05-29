@@ -2,6 +2,7 @@
   (:require ["react" :as react]
             ["react-dom" :as react-dom]
             [applied-science.js-interop :as j]
+            [chia.view.util :as u]
             [chia.reactive :as r]
             [chia.view.registry :as registry]))
 
@@ -23,7 +24,7 @@
 (defn resolve-node [node-or-id]
   (cond->> node-or-id
            (string? node-or-id)
-           (.getElementById js/document)))
+           (u/find-or-append-element)))
 
 
 ;; Context
