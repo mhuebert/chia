@@ -10,6 +10,6 @@
          chia/material-ui          {:local/root "../material-ui"}
 
          mhuebert/cljs-static      {:git/url "https://www.github.com/mhuebert/cljs-static"
-                                    :sha "66a38c6ca6f9a0c9c0c8ce85f491e30697041e53"}
+                                    :sha "3c9c4775e5c9785325dec995cd6bd5c396eec642"}
 
          org.clojure/core.match    {:mvn/version "0.3.0-alpha5"}}}

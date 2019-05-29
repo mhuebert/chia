@@ -8,11 +8,12 @@
 
 (def -batch react-dom/unstable_batchedUpdates)
 
-(def -raf (or (j/get js/window :requestAnimationFrame)
-              (j/get js/window :webkitRequestAnimationFrame)
-              (j/get js/window :mozRequestAnimationFrame)
-              (j/get js/window :oRequestAnimationFrame)
-              (j/get js/window :msRequestAnimationFrame)
+(def -raf (or (when (exists? js/window)
+                (or (j/get js/window :requestAnimationFrame)
+                    (j/get js/window :webkitRequestAnimationFrame)
+                    (j/get js/window :mozRequestAnimationFrame)
+                    (j/get js/window :oRequestAnimationFrame)
+                    (j/get js/window :msRequestAnimationFrame)))
               (fn [cb]
                 (js/setTimeout cb (/ 1000 60)))))
 

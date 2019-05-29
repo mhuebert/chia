@@ -141,15 +141,14 @@
               [key interval]))
 
 (defn use-dom-ref
-  "Returns a ref to be passed as the `:key` to a react view.
+  "Returns a ref to be passed as the `:ref` to a react view.
   When mounted, `f` is called once with the referenced DOM element."
   [f]
-  (let [dom-ref (use-ref)]
+  (let [[val setval] (use-state)]
     (use-layout-effect
-     (fn []
-       (f (j/get dom-ref :current)))
-     nil)
-    dom-ref))
+     (fn [] (f val))
+     val)
+    setval))
 
 (defn use-listener [target event f capture-phase]
   (let [f-ref (use-ref f)]

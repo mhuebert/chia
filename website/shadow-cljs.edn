@@ -8,7 +8,7 @@
                           :build-hooks      [(static.shadow/write-assets!
                                                {:public-path "public"
                                                 "index.html" website.static/index})
-                                             (static.assets/copy-dir!
+                                             (static.assets/copy!
                                                {"src/docs" "public/docs"})]}
             :demo        {:target      :browser
                           :modules     {:app {:entries [chia-demo.app]}}
