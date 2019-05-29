@@ -62,7 +62,8 @@
 (defn update-vals [m f]
   (update-map m identity f))
 
-(defn update-some-keys [m ks f]
+(defn update-some-keys
+  [m ks f]
   (reduce (fn update-k [m k]
             (cond-> m
                     (contains? m k) (assoc k (f (get m k))))) m ks))

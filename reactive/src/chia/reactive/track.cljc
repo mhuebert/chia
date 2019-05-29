@@ -15,7 +15,7 @@
      IDeref
      (-deref [this]
        (when (false? initialized?)
-         (r/invalidate! this)
+         (r/recompute! this)
          (set! initialized? true))
        (ra/deref source-atom))
 
@@ -29,8 +29,8 @@
          (reset! source-atom nil)
          (set! initialized? false)))
 
-     r/IInvalidate
-     (r/invalidate! [this]
+     r/IRecompute
+     (r/recompute! [this]
        (r/with-dependency-tracking! {:reader this}
          (reset! source-atom (apply f args))))
 

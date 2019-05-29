@@ -1,4 +1,4 @@
-(ns chia.view.class.view-specs
+(ns chia.view.legacy.view-specs
   (:require [clojure.string :as string]
             ["react" :as react]
             [clojure.spec.alpha :as s]))

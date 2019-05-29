@@ -9,6 +9,7 @@
    [fulcro.client.dom :as fulcro-dom]
    [cljs.test :as t]
    [chia.view :as v]
+   [chia.view.legacy :as legacy]
    [chia.view.hiccup :as hiccup]
    [sablono.interpreter :as sab]
    [uix.compiler.reagent :as uix]
@@ -92,7 +93,7 @@
      [:button "ok"]
      [:button "cancel"]]]])
 
-#_(rv/defclass re-view [{:keys [title body items]}]
+#_(rlegacy/defclass re-view [{:keys [title body items]}]
               [:div.card
                [:div.card-title title]
                [:div.card-body body]
@@ -104,7 +105,7 @@
                  [:button "ok"]
                  [:button "cancel"]]]])
 
-(v/defclass chia-legacy [{:keys [title body items]}]
+(legacy/defclass chia-legacy [{:keys [title body items]}]
                 [:div.card
    [:div.card-title title]
    [:div.card-body body]

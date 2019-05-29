@@ -57,39 +57,31 @@
         sentinel))))
 
 (defn to-element [form]
-  (case (goog/typeOf form)
-    "array" (if (fn? (aget form 0))
-              (let [props (get-props form 1)
-                    props? (props? props)]
-                (make-element (aget form 0)
-                              (when props? (hiccup/props->js props))
-                              form
-                              (if props? 2 1)))
-              (make-element -react-fragment nil form 0))
-    "object" (cond (not (identical? "object" (goog/typeOf form))) form
+  (cond (vector? form) (let [tag (-nth form 0)]
+                         (cond (fn? tag) (to-element (apply tag (rest form)))
+                               (keyword? tag)
+                               (if (perf/identical? :<> tag)
+                                 (make-element -react-fragment nil form 1)
+                                 (let [parsed-key (hiccup/parse-key-memo (name tag))
+                                       props (get-props form 1)
+                                       props? (props? props)]
+                                   (make-element (.-tag parsed-key)
+                                                 (hiccup/props->js parsed-key (when props? props))
+                                                 form
+                                                 (if props? 2 1))))
 
-                   (vector? form) (let [tag (-nth form 0)]
-                                    (cond (keyword? tag)
-                                          (if (perf/identical? :<> tag)
-                                            (make-element -react-fragment nil form 1)
-                                            (let [parsed-key (hiccup/parse-key-memo (name tag))
-                                                  props (get-props form 1)
-                                                  props? (props? props)]
-                                              (make-element (.-tag parsed-key)
-                                                            (hiccup/props->js parsed-key (when props? props))
-                                                            form
-                                                            (if props? 2 1))))
-                                          (fn? tag) (to-element (apply tag (rest form)))
-                                          :else (throw (ex-info "Invalid hiccup vector" {:form form}))))
+                               :else (let [props (get-props form 1)
+                                           props? (props? props)]
+                                       (make-element tag
+                                                     (when props? (hiccup/props->js props))
+                                                     form
+                                                     (if props? 2 1)))))
 
-                   (seq? form) (make-element -react-fragment nil form 0)
+        (seq? form) (make-element -react-fragment nil form 0)
 
-                   (satisfies? IElement form) (-to-element form)
+        (satisfies? IElement form) (-to-element form)
 
-                   :else (do (assert (and (not (keyword? form)) (not (map? form))))
-                             form))
-    (cond-> form
-            (satisfies? IElement form) (-to-element))))
+        :else form))
 
 (defn update-props [el f & args]
   {:pre [(vector? el)]}

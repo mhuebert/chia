@@ -41,12 +41,3 @@
            (~'chia.view/-create-element ~f-sym props# ~args-sym))))))
 
 
-(defmacro defclass
-  "Define a view function.
-
-   Expects optional docstring and methods map, followed by
-    the argslist and body for the render function, which should
-    return a Hiccup vector or React element."
-  [& args]
-  `(~'chia.view.class/defclass ~@args))
-

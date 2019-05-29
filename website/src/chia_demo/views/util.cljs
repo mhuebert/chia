@@ -1,5 +1,6 @@
 (ns chia-demo.views.util
-  (:require [chia.view :as v]))
+  (:require [chia.view :as v]
+            [chia.view.legacy :as legacy]))
 
 (defn icon
   ([k] (icon {} k))
@@ -21,7 +22,7 @@
     (set! (.-renderCount this) n)
     n))
 
-(v/defclass ^:pure show-count
+(legacy/defclass ^:pure show-count
   [component]
   [:div {:classes [:pos/absolute.top.left
                    :bg/darken-5

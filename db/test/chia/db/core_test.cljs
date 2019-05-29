@@ -213,8 +213,8 @@
                        (reify
                          IDeref
                          (-deref [_] @state)
-                         r/IInvalidate
-                         (-invalidate! [this]
+                         r/IRecompute
+                         (-recompute! [this]
                            (swap! state update :invalidations inc)
                            (this))
                          IFn

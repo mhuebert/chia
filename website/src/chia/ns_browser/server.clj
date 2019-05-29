@@ -1,5 +1,5 @@
 (ns chia.ns-browser.server
-  (:require [cljs-static.assets :as assets]
+  (:require [static.assets :as assets]
             [shadow.http.push-state :as push-state]
             [shadow.cljs.devtools.server.runtime :as runtime]
             [shadow.cljs.devtools.server.supervisor :as super]
@@ -73,7 +73,7 @@
                  [:cache-write
                   :cache-read] [:resource-id, :resource-name]
                  :compile-cljs {:resource-id #{[:shadow.build.targets.bootstrap/macro chia.view]}
-                                :resource-name "chia.view.class$macros.cljc"}
+                                :resource-name "chia.view.legacy$macros.cljc"}
                  :build-complete {:build-config {}
                                   :info {:compile-start :Number
                                          :timings {[:resolve

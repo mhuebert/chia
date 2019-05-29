@@ -18,6 +18,8 @@
   "Keeps track of what data sources a reader accesses during compute"
   nil)
 
+(def ^:dynamic *schedule* (fn [f] (f)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;; Reactive readers
@@ -44,8 +46,7 @@
   "Evaluates `body`, creating dependencies for `reader` with arbitrary data sources."
   [{:as   options
     :keys [schedule
-           reader]
-    :or   {schedule '.call}} & body]
+           reader]} & body]
   {:pre [(map? options)]}
   `(let [reader# ~reader
          result# (binding [*reader* reader#
@@ -53,22 +54,20 @@
                    (let [value# (do ~@body)]
                      (j/obj .-value value#
                             .-deps @*reader-dependency-log*)))]
-     (~schedule #(handle-next-deps! reader# (.-deps result#)))
+     ((or ~schedule *schedule*) #(handle-next-deps! reader# (.-deps result#)))
      (.-value result#)))
 
-(defprotocol IInvalidate
-  (-invalidate! [reader]
-    "We 'invalidate' a reader whenever one of its dependencies has changed.
-     Implementors should ensure that a call to `invalidate` will cause the
-     reader to re-evaluate."))
+(defprotocol IRecompute
+  (-recompute! [reader]
+    "Recompute a reader when a dependency has been invalidated."))
 
-(defn invalidate!
+(defn recompute!
   "Invalidates `reader` (triggers re-evaluation)"
-  ([reader] (invalidate! reader nil))
+  ([reader] (recompute! reader nil))
   ([reader info]
    (when-not *silent*
-     (if (satisfies? IInvalidate reader)
-       (-invalidate! reader)
+     (if (satisfies? IRecompute reader)
+       (-recompute! reader)
        ;; in the simplest case, a reader is simply a function.
        (reader info)))))
 
@@ -76,7 +75,7 @@
   "Invalidates all readers of `source`"
   [source]
   (doseq [reader (keys (get @dependents source))]
-    (invalidate! reader))
+    (recompute! reader))
   source)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

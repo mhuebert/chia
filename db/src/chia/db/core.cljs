@@ -316,9 +316,9 @@
   [{:keys [::db-after ::datoms] :as tx-report}]
   (when-let [pattern-value-map (core/get db-after :listeners)]
     (doseq [reader (patterns/datom-values pattern-value-map datoms (many-attrs (:schema db-after)))]
-      (r/invalidate! reader tx-report)))
+      (r/recompute! reader tx-report)))
   (doseq [reader (core/get db-after :tx-listeners)]
-    (r/invalidate! reader tx-report)))
+    (r/recompute! reader tx-report)))
 
 (defn- commit-tx [state tx]
   (apply (case (tx 0)

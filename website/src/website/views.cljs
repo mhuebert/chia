@@ -1,5 +1,6 @@
 (ns website.views
   (:require [chia.view :as v]
+            [chia.view.legacy :as legacy]
             [goog.dom :as gdom]
             [website.views.markdown :as markdown]
             [goog.dom.classes :as classes]
@@ -8,7 +9,7 @@
             [chia.db :as d]
             [chia.view.props :as props]))
 
-(v/defclass edit-button [this]
+(legacy/defclass edit-button [this]
   "Edit button"
   #_(ui/Button (-> (v/pass-props this)
                    (merge {:target "_blank"
@@ -39,7 +40,7 @@
 (defn page [& content]
   (into [:.flex-grow.mw-page.center.mv3.lh-copy] content))
 
-(v/defclass click-copy
+(legacy/defclass click-copy
   [{:keys [style outer-class] :as this} s]
   [:span.relative.di
    {:class outer-class}
@@ -53,7 +54,7 @@
                         :on-click #(.select (-> (v/dom-node this)
                                                 (gdom/findNode (fn [el] (= "INPUT" (.-tagName el))))))})]])
 
-(v/defclass WithClojarsVersion
+(legacy/defclass WithClojarsVersion
   {:view/did-mount (fn [{:keys [view/state]} group _]
                      (util/GET :json (str "https://clojars.org/" group "/latest-version.json")
                                (fn [{:keys [value]}]
@@ -95,7 +96,7 @@
 (defn update-toc [{:keys [view/state] :as this}]
   (swap! state assoc :TOC (element-TOC (v/dom-node this))))
 
-(v/defclass markdown-page
+(legacy/defclass markdown-page
   {:view/did-mount
    (fn [this] (update-markdown this))
 

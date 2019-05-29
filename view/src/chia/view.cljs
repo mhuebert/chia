@@ -9,7 +9,6 @@
             [chia.view.render-loop :as render-loop]
             [chia.view.registry :as registry]
             [chia.view.util :as vu]
-            [chia.view.class]
 
             [chia.view.hiccup :as hiccup]
             [chia.view.hiccup.impl :as hiccup-impl]
@@ -139,8 +138,8 @@
   IPrintWithWriter
   (-pr-writer [this writer opts]
     (-write writer (str "👁<" chia$name ">")))
-  r/IInvalidate
-  (-invalidate! [this]
+  r/IRecompute
+  (-recompute! [this]
     (render-loop/schedule-update! this)))
 
 (defn -use-chia [view-name ^boolean ref]

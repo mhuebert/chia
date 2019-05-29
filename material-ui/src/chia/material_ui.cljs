@@ -9,8 +9,8 @@
 
 (defn wrap-component [component options]
   (let [options (-> options
-                    (update :lift-nses (fnil conj #{}) "material")
-                    (update :->js-keys (fnil conj []) :classes))]
+                    (update :updates merge-with into {clj->js [:classes]})
+                    (update :lift-nses (fnil conj #{}) "material"))]
     (fn [& args]
       (let [props (hiccup/get-props args 0)
             props? (hiccup/props? props)]

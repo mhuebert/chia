@@ -1,0 +1,6 @@
+{:deps true
+ :builds
+ {:generate
+  {:target :node-script
+   :main chia.material-ui.build/generate
+   :output-to "out/generate.js"}}}

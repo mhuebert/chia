@@ -1,5 +1,9 @@
-{:paths ["src"]
+{:aliases
+ {:build
+  {:extra-paths ["build"]}}
 
- :deps {org.clojure/clojurescript  {:mvn/version "1.10.520"}
-        chia/view {:local/root "../view"}
-        chia/util {:local/root "../util"}}}
+ :deps
+ {org.clojure/clojurescript {:mvn/version "1.10.520"}
+  appliedscience/js-interop {:mvn/version "0.1.20"}
+  chia/view                 {:local/root "../view"}
+  chia/util                 {:local/root "../util"}}}

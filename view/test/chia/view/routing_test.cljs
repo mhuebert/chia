@@ -1,6 +1,6 @@
 (ns chia.view.routing-test
   (:require [chia.view.util :refer [find-or-append-element]]
-            [chia.view.class :as vlegacy :refer [defclass]]
+            [chia.view.legacy :as vlegacy :refer [defclass]]
             [cljs.test :refer [deftest is are testing]]
             [chia.db :as d]
             [chia.routing :as routing]

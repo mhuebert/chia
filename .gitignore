@@ -13,5 +13,9 @@ project.clj
 target
 demo/public
 **/compiled/**
+**/out/**
 website/public/js
 website/public/*.html
+package.json
+package-lock.json
+yarn.lock

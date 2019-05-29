@@ -1,1 +1,2 @@
-{:npm-deps {"@material-ui/core" "^3.0.1"}}
+{:npm-deps {"@material-ui/core"  "^4.0.0-rc.0"
+            "@material-ui/icons" "^4.0.0-rc.0"}}

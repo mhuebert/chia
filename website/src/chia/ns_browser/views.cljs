@@ -1,5 +1,6 @@
 (ns chia.ns-browser.views
   (:require [chia.view :as v]
+            [chia.view.legacy :as legacy]
             [chia.db :as d]
             [clojure.string :as str]
             [cljs.pprint :as pp]
@@ -61,7 +62,7 @@
   (binding [env/*compiler* compiler]
     (ana/resolve-var (assoc @compiler :ns ns) sym)))
 
-(v/defclass view-egg
+(legacy/defclass view-egg
   {:key :name}
   [{the-var :view/props
     the-ns :ns
@@ -142,7 +143,7 @@
     [:div {:classes [:opacity-70]}
      (first (str/split-lines doc))]))
 
-(v/defclass view-def
+(legacy/defclass view-def
   {:key :name}
   [{var-name :name
     the-ns :ns
@@ -159,7 +160,7 @@
       (name var-name)]
      (doc-line doc)]))
 
-(v/defclass ^:lark/egg view-namespace
+(legacy/defclass ^:lark/egg view-namespace
   "Displays a namespace line-item"
   {:key :name}
   [{the-ns :view/props
@@ -224,7 +225,7 @@
                                     (common-prefix-count (:segments (peek out))
                                                          segments)))))) [])))
 
-(v/defclass carton [{compiler :view/state}]
+(legacy/defclass carton [{compiler :view/state}]
   [:div
    {:classes [:text/pre-wrap
               :pad/right-3]}

@@ -3,7 +3,7 @@
             [clojure.set :as set]
             [chia.util.perf :as perf]))
 
-(def ^:private empty-pattern-map
+(def ^:private empty-patterns
   "Map for building sets of patterns."
   {:e__ #{}                                                 ;; <entity id>
    :_a_ #{}                                                 ;; <attribute>
@@ -25,16 +25,13 @@
                           (assoc patterns k (set/difference prev-v next-v))
                           patterns)) prev-p)))
 
-(def supported-pattern-keys (set (keys empty-pattern-map)))
-
 (def conj-set (fnil conj #{}))
 (def into-set (fnil into #{}))
 
 (defn log-read
   "Record pattern to *pattern-log*."
   ([db kind pattern]
-   (r/observe-pattern! db
-                       update kind conj-set pattern))
+   (log-read db kind pattern false))
   ([db kind pattern multiple?]
    (r/observe-pattern! db
                        update
@@ -42,13 +39,13 @@
                        (if multiple? into-set conj-set)
                        pattern)))
 
-(defn- add-value
-  "Associates value with pattern in value-map."
+(defn- add-listener
+  "Associates listener with pattern in value-map."
   [value-map pattern-key pattern value]
   (update-in value-map [pattern-key pattern] conj-set value))
 
-(defn- remove-value
-  "Removes value associated with pattern in value-map."
+(defn- remove-listener
+  "Removes listener associated with pattern in value-map."
   [value-map pattern-key pattern value]
   (update-in value-map [pattern-key pattern] disj value))
 
@@ -72,21 +69,21 @@
 
 (defn listen
   "Adds pattern listener."
-  [db patterns value]
+  [db patterns listener]
   (swap! db assoc :listeners
          (reduce-kv (fn [listeners kind patterns]
                       (reduce (fn [listeners pattern]
-                                (add-value listeners kind pattern value)) listeners patterns))
+                                (add-listener listeners kind pattern listener)) listeners patterns))
                     (get @db :listeners)
                     patterns)))
 
 (defn unlisten
   "Removes pattern listener."
-  [db patterns value]
+  [db patterns listener]
   (swap! db assoc :listeners
          (reduce-kv (fn [listeners kind patterns]
                       (reduce (fn [listeners pattern]
-                                (remove-value listeners kind pattern value)) listeners patterns)) (get @db :listeners) patterns)))
+                                (remove-listener listeners kind pattern listener)) listeners patterns)) (get @db :listeners) patterns)))
 
 (defn- non-empty-keys
   "Returns list of keys for which map contains a non-empty value."
@@ -113,35 +110,29 @@
                                                                             [[a v]
                                                                              [a pv]]))
                           (contains? pattern-keys :_a_) (update :_a_ conj a)))
-                (select-keys empty-pattern-map pattern-keys)))))
+                (select-keys empty-patterns pattern-keys)))))
 
-(defn pattern-values
+(defn pattern-listeners
   "Returns values associated with patterns.
 
   value-map is of form {<pattern-key> {<pattern> #{...set of values...}}}.
   pattern-map is of form {<pattern-key> #{...set of patterns...}}"
-  [pattern-map value-map]
-  (reduce-kv (fn [values pattern-key patterns]
-               (reduce (fn [values pattern]
-                         (into values (get-in value-map [pattern-key pattern]))) values patterns)) #{} pattern-map))
+  [patterns listeners]
+  (reduce-kv (fn [out pattern-key patterns]
+               (reduce (fn [out pattern]
+                         (into out (get-in listeners [pattern-key pattern]))) out patterns)) #{} patterns))
 
 (defn datom-values
   "Returns the set of values in value-map associated with patterns matched by datoms."
   [value-map datoms many?]
   (let [active-keys (non-empty-keys value-map)]
     (-> (datom-patterns datoms many? active-keys)
-        (pattern-values value-map))))
-
-(defn invalidate!
-  "Invalidate a pattern, ie. invoke callbacks that match pattern"
-  [db pattern-key pattern]
-  (doseq [f (get-in @db [:listeners pattern-key pattern])]
-    (f)))
+        (pattern-listeners value-map))))
 
 (comment
  (assert (= (datom-patterns [["e" "a" "v" "prev-v"]]
                             #{}
-                            supported-pattern-keys)
+                            (keys empty-patterns))
             {:e__ #{"e"}
              :ea_ #{["e" "a"]}
              :_av #{["e" "v"] ["e" "prev-v"]}

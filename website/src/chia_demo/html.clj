@@ -1,5 +1,5 @@
 (ns chia-demo.html
-  (:require [cljs-static.page :as page]))
+  (:require [static.page :as page]))
 
 (defn index []
   (page/html-page

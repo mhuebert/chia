@@ -8,8 +8,8 @@
 
 (deftest reactivity
   (let [reader (reify
-                 r/IInvalidate
-                 (-invalidate! [_]))]
+                 r/IRecompute
+                 (-recompute! [_]))]
     (d/transact! [{:db/id 1
                    :name  "Peter"}
                   {:db/id 2

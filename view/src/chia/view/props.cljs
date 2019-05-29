@@ -23,28 +23,30 @@
 
   (hiccup/element {:wrap-props wrap-props} x))
 
+(defn- update-prop-keys [props updates]
+  (reduce-kv
+    (fn [m update-f ks]
+      (reduce (fn [m k]
+                (cond-> m
+                        (contains? m k) (update k update-f))) m ks)) props updates))
+
 (defn adapt-props
   "Converts props map to JavaScript according to `options`.
-
-  ->element-keys: coll of keys to convert to React elements
-  ->js-keys:      coll of keys to convert to JavaScript via clj->js
   lift-nses:      coll of namespaces (as strings), keys of these namespaces
                     will be included (all other namespaced keys are elided)
   wrap-props:     arbitrary fn to modify props map after other transformations"
-  [{:keys [->element
-           ->js-keys
-           ->js-props
+  [{:keys [updates
            lift-nses
            wrap-props]
-    :as opts} props]
+    :as   opts} props]
   (-> props
       (cond-> lift-nses (u/lift-nses lift-nses)
-              ->element (u/update-some-keys ->element to-element)
-              ->js-keys (u/update-some-keys ->js-keys clj->js)
-              ->js-props (u/update-some-keys ->js-props (core/partial adapt-props opts))
+              updates (update-prop-keys updates)
               wrap-props (wrap-props))
       (update-change-prop)
       (hiccup-impl/props->js)))
+
+(def to-js hiccup-impl/props->js)
 
 (defn merge-props
   "Merge props, concatenating :class props and merging styles."
@@ -59,9 +61,9 @@
                      (select-keys m2 [:style]))))
 
 (defn partial
-      "Partially applies props to view. Keys will be merged with other props."
-      [view initial-props]
-      (fn [props & children]
+  "Partially applies props to view. Keys will be merged with other props."
+  [view initial-props]
+  (fn [props & children]
     (let [[props children] (if (or (map? props)
                                    (nil? props)) [props children]
                                                  [{} (cons props children)])]

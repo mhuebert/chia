@@ -1,4 +1,4 @@
-(ns chia.view.class
+(ns chia.view.legacy
   (:require ["react" :as react]
             ["react-dom" :as react-dom]
             [applied-science.js-interop :as j]
@@ -6,11 +6,11 @@
             [chia.reactive :as r]
             [chia.view.registry :as registry]
             [cljs.spec.alpha :as s]
-            [chia.view.class.view-specs]
-            [chia.view.class.util :as class-util]
+            [chia.view.legacy.view-specs]
+            [chia.view.legacy.util :as class-util]
             [chia.view.impl :as impl]
             [chia.util :as u])
-  (:require-macros [chia.view.class :as class]))
+  (:require-macros [chia.view.legacy :as class]))
 
 (def Component react/Component)
 (def -create-element react/createElement)
@@ -186,8 +186,8 @@
        (case (namespace k)
          "view" (get-special this k not-found)
          (get-prop this k not-found))))
-    r/IInvalidate
-    (-invalidate! [this]
+    r/IRecompute
+    (-recompute! [this]
       (render-loop/schedule-update! this))
     INamed
     (-name [this] (j/unchecked-get this :displayName))

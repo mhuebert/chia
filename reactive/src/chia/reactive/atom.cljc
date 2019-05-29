@@ -173,7 +173,7 @@
         {value-readers ::value
          fn-readers    ::fns} (core/get-in index path)]
     (doseq [reader (into value-readers (vals fn-readers))]
-      (r/invalidate! reader))))
+      (r/recompute! reader))))
 
 (defn- handle-atom-reset
   "When a watched atom changes, invalidate readers at changed paths, constrained by the current *write-path*."
@@ -187,7 +187,7 @@
                                        oldval
                                        newval))]
     (doseq [reader readers]
-      (r/invalidate! reader))))
+      (r/recompute! reader))))
 
 (defonce ^{:doc     "A set of readers for each atom, used to manage setup/teardown of watches."
            :private true}
