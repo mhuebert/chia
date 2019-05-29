@@ -1,5 +1,4 @@
 (ns chia.view
-  (:refer-clojure :exclude [defn])
   (:require [clojure.core :as core]
             [clojure.spec.alpha :as s]
             [applied-science.js-interop :as j]))
@@ -14,7 +13,7 @@
                     (symbol (name (ns-name *ns*))
                             (name (:name view-map))))))
 
-(defmacro defn [& args]
+(defmacro defview [& args]
   (let [{:keys     [name
                     doc
                     view/options

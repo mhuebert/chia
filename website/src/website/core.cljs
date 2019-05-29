@@ -28,7 +28,7 @@
                           #_["Components" "/components"]
                           #_["Code" "/code"]))
 
-(v/defn layout [main-content]
+(v/defview layout [main-content]
   (let [{:keys [theme/dark?
                 media/mobile?
                 layout/drawer-open?]} (d/entity :ui/globals)
@@ -58,7 +58,7 @@
      [container {:max-width "sm"}
       main-content]]))
 
-(v/defn root
+(v/defview root
   "The root component reads current router location from re-db,
    and will therefore re-render whenever this value changes."
   []

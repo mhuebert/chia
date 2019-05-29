@@ -47,14 +47,14 @@
   (d/transact! [[:db/update-attr ::view-test :x inc]])
   (v/flush!))
 
-(v/defn always-view
+(v/defview always-view
   {:view/should-update? (constantly true)}
   [x]
   (d/get ::view-test :x)
   (count-render!)
   (str x))
 
-(v/defn view-with-atom []
+(v/defview view-with-atom []
   (prn :view-with-atom-start)
   (let [st (hooks/use-atom)]
     (count-render!)
@@ -81,7 +81,7 @@
 
   #_(testing "memoization"
 
-      (v/defn memoized-view [x]
+      (v/defview memoized-view [x]
         (prn :render-memoized-view)
         (d/get ::view-test :x)
         (count-render!)
@@ -129,13 +129,13 @@
       (testing "ref forwarding"
         (unmount!)
         (def parent-ref (atom nil))
-        (v/defn f-view
+        (v/defview f-view
           {:view/forward-ref? true}
           []
           (let [ref (hooks/use-forwarded-ref)]
             [:div.black {:ref ref}]))
 
-        (v/defn f-parent []
+        (v/defview f-parent []
           (let [ref (hooks/use-ref 0)]
             (do (reset! parent-ref ref) nil)
             (d/get ::view-test :x)

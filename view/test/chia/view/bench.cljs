@@ -81,7 +81,7 @@
                              (element "button" nil "ok")
                              (element "button" nil "cancel")))))
 
-(v/defn chia-view [{:keys [title body items]}]
+(v/defview chia-view [{:keys [title body items]}]
   [:div.card
    [:div.card-title title]
    [:div.card-body body]
