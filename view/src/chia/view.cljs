@@ -31,14 +31,14 @@
 (def to-element props/to-element)
 (def dom-node react-dom/findDOMNode)
 
-(defview element? [x]
+(defn element? [x]
   (and x (-is-valid-element? x)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;; Context API
 
-(defview provide
+(defn provide
   "Adds React contexts to the component tree.
    `bindings` should be a map of {<keyword-or-Context>, <value-to-be-bound>}."
   [binding-map & body]
@@ -61,15 +61,15 @@
 (def merge-props props/merge-props)
 (def partial props/partial)
 
-(defview swap-silently! [ref & args]
-      (r/silently
-       (apply swap! ref args)))
+(defn swap-silently! [ref & args]
+  (r/silently
+   (apply swap! ref args)))
 
 ;;;;;;;;;;;;;;;;;;
 ;;
 ;; Core API
 
-(defview render-to-dom
+(defn render-to-dom
   "Render view to element, which should be a DOM element or id of element on page."
   ([react-element dom-element]
    (render-to-dom react-element dom-element nil))
@@ -83,7 +83,7 @@
   "Unmounts React view at given DOM node."
   impl/-unmount-component-at-node)
 
-(defview portal
+(defn portal
   "Mounts `element` at `dom-node` as React portal."
   [element dom-node]
   (-create-portal (to-element element) (impl/resolve-node dom-node)))
@@ -92,7 +92,7 @@
 ;;
 ;; Lifecycle
 
-(defview on-unmount!
+(defn on-unmount!
   "Register an unmount callback for `component`. This is not a hook - can be used anywhere/anytime."
   [^js this key f]
   (j/update! this :chia$onUnmount assoc key f))
@@ -113,7 +113,7 @@
 ;;
 ;; Vanilla React interop
 
-(defview adapt-js-component
+(defn adapt-js-component
   "Wraps a vanilla React component so that it can be used like any other view.
 
   See props/adapt-props for options."
@@ -142,7 +142,7 @@
   (-recompute! [this]
     (render-loop/schedule-update! this)))
 
-(defview -use-chia [view-name ^boolean ref]
+(defn -use-chia [view-name ^boolean ref]
   (let [force-update (hooks/use-schedule-update)
         chia$view (hooks/use-memo (fn []
                                     (cond-> (FunctionalView. view-name force-update)
@@ -156,7 +156,7 @@
          (f))))
     chia$view))
 
-(defview -functional-render [{:keys      [view/should-update?]
+(defn -functional-render [{:keys         [view/should-update?]
                            view-name     :view/name
                            view-fn       :view/fn
                            ^boolean ref? :view/forward-ref?}]
