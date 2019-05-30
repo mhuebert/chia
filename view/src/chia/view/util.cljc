@@ -1,6 +1,9 @@
 (ns chia.view.util
   (:require [applied-science.js-interop :as j]))
 
+(def browser? #?(:cljs (exists? js/window)
+                 :clj  false))
+
 #?(:cljs
    (defn find-or-append-element
      ([id] (find-or-append-element id :div))

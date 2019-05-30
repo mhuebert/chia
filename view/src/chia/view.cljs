@@ -162,7 +162,8 @@
                            ^boolean ref? :view/forward-ref?}]
   (-> (fn [props ref]
         (let [children (j/get props :children)]
-          (r/with-dependency-tracking! {:schedule hooks/use-layout-effect
+          (r/with-dependency-tracking! {:schedule (when-not r/*non-reactive*
+                                                    hooks/use-layout-effect)
                                         ;; use-layout-effect is necessary to ensure that we don't
                                         ;; miss
                                         :reader   (-use-chia view-name (if ref? ref ::no-ref))}

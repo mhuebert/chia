@@ -10,7 +10,7 @@
   "The reader being evaluated"
   nil)
 
-(def ^:dynamic *silent*
+(def ^:dynamic *non-reactive*
   "Flag to temporarily suspend reactivity"
   false)
 
@@ -65,7 +65,7 @@
   "Invalidates `reader` (triggers re-evaluation)"
   ([reader] (recompute! reader nil))
   ([reader info]
-   (when-not *silent*
+   (when-not *non-reactive*
      (if (satisfies? IRecompute reader)
        (-recompute! reader)
        ;; in the simplest case, a reader is simply a function.
@@ -185,7 +185,7 @@
 
 (m/defmacro silently
   [& body]
-  `(binding [*silent* true]
+  `(binding [*non-reactive* true]
      ~@body))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -194,7 +194,7 @@
 ;;
 
 (m/defmacro ^:private log-observation* [source expr]
-  `(do (when (some? *reader*)
+  `(do (when (and (some? *reader*) (not *non-reactive*))
          (vswap! *reader-dependency-log* assoc ~source ~expr))
        ~source))
 

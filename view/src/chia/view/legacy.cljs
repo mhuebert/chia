@@ -136,7 +136,7 @@
                  (j/assoc-in! this [:state :prev-state] old-state)
                  (when-let [^js will-receive (j/unchecked-get this :componentWillReceiveState)]
                    (.call will-receive this))
-                 (when (and (not r/*silent*)
+                 (when (and (not r/*non-reactive*)
                             (if-let [^js should-update (j/unchecked-get this :shouldComponentUpdate)]
                               (.call should-update this)
                               true))
