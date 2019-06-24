@@ -7,17 +7,23 @@
             ["@material-ui/core/IconButton" :default IconButton*])
   (:require-macros [chia.material-ui :as m]))
 
+(defn to-js
+  ([props] (to-js {} props))
+  ([options props]
+   (if (object? props)
+     props
+     (props/adapt-props (-> options
+                            (update :updates (partial merge-with into) {clj->js [:classes]})
+                            (update :lift-nses (fnil conj #{}) "material")) props))))
+
 (defn wrap-component [component options]
-  (let [options (-> options
-                    (update :updates merge-with into {clj->js [:classes]})
-                    (update :lift-nses (fnil conj #{}) "material"))]
-    (fn [& args]
-      (let [props (hiccup/get-props args 0)
-            props? (hiccup/props? props)]
-        (hiccup/make-element component
-                             (props/adapt-props options (if props? props {}))
-                             args
-                             (if props? 1 0))))))
+  (fn [& args]
+    (let [props (hiccup/get-props args 0)
+          props? (hiccup/props? props)]
+      (hiccup/make-element component
+                           (to-js options (if props? props {}))
+                           args
+                           (if props? 1 0)))))
 
 (def icon-adjustments
   {:add  #(assoc % :font-weight "bold")

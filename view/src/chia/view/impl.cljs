@@ -55,7 +55,7 @@
    (memoize-view f args-not=))
   ([f should-update?]
    (-memoize-view f
-                  (fn use-last-value? [x y]
+                  (fn equal? [x y]
                     (if registry/*reload*
                       false
                       (not (should-update? (j/get x :children)

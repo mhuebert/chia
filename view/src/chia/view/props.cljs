@@ -24,11 +24,13 @@
   (hiccup/element {:wrap-props wrap-props} x))
 
 (defn- update-prop-keys [props updates]
-  (reduce-kv
-    (fn [m update-f ks]
-      (reduce (fn [m k]
-                (cond-> m
-                        (contains? m k) (update k update-f))) m ks)) props updates))
+  (->> updates
+       (reduce-kv
+         (fn [m update-f ks]
+           (->> ks
+                (reduce (fn [m k]
+                          (cond-> m
+                                  (contains? m k) (update k update-f))) m))) props)))
 
 (defn adapt-props
   "Converts props map to JavaScript according to `options`.
