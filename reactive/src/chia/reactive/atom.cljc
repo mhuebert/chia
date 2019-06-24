@@ -43,7 +43,6 @@
 (defn get-in
   "Like Clojure `get-in`, creates dependency on `path`."
   ([ref path]
-   (prn :get-in ref path)
    (r/observe-pattern! ref conj-set (conj path ::value))
    (core/get-in (core/deref ref) path))
   ([ref path not-found]
@@ -90,41 +89,42 @@
 (defn assoc!
   "Like Clojure `assoc`, but mutates `ref`, limiting reactive dependency comparisons to the modified keys."
   [ref k v & kvs]
-  (let [paths (reduce (fn [m k] (assoc m k nil)) {k nil} (take-nth 2 kvs))
-        ret (apply assoc (core/deref ref) k v kvs)]
-    (binding [*write-paths* paths]
+  (let [ret (apply assoc (core/deref ref) k v kvs)]
+    (binding [*write-paths* (mapv vector (cons k (take-nth 2 kvs)))]
       (core/reset! ref ret))))
 
 (defn assoc-in!
   "Like Clojure `assoc-in`, but mutates `ref`, limiting reactive dependency comparisons to the supplied `path`."
   [ref path value]
-  (binding [*write-paths* (assoc-in {} path nil)]
+  (binding [*write-paths* [path]]
     (core/swap! ref assoc-in path value)))
 
 (defn dissoc!
   "Like Clojure `dissoc`, but mutates `ref`, limiting reactive dependency comparisons to the supplied key `k`."
   [ref k]
-  (binding [*write-paths* {k nil}]
+  (binding [*write-paths* [[k]]]
     (core/swap! ref dissoc k)))
 
 (defn dissoc-in!
   "Dissoc keys from ref, limiting reactive dependency comparisons to the supplied `path`"
   [ref path]
-  (binding [*write-paths* (assoc-in {} path nil)]
+  (binding [*write-paths* [path]]
     (core/swap! ref u/dissoc-in path)))
 
 (defn update!
   "Like Clojure `update`, but mutates `ref`, limiting reactive dependency comparisons to the supplied key `k`."
   [ref k f & args]
-  (assoc! ref k (apply f (core/get (core/deref ref) k) args)))
+  (binding [*write-paths* [[k]]]
+    (assoc! ref k (apply f (core/get (core/deref ref) k) args))))
 
 (defn update-in!
   "Like Clojure `update-in`, but mutates `ref`, limiting reactive dependency comparisons to the supplied `path`."
   [ref path f & args]
-  (assoc-in! ref path (apply f (core/get-in (core/deref ref) path) args)))
+  (binding [*write-paths* [path]]
+    (assoc-in! ref path (apply f (core/get-in (core/deref ref) path) args))))
 
 (defn merge! [ref m]
-  (binding [*write-paths* (reduce-kv #(assoc %1 %2 nil) {} m)]
+  (binding [*write-paths* (mapv vector (keys m))]
     (core/swap! ref merge m)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -157,16 +157,13 @@
 (defn- invalidated-readers-at-write-paths
   "Like `invalidated-readers`, but scoped to particular `write-paths`."
   [write-paths reader-index oldval newval]
-  (when (not= oldval newval)
-    (cond-> (readers-at-path reader-index oldval newval)
-            (some? write-paths)
-            (into (mapcat (fn [[k write-paths]]
-                            (when (core/contains? reader-index k)
-                              (invalidated-readers-at-write-paths write-paths
-                                                                  (core/get reader-index k)
-                                                                  (core/get oldval k)
-                                                                  (core/get newval k)))))
-                  write-paths))))
+  (reduce into #{}
+          (map (fn [path]
+                 (invalidated-readers
+                  (core/get-in reader-index path)
+                  (core/get-in oldval path)
+                  (core/get-in newval path)))
+               write-paths)))
 
 (defn invalidate-path! [source path]
   (let [index (get @listeners-by-path source)

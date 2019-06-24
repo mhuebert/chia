@@ -159,7 +159,8 @@
                (.addEventListener element "click" root-click-listener))))))
 
 (defn ^:dev/after-load fire!
-  ([] (fire! (vals @listeners)))
+  ([]
+   (fire! (vals @listeners)))
   ([listener-fns]
    (let [route-state (-> (get-route)
                          (parse-path)
@@ -168,7 +169,7 @@
      (doseq [listener listener-fns]
        (listener route-state)))))
 
-(def history-init
+(defonce history-init
   (delay
    (j/update! js/window "onpopstate"
               (fn [f]

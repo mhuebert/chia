@@ -20,7 +20,10 @@
                    (str/split auxiliary-string "//"))
                  (reduce (fn [m path]
                            (let [[_ router path] (re-find #"([^:]+)(?::?(.*))" path)]
-                             (assoc m (keyword router) (string/ensure-prefix path "/")))) {}))))))
+                             (assoc m (keyword ns router)
+                                      ((case router "root" string/ensure-prefix
+                                                    string/strip-prefix)
+                                       path "/")))) {}))))))
 
 (defn wrap
   [[left right] s]
