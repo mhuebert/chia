@@ -1,7 +1,7 @@
 (ns chia.routing.aux
-  (:require [clojure.string :as str]
-            [chia.routing :as routing]
-            [chia.util :as u]))
+  (:require [chia.routing :as routing]
+            [clojure.string :as str]
+            [chia.util.string :as string]))
 
 (defn parse-path
   "Given a `path` string, returns map of {<route-name>, <path>}
@@ -15,12 +15,12 @@
    (parse-path {:ns nil} path))
   ([{:keys [ns]} path]
    (let [[_ root-string auxiliary-string] (re-find #"([^(?]*)(?:\(([^(]+)\))?(\?.*)?" path)]
-     (merge {(keyword ns "root") (u/ensure-prefix root-string "/")}
+     (merge {(keyword ns "root") (string/ensure-prefix root-string "/")}
             (->> (when auxiliary-string
                    (str/split auxiliary-string "//"))
                  (reduce (fn [m path]
                            (let [[_ router path] (re-find #"([^:]+)(?::?(.*))" path)]
-                             (assoc m (keyword router) (u/ensure-prefix path "/")))) {}))))))
+                             (assoc m (keyword router) (string/ensure-prefix path "/")))) {}))))))
 
 (defn wrap
   [[left right] s]
@@ -40,7 +40,7 @@
      (str
 
       ;; root route
-      (u/ensure-prefix (root routes "") "/")
+      (string/ensure-prefix (root routes "") "/")
 
       ;; aux routes
       (some->> (dissoc routes root query)
@@ -49,8 +49,8 @@
                        (when path
                          (str (name router)
                               (some-> path
-                                      (u/strip-prefix "/")
-                                      (u/some-str)
+                                      (string/strip-prefix "/")
+                                      (string/some-str)
                                       (->> (str ":")))))))
                (seq)
                (str/join "//")

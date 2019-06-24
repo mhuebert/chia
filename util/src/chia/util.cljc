@@ -1,8 +1,13 @@
 (ns chia.util
   (:require [chia.util.macros :as m]
+            [chia.util.string :as string]
             [clojure.string :as str]
             #?(:cljs [applied-science.js-interop :as j]))
   #?(:cljs (:require-macros [chia.util])))
+
+(def some-str string/some-str)
+(def ensure-prefix string/ensure-prefix)
+(def strip-prefix string/strip-prefix)
 
 (defn guard [x f]
   (when (f x)
@@ -11,10 +16,6 @@
 (defn guard->> [f x]
   (when (f x)
     x))
-
-(defn some-str [s]
-  (when (and s (string? s) (not= s ""))
-    s))
 
 (defn nilable [pred]
   (fn [x]
@@ -193,14 +194,6 @@
 (defn promise? [x]
   #?(:cljs (= (js/Promise.resolve x) x)
      :clj  false))
-
-(defn ensure-prefix [s pfx]
-  (cond->> s
-           (not (str/starts-with? s pfx)) (str pfx)))
-
-(defn strip-prefix [s prefix]
-  (cond-> s
-          (str/starts-with? s prefix) (subs (count prefix))))
 
 (defn simplify-keyword [k]
   (keyword (name k)))

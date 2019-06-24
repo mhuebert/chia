@@ -1,7 +1,7 @@
 (ns chia.routing
   (:require
    [clojure.string :as str]
-   [chia.util :as u]
+   [chia.util.string :as string]
    [applied-science.js-interop :as j]))
 
 (defonce ^:private listeners (atom {}))
@@ -15,7 +15,7 @@
     route
     (new URL (str (when-not (str/starts-with? route "http")
                     "http://x.y/")
-                  (u/strip-prefix route "/")))))
+                  (string/strip-prefix route "/")))))
 
 (def encode (comp js/encodeURIComponent name))
 (def decode (comp js/decodeURIComponent name))
@@ -61,9 +61,9 @@
   [path]
   (let [URL (url path)]
     {:path     (j/get URL :pathname)
-     :segments (segments @URL)
-     :query    (query @URL)
-     :fragment (j/get URL :hash)}))
+     :fragment (j/get URL :hash)
+     :segments (segments URL)
+     :query    (query URL)}))
 
 (def browser? (exists? js/window))
 
@@ -118,25 +118,16 @@
 
 (def ^:dynamic *click-event* nil)
 
-(defn external? [link-element]
-  (let [{current-host     :host
-         current-protocol :protocol} (j/lookup js/location)
-        {link-host     :host
-         link-protocol :protocol
-         link-path     :pathname} (j/lookup link-element)]
-    (or (not= current-host link-host)
-        (not= current-protocol link-protocol)
-        (re-find #"\.[^/]+$" link-path))))
+(defn external? [^js link]
+  (or (not= (.-host js/location) (.-host link))
+      (not= (.-protocol js/location) (.-protocol link))
+      (re-find #"\.[^/]+$" (.-pathname link))))
 
-(defn valid-anchor? [link-element]
-  (let [{loc-path :pathname
-         loc-hash :hash} (j/lookup js/location)
-        {link-path :pathname
-         link-hash :hash} (j/lookup link-element)]
-    (and link-hash
-         (= loc-path link-path)
-         (not= loc-hash link-hash)
-         (.getElementById js/document (subs link-hash 1)))))
+(defn valid-anchor? [^js link]
+  (and (.-hash link)
+       (= (.-pathname js/location) (.-pathname link))
+       (not= (.-hash js/location) (.-hash link))
+       (.getElementById js/document (subs (.-hash link) 1))))
 
 (defn click-event-handler
   "Intercept clicks on links with valid pushstate hrefs. Callback is passed the link's href value."
