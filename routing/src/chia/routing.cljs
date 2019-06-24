@@ -85,9 +85,9 @@
   ([route] (nav! route true))
   ([route add-history-state?]
    (if add-history-state?
-     (do (.pushState js/history route)
+     (do (.pushState js/history nil "" route)
          (fire!))
-     (.replaceState js/history route))))
+     (.replaceState js/history nil "" route))))
 
 (defn query-nav!
   "Navigates to current route with query-string replaced by the provided `query` map."
@@ -110,9 +110,9 @@
 
 (defn closest
   "Return element or first ancestor of element that matches predicate, like jQuery's .closest()."
-  [el selector]
+  [^js el selector]
   {:pre [(string? selector)]}
-  (if (selector el)
+  (if (.matches el selector)
     el
     (.closest el selector)))
 
@@ -168,6 +168,14 @@
      (doseq [listener listener-fns]
        (listener route-state)))))
 
+(def history-init
+  (delay
+   (j/update! js/window "onpopstate"
+              (fn [f]
+                (fn [event]
+                  (when f (f event))
+                  (fire!))))))
+
 (defn listen
   "Set up a listener on route changes. Options:
 
@@ -189,6 +197,8 @@
 
    (when fire-now?
      (fire! #{listener}))
+
+   @history-init
 
    listener))
 
