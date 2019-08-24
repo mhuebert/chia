@@ -4,7 +4,8 @@
             [chia.util :as u]
             [chia.view.hiccup.impl :as hiccup-impl]
             [chia.view.render-loop :as render-loop]
-            [chia.view.hiccup :as hiccup]))
+            [chia.view.hiccup :as hiccup]
+            [clojure.string :as str]))
 
 (defn- update-change-prop [props]
   (cond-> props
@@ -26,11 +27,11 @@
 (defn- update-prop-keys [props updates]
   (->> updates
        (reduce-kv
-         (fn [m update-f ks]
-           (->> ks
-                (reduce (fn [m k]
-                          (cond-> m
-                                  (contains? m k) (update k update-f))) m))) props)))
+        (fn [m update-f ks]
+          (->> ks
+               (reduce (fn [m k]
+                         (cond-> m
+                                 (contains? m k) (update k update-f))) m))) props)))
 
 (defn adapt-props
   "Converts props map to JavaScript according to `options`.
@@ -55,7 +56,7 @@
   [m1 m2]
   (merge m1
          m2
-         (merge-with #(str %1 " " %2)
+         (merge-with #(str (hiccup-impl/class-str %1) " " (hiccup-impl/class-str %2))
                      (select-keys m1 [:class])
                      (select-keys m2 [:class]))
          (merge-with merge

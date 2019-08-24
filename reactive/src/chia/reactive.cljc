@@ -75,6 +75,7 @@
   "Invalidates all readers of `source`"
   [source]
   (doseq [reader (keys (get @dependents source))]
+
     (recompute! reader))
   source)
 

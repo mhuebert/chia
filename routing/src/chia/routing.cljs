@@ -1,14 +1,14 @@
 (ns chia.routing
-  (:require
-   [clojure.string :as str]
-   [chia.util.string :as string]
-   [applied-science.js-interop :as j]))
+  (:require [clojure.string :as str]
+            [chia.util.string :as string]
+            [applied-science.js-interop :as j]))
 
 (defonce ^:private listeners (atom {}))
 (declare ^:private fire!)
 
-(def URL js/URL)
-(def URLSearchParams js/URLSearchParams)
+(def URL (when (exists? js/URL) js/URL))
+(def URLSearchParams (when (exists? js/URLSearchParams)
+                       js/URLSearchParams))
 
 (defn url ^js [route]
   (if (instance? URL route)
@@ -46,7 +46,9 @@
   (reduce-kv (fn [m k v]
                (cond-> m
                        (or (nil? v)
-                           (= "" v)) (dissoc k))) m m))
+                           (= "" v)
+                           (and (satisfies? ISeqable v)
+                                (empty? v))) (dissoc k))) m m))
 
 (defn query-string
   "Returns query string, including '?'. Removes empty values. Returns nil if empty."
@@ -148,15 +150,15 @@
 (def root-click-listener (partial click-event-handler nav!))
 
 (defonce intercept-clicks
-         ; Intercept local links (handle with router instead of reloading page).
-         (memoize
-          (fn intercept
-            ([]
-             (when browser?
-               (intercept js/document)))
-            ([element]
-             (when browser?
-               (.addEventListener element "click" root-click-listener))))))
+  ; Intercept local links (handle with router instead of reloading page).
+  (memoize
+    (fn intercept
+      ([]
+       (when browser?
+         (intercept js/document)))
+      ([element]
+       (when browser?
+         (.addEventListener element "click" root-click-listener))))))
 
 (defn ^:dev/after-load fire!
   ([]
@@ -171,11 +173,11 @@
 
 (defonce history-init
   (delay
-   (j/update! js/window "onpopstate"
-              (fn [f]
-                (fn [event]
-                  (when f (f event))
-                  (fire!))))))
+    (j/update! js/window "onpopstate"
+               (fn [f]
+                 (fn [event]
+                   (when f (f event))
+                   (fire!))))))
 
 (defn listen
   "Set up a listener on route changes. Options:
@@ -209,9 +211,9 @@
 ;;;;
 
 (comment
- (assert (= (segments "/") []))
- (assert (= (segments "//") [""]))
- (assert (= (segments "///") ["" ""]))
- (assert (= (segments "/a/b")
-            (segments "a/b/")
-            (segments "a/b") ["a" "b"])))
+  (assert (= (segments "/") []))
+  (assert (= (segments "//") [""]))
+  (assert (= (segments "///") ["" ""]))
+  (assert (= (segments "/a/b")
+             (segments "a/b/")
+             (segments "a/b") ["a" "b"])))

@@ -50,6 +50,12 @@
 
 (defn- defined? [x] (not (undefined? x)))
 
+(defn class-str [s]
+  (cond (vector? s) (str/replace (str/join " " (mapv class-str s))
+                                 "." " ")
+        (keyword? s) (name s)
+        :else s))
+
 (defn props->js
   "Returns a React-conformant javascript object. An alternative to clj->js,
   allowing for key renaming without an extra loop through every prop map."
@@ -61,10 +67,12 @@
                 (defined? (.-id parsed-key))
                 (assoc :id (.-id parsed-key))
 
-                (defined? (.-classes parsed-key))
+
+
+                (or (defined? (.-classes parsed-key)) (contains? props :class))
                 (update :class (fn [x]
                                  (if (some? x)
-                                   (str (.-classes parsed-key) " " x)
+                                   (str (.-classes parsed-key) " " (class-str x))
                                    (.-classes parsed-key)))))
         (reduce-kv
          (fn [js-props k v]

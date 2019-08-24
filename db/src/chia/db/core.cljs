@@ -412,7 +412,6 @@
      (specify!
        r/ITransitionPattern
        (on-transition-pattern [source reader prev-patterns next-patterns]
-
          (when (not= next-patterns prev-patterns)
            (when next-patterns
              (some->> (patterns/added-patterns prev-patterns next-patterns)

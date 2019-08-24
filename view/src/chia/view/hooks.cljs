@@ -92,6 +92,10 @@
   [f]
   (use-effect (constantly f) nil))
 
+(defn use-did-mount
+  [f]
+  (use-effect f nil))
+
 (defn use-memo
   "Evaluates `f` once, caches and returns result. Re-evaluates when `key` changes.
 
