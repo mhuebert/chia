@@ -128,6 +128,21 @@
        (j/get :current)
        (j/assoc! .-state (use-state initial-state)))))
 
+(defn use-atom-sync
+  "like `use-atom` but not react-concurrent-safe"
+  ([] (use-atom-sync nil))
+  ([initial-state]
+   (let [chia$view r/*reader*
+         state-atom (use-memo (fn []
+                                    (let [state-atom (atom initial-state)]
+                                      (add-watch state-atom ::state-atom
+                                                 (fn [_ _ old-state new-state]
+                                                   (when (not= old-state new-state)
+                                                     (render-loop/schedule-update! chia$view))))
+                                      state-atom)))]
+     (use-will-unmount #(remove-watch state-atom ::state-atom))
+     state-atom)))
+
 (defn use-schedule-update
   "Returns a `forceUpdate`-like function for the current view (not synchronous)."
   []

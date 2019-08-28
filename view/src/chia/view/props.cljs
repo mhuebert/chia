@@ -40,9 +40,10 @@
   wrap-props:     arbitrary fn to modify props map after other transformations"
   [{:keys [updates
            lift-nses
-           wrap-props]
+           wrap-props
+           defaults]
     :as   opts} props]
-  (-> props
+  (-> (merge defaults props)
       (cond-> lift-nses (u/lift-nses lift-nses)
               updates (update-prop-keys updates)
               wrap-props (wrap-props))

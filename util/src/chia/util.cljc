@@ -7,7 +7,7 @@
 
 (def some-str string/some-str)
 (def ensure-prefix string/ensure-prefix)
-(def strip-prefix string/strip-prefix)
+(def strip-prefix string/trim-prefix)
 
 (defn guard [x f]
   (when (f x)

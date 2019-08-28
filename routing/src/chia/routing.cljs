@@ -1,7 +1,9 @@
 (ns chia.routing
   (:require [clojure.string :as str]
             [chia.util.string :as string]
-            [applied-science.js-interop :as j]))
+            [applied-science.js-interop :as j]
+            [clojure.edn :as edn]
+            [chia.util :as u]))
 
 (defonce ^:private listeners (atom {}))
 (declare ^:private fire!)
@@ -15,10 +17,7 @@
     route
     (new URL (str (when-not (str/starts-with? route "http")
                     "http://x.y/")
-                  (string/strip-prefix route "/")))))
-
-(def encode (comp js/encodeURIComponent name))
-(def decode (comp js/decodeURIComponent name))
+                  (string/trim-prefix route "/")))))
 
 (defn segments
   "Splits path into segments, ignoring leading and trailing slashes."
@@ -30,7 +29,7 @@
             (= "" (first segments)) (subvec 1)
             (= "" (last segments)) (pop))))
 
-(defn query
+(defn query-from-string
   "Returns query parameters as map."
   [path]
   (let [URL (url path)]
@@ -50,6 +49,9 @@
                            (and (satisfies? ISeqable v)
                                 (empty? v))) (dissoc k))) m m))
 
+(def encode js/encodeURIComponent)
+(def decode js/decodeURIComponent)
+
 (defn query-string
   "Returns query string, including '?'. Removes empty values. Returns nil if empty."
   [m]
@@ -61,11 +63,12 @@
 (defn parse-path
   "Returns map of parsed location information for path."
   [path]
-  (let [URL (url path)]
-    {:path     (j/get URL :pathname)
+  (let [URL (url path)
+        q (query-from-string URL)]
+    {:path (j/get URL :pathname)
      :fragment (j/get URL :hash)
      :segments (segments URL)
-     :query    (query URL)}))
+     :query q}))
 
 (def browser? (exists? js/window))
 
@@ -91,25 +94,6 @@
          (fire!))
      (.replaceState js/history nil "" route))))
 
-(defn query-nav!
-  "Navigates to current route with query-string replaced by the provided `query` map."
-  [query]
-  (let [params (reduce-kv (fn [params k v]
-                            (doto ^js params
-                              (.set (encode k) (encode v))))
-                          (new URLSearchParams) query)]
-    (-> (url (j/get js/location :href))
-        (j/assoc! :search (str params))
-        (str)
-        (nav!))))
-
-(defn swap-query!
-  "Navigates to current route with query parameters modified by `f`,
-   which is passed the current query-map followed by `args`."
-  [f & args]
-  (-> (apply f (query (get-route)) args)
-      (query-nav!)))
-
 (defn closest
   "Return element or first ancestor of element that matches predicate, like jQuery's .closest()."
   [^js el selector]
@@ -117,6 +101,9 @@
   (if (.matches el selector)
     el
     (.closest el selector)))
+
+(defn link? [el]
+  (some? (closest el "a")))
 
 (def ^:dynamic *click-event* nil)
 
@@ -134,7 +121,9 @@
 (defn click-event-handler
   "Intercept clicks on links with valid pushstate hrefs. Callback is passed the link's href value."
   [callback ^js e]
-  (when-let [link-element (closest (.-target e) "a")]
+  (when-let [link-element (some-> (.-target e)
+                                  (u/guard #(j/contains? % :matches)) ;; ensure it's an element
+                                  (closest "a"))]
     (let [ignore-click? (or (external? link-element)
                             (valid-anchor? link-element)
                             (.-defaultPrevented e))]
@@ -164,12 +153,13 @@
   ([]
    (fire! (vals @listeners)))
   ([listener-fns]
-   (let [route-state (-> (get-route)
-                         (parse-path)
-                         (cond-> *click-event*
-                                 (assoc :click-event *click-event*)))]
-     (doseq [listener listener-fns]
-       (listener route-state)))))
+   (when (exists? js/location)
+     (let [route-state (-> (get-route)
+                           (parse-path)
+                           (cond-> *click-event*
+                                   (assoc :click-event *click-event*)))]
+       (doseq [listener listener-fns]
+         (listener route-state))))))
 
 (defonce history-init
   (delay
@@ -190,8 +180,8 @@
    (listen listener {}))
   ([listener {:keys [fire-now?
                      intercept-clicks?]
-              :or   {fire-now?         true
-                     intercept-clicks? true}}]
+              :or {fire-now? true
+                   intercept-clicks? true}}]
 
    (when intercept-clicks?
      (intercept-clicks))
@@ -207,6 +197,8 @@
 
 (defn unlisten [f]
   (swap! listeners dissoc f))
+
+
 
 ;;;;
 

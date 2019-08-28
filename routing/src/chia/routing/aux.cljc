@@ -22,7 +22,7 @@
                            (let [[_ router path] (re-find #"([^:]+)(?::?(.*))" path)]
                              (assoc m (keyword ns router)
                                       ((case router "root" string/ensure-prefix
-                                                    string/strip-prefix)
+                                                    string/trim-prefix)
                                        path "/")))) {}))))))
 
 (defn wrap
@@ -52,7 +52,7 @@
                        (when path
                          (str (name router)
                               (some-> path
-                                      (string/strip-prefix "/")
+                                      (string/trim-prefix "/")
                                       (string/some-str)
                                       (->> (str ":")))))))
                (seq)

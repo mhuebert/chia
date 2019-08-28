@@ -22,4 +22,5 @@
            chia/jss                  {:local/root "jss"}
            chia/util                 {:local/root "util"}
            chia/view                 {:local/root "view"}
-           chia/material-ui          {:local/root "material-ui"}}}
+           chia/material-ui          {:local/root "material-ui"}
+           chia/lazy                 {:local/root "lazy"}}}

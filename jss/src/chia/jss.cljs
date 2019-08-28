@@ -30,7 +30,8 @@
       (-> @page-styles
           (doto (j/call :addRules (clj->js styles)))
           (j/get :classes)
-          (js->clj :keywordize-keys true)))))
+          (js->clj :keywordize-keys true)
+          (select-keys (keys styles))))))
 
 (defonce counter (volatile! 0))
 

@@ -9,6 +9,6 @@
   (cond->> s
            (not (str/starts-with? s pfx)) (str pfx)))
 
-(defn strip-prefix [s prefix]
+(defn trim-prefix [s prefix]
   (cond-> s
           (str/starts-with? s prefix) (subs (count prefix))))
