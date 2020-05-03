@@ -1,6 +1,6 @@
 (ns chia.reactive.atom
   "Utilities for reactively reading atoms, with key/path granularity."
-  (:refer-clojure :exclude [get get-in deref select-keys assoc! dissoc! contains? swap! reset!])
+  (:refer-clojure :exclude [get get-in deref select-keys assoc! dissoc! contains? swap! reset! atom])
   (:require [chia.reactive :as r]
             [clojure.set :as set]
             [clojure.core :as core]
@@ -211,6 +211,13 @@
       (vswap! readers update source conj-set reader))
 
     next-patterns))
+
+(defn atom [init]
+  (specify! (cljs.core/atom init)
+    IDeref
+    (-deref [^cljs.core/Atom this]
+      (r/observe-pattern! this conj-set [::value])
+      (.-state this))))
 
 (comment
 

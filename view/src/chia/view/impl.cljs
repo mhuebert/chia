@@ -3,8 +3,7 @@
             ["react-dom" :as react-dom]
             [applied-science.js-interop :as j]
             [chia.view.util :as u]
-            [chia.reactive :as r]
-            [chia.view.registry :as registry]))
+            [chia.reactive :as r]))
 
 
 ;; Hook utils
@@ -43,8 +42,6 @@
   (not= (j/get x :children)
         (j/get y :children)))
 
-(def ^:private -memoize-view (if (fn? react/memo) react/memo identity))
-
 (defn memoize-view
   "Returns a memoized version of view `f` with optional `should-update?` function.
 
@@ -54,11 +51,6 @@
   ([f]
    (memoize-view f args-not=))
   ([f should-update?]
-   (-memoize-view f
-                  (fn equal? [x y]
-                    (if registry/*reload*
-                      false
-                      (not (should-update? (j/get x :children)
-                                           (j/get y :children))))))))
-
-
+   (react/memo f (fn equal? [x y]
+                   (not (should-update? (j/get x :children)
+                                        (j/get y :children)))))))

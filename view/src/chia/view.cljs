@@ -7,7 +7,6 @@
             [chia.view.props :as props]
             [chia.view.impl :as impl]
             [chia.view.render-loop :as render-loop]
-            [chia.view.registry :as registry]
             [chia.view.util :as vu]
 
             [chia.view.hiccup :as hiccup]
@@ -71,13 +70,9 @@
 
 (defn render-to-dom
   "Render view to element, which should be a DOM element or id of element on page."
-  ([react-element dom-element]
-   (render-to-dom react-element dom-element nil))
-  ([react-element dom-element {:keys [reload?]
-                               :or   {reload? true}}]
-   (binding [registry/*reload* reload?]
-     (impl/-render (to-element react-element)
-                   (impl/resolve-node dom-element)))))
+  [react-element dom-element]
+  (impl/-render (to-element react-element)
+                (impl/resolve-node dom-element)))
 
 (def unmount-from-dom
   "Unmounts React view at given DOM node."
@@ -165,9 +160,26 @@
           (r/with-dependency-tracking! {:schedule (when-not r/*non-reactive*
                                                     hooks/use-layout-effect)
                                         ;; use-layout-effect is necessary to ensure that we don't
-                                        ;; miss
+                                        ;; miss changes
                                         :reader   (-use-chia view-name (if ref? ref ::no-ref))}
             (to-element (apply view-fn children)))))
       (doto (js/Object.defineProperty "name" (j/obj :value view-name)))
-      (cond-> ref? (-forward-ref))
-      (impl/memoize-view should-update?)))
+      (cond-> ref? (-forward-ref))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; React Refresh
+
+(def ^:constant refresh-enabled?
+  (and goog/DEBUG (exists? js/ReactRefresh)))
+
+(defn register!
+  "Registers a component with the React Fresh runtime.
+  `type` is the component function, and `id` is the unique ID assigned to it
+  (e.g. component name) for cache invalidation."
+  [type id]
+  (when refresh-enabled?
+    (j/call js/ReactRefresh :register type id)))
+
+(defn signature-fn []
+  (when refresh-enabled?
+    (j/call js/ReactRefresh :createSignatureFunctionForTransform)))

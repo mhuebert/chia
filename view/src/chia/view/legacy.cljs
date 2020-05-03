@@ -4,11 +4,9 @@
             [applied-science.js-interop :as j]
             [chia.view.render-loop :as render-loop]
             [chia.reactive :as r]
-            [chia.view.registry :as registry]
             [cljs.spec.alpha :as s]
             [chia.view.legacy.view-specs]
             [chia.view.legacy.util :as class-util]
-            [chia.view.impl :as impl]
             [chia.util :as u])
   (:require-macros [chia.view.legacy :as class]))
 
@@ -35,41 +33,40 @@
 
 (def default-methods
   {:view/should-update
-                                        (fn []
-                                          (this-as this
-                                            (or (true? registry/*reload*)
-                                                (let [$state (j/unchecked-get this :state)]
-                                                  (or (not= (j/unchecked-get $state :props)
-                                                            (j/unchecked-get $state :prev-props))
-                                                      (not= (j/unchecked-get $state :children)
-                                                            (j/unchecked-get $state :prev-children))
-                                                      (when-let [state (j/unchecked-get $state :state-atom)]
-                                                        (not= @state (j/unchecked-get $state :prev-state))))))))
+   (fn []
+     (this-as this
+       (let [$state (j/unchecked-get this :state)]
+         (or (not= (j/unchecked-get $state :props)
+                   (j/unchecked-get $state :prev-props))
+             (not= (j/unchecked-get $state :children)
+                   (j/unchecked-get $state :prev-children))
+             (when-let [state (j/unchecked-get $state :state-atom)]
+               (not= @state (j/unchecked-get $state :prev-state)))))))
    :static/get-derived-state-from-props get-derived-state-from-props
    :view/will-unmount
-                                        (fn []
-                                          (this-as this
-                                            ;; manually track unmount state, react doesn't do this anymore,
-                                            ;; otherwise our async render loop can't tell if a component is still on the page.
+   (fn []
+     (this-as this
+       ;; manually track unmount state, react doesn't do this anymore,
+       ;; otherwise our async render loop can't tell if a component is still on the page.
 
-                                            (some-> (:view/state this)
-                                                    (remove-watch this))
+       (some-> (:view/state this)
+               (remove-watch this))
 
-                                            (doseq [f (some-> (j/unchecked-get this :chia$onUnmount)
-                                                              (vals))]
-                                              (when f (f this)))
+       (doseq [f (some-> (j/unchecked-get this :chia$onUnmount)
+                         (vals))]
+         (when f (f this)))
 
-                                            (r/dispose-reader! this)
-                                            (render-loop/dequeue! this)))
+       (r/dispose-reader! this)
+       (render-loop/dequeue! this)))
    :view/did-update
-                                        (fn []
-                                          (this-as ^js this
-                                            (let [$state (j/unchecked-get this :state)
-                                                  state-atom (j/unchecked-get $state :state-atom)]
-                                              (-> $state
-                                                  (j/assoc! :prev-props (j/unchecked-get $state :props)
-                                                            :prev-children (j/unchecked-get $state :children))
-                                                  (cond-> state-atom (j/assoc! :prev-state @state-atom))))))})
+   (fn []
+     (this-as ^js this
+       (let [$state (j/unchecked-get this :state)
+             state-atom (j/unchecked-get $state :state-atom)]
+         (-> $state
+             (j/assoc! :prev-props (j/unchecked-get $state :props)
+                       :prev-children (j/unchecked-get $state :children))
+             (cond-> state-atom (j/assoc! :prev-state @state-atom))))))})
 
 
 

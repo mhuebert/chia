@@ -8,8 +8,7 @@
             [cljs.test :refer [deftest testing is are]]
             [chia.view.util :as u]
             [chia.db :as d]
-            [applied-science.js-interop :as j]
-            [chia.view.registry :as registry]))
+            [applied-science.js-interop :as j]))
 
 (def concurrent? false)
 (def test-renderer? false)

@@ -1,8 +1,7 @@
 (ns chia-demo.views.context
   (:require [chia.view :as v]
             [chia.view.legacy :as legacy]
-            [chia.reactive :as r]
-            [chia.view.registry :as registry]))
+            [chia.reactive :as r]))
 
 (defn counter []
   (let [{:keys [view/state]} r/*reader*]

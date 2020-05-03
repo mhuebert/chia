@@ -5,7 +5,6 @@
             [chia.view.render-loop :as render-loop]
             [chia.reactive :as r]
             [applied-science.js-interop :as j]
-            [chia.view.registry :as registry]
             [chia.view.hiccup :as hiccup]
             [chia.view.props :as props]))
 
