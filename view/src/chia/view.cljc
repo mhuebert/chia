@@ -99,4 +99,5 @@
          (~'chia.view/register! ~f-sym ~qualified-name))
        ~name)))
 
-
+(defmacro defclass [& body]
+  `(~'chia.view.legacy/defclass ~@body))
