@@ -1,21 +1,13 @@
-{:paths   []
+{:paths []
  :aliases {:test {:extra-paths ["view/test"
                                 "db/test"]
-                  :extra-deps  {reagent            {:mvn/version "0.8.1"}
-                                rum                {:mvn/version "0.11.3"}
-                                fulcrologic/fulcro {:mvn/version "2.8.11"}
-                                lilactown/hx       {:mvn/version "0.5.0-SNAPSHOT"}
-                                roman01/uix        {:git/url "https://github.com/roman01la/uix.git"
-                                                    :sha     "8dcbac34fde7db42586e25a6b7882008f2db8d17"}
-                                hicada             {:mvn/version "0.1.8"}
+                  :extra-deps {reagent {:mvn/version "1.0.0-alpha2"}}}}
+ :deps {thheller/shadow-cljs {:mvn/version "2.11.5"}
+        org.clojure/test.check {:mvn/version "1.1.0"}
 
-                                re-view            {:mvn/version "0.4.15"}}}}
- :deps    {thheller/shadow-cljs {:mvn/version "2.11.5"}
-           org.clojure/test.check    {:mvn/version "1.1.0"}
+        applied-science/js-interop {:mvn/version "0.2.7"}
 
-           applied-science/js-interop {:mvn/version "0.2.7"}
-
-           chia/db                   {:local/root "db"}
-           chia/reactive             {:local/root "reactive"}
-           chia/util                 {:local/root "util"}
-           chia/view                 {:local/root "view"}}}
+        chia/db {:local/root "db"}
+        chia/reactive {:local/root "reactive"}
+        chia/util {:local/root "util"}
+        chia/view {:local/root "view"}}}

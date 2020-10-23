@@ -2,7 +2,8 @@
  :builds {:test    {:target           :browser-test
                     :test-dir         "public/compiled/browser-tests"
                     ;:ns-regexp "context-test$"
-                    :compiler-options {:static-fns false}
+                    :compiler-options {:static-fns false
+                                       :elide-asserts true}
                     :devtools         {:http-port 8021
                                        :http-root "public/compiled/browser-tests"}}
           :bench   {:target     :browser

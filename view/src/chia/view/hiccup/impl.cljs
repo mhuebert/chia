@@ -61,31 +61,30 @@
       val)))
 
 (defn class-str [s]
-  (cond (vector? s) (str/replace (str/join " " (mapv class-str s))
+  (cond (string? s) s
+        (vector? s) (str/replace (str/join " " (mapv class-str s))
                                  "." " ")
-        (keyword? s) (name s)
-        :else s))
+        (keyword? s) (name s)))
 
 (defn set-prop! [js-props k v]
-  (if (or (string? k)
-          (simple-keyword? k))
+  (if (qualified-keyword? k)
+    js-props
     (let [prop-name (prop-name-memo (name k))]
-      (j/!set js-props prop-name (prop-val prop-name v)))
-    js-props))
+      (j/!set js-props prop-name (prop-val prop-name v)))))
 
 (defn props->js
   "Returns a React-conformant javascript object. An alternative to clj->js,
   allowing for key renaming without an extra loop through every prop map."
-  ([props] (props->js nil nil nil props))
+  ([props] (props->js js/undefined js/undefined js/undefined props))
   ([tag id classes props]
    (as-> (if (some? props) props {}) props
-         (cond-> props (some? id) (assoc :id id))
+         (cond-> props (defined? id) (assoc :id id))
          (let [props-classes (get props :class)]
            (cond (some? props-classes)
                  (assoc props :class (cond->> (class-str props-classes)
-                                              (some? classes)
+                                              (defined? classes)
                                               (str classes " ")))
-                 (some? classes)
+                 (defined? classes)
                  (assoc props :class classes)
                  :else props))
          (reduce-kv set-prop! #js{} props))))
