@@ -25,7 +25,7 @@
   "Wrap body in anonymous function form."
   [name argv body]
   `(~'fn ~(symbol (str "__" name)) ~argv
-    (~'chia.view.props/to-element (do ~@body))))
+    (~'chia.view.hiccup/to-element (do ~@body))))
 
 (core/defn- make-constructor [the-name initial-state]
   (let [this-name (gensym)

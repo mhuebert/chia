@@ -28,7 +28,7 @@
 (def -create-context react/createContext)
 (def -is-valid-element? react/isValidElement)
 (def -forward-ref react/forwardRef)
-(def to-element props/to-element)
+(defn to-element [x]  (hiccup/to-element x))
 (def dom-node react-dom/findDOMNode)
 
 (defn element? [x]

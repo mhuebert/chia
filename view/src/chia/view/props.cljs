@@ -1,28 +1,7 @@
 (ns chia.view.props
   (:refer-clojure :exclude [partial])
-  (:require [clojure.core :as core]
-            [chia.util :as u]
-            [chia.view.hiccup.impl :as hiccup-impl]
-            [chia.view.render-loop :as render-loop]
-            [chia.view.hiccup :as hiccup]
-            [clojure.string :as str]))
-
-(defn- update-change-prop [props]
-  (cond-> props
-          (contains? props :on-change) (update :on-change render-loop/apply-sync!)))
-
-(defn wrap-props
-  "Wraps :on-change handlers of text inputs to apply changes synchronously."
-  [props tag]
-  (cond-> props
-          (and ^boolean (or (identical? "input" tag)
-                            (identical? "textarea" tag))) update-change-prop))
-
-(defn to-element
-  "Converts hiccup to React element."
-  [x]
-
-  (hiccup/element {:wrap-props wrap-props} x))
+  (:require [chia.util :as u]
+            [chia.view.hiccup.impl :as hiccup-impl]))
 
 (defn- update-prop-keys [props updates]
   (->> updates
@@ -40,17 +19,13 @@
   wrap-props:     arbitrary fn to modify props map after other transformations"
   [{:keys [updates
            lift-nses
-           wrap-props
            defaults]
     :as   opts} props]
   (-> (merge defaults props)
       (cond-> lift-nses (u/lift-nses lift-nses)
-              updates (update-prop-keys updates)
-              wrap-props (wrap-props))
-      (update-change-prop)
+              updates (update-prop-keys updates))
+      (hiccup-impl/update-change-prop)
       (hiccup-impl/props->js)))
-
-(def to-js hiccup-impl/props->js)
 
 (defn merge-props
   "Merge props, concatenating :class props and merging styles."

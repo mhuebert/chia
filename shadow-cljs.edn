@@ -1,12 +1,12 @@
 {:deps   true
  :builds {:test    {:target           :browser-test
-                    :test-dir         "demo/public/compiled/browser-tests"
+                    :test-dir         "public/compiled/browser-tests"
                     ;:ns-regexp "context-test$"
                     :compiler-options {:static-fns false}
                     :devtools         {:http-port 8021
-                                       :http-root "demo/public/compiled/browser-tests"}}
+                                       :http-root "public/compiled/browser-tests"}}
           :bench   {:target     :browser
                     :modules    {:main {:entries [chia.view.bench]}}
-                    :output-dir "demo/public/compiled/bench"
+                    :output-dir "public/compiled/bench"
                     :devtools   {:http-port 8031
-                                 :http-root "demo/public/compiled/bench"}}}}
+                                 :http-root "public/compiled/bench"}}}}
