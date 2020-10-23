@@ -1,6 +1,6 @@
 (ns chia-demo.views.reactive-triple
   (:require [chia.view :as v]
-            [chia.view.legacy :as legacy]
+            [chia.view.class :as legacy]
             [chia.reactive.atom-db :as db]
             [chia.db :as t]
             [chia-demo.views.util :as u]

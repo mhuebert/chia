@@ -1,5 +1,5 @@
 (ns website.views.markdown
-  (:require [chia.view.legacy :as v :refer [defclass]]
+  (:require [chia.view.class :as v :refer [defclass]]
             [goog.object :as gobj]
             [clojure.string :as string]
             ["highlight.js/lib/highlight" :as hljs]

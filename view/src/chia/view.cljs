@@ -3,7 +3,7 @@
   (:require ["react-dom" :as react-dom]
             ["react" :as react]
 
-            chia.view.legacy
+            chia.view.class
             [chia.view.hooks :as hooks]
             [chia.view.props :as props]
             [chia.view.impl :as impl]

@@ -1,5 +1,5 @@
 (ns website.views.components
-  (:require [chia.view.legacy :as v :refer-macros [defclass view]]
+  (:require [chia.view.class :as v :refer-macros [defclass view]]
             [goog.dom.classes :as classes]
             [chia.routing :as routing]
             [re-view.material.example :as material-example]

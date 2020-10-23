@@ -1,6 +1,6 @@
 (ns website.util
   (:require [chia.view :as v]
-            [chia.view.legacy :as legacy]
+            [chia.view.class :as legacy]
             [goog.net.XhrIo :as xhr]
             [goog.dom.classes :as classes]
             [clojure.set :as set]))

@@ -1,6 +1,6 @@
 (ns chia.view.context-test
   (:require [chia.view :as v]
-            [chia.view.legacy :as vl]
+            [chia.view.class :as vl]
             [chia.view.util :as vu]
             [cljs.test :as test :refer [is]]
             [chia.reactive.atom :as ra]

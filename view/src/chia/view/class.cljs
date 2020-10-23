@@ -1,14 +1,14 @@
-(ns chia.view.legacy
+(ns chia.view.class
   (:require ["react" :as react]
             ["react-dom" :as react-dom]
             [applied-science.js-interop :as j]
             [chia.view.render-loop :as render-loop]
             [chia.reactive :as r]
             [cljs.spec.alpha :as s]
-            [chia.view.legacy.view-specs]
-            [chia.view.legacy.util :as class-util]
+            [chia.view.class.view-specs]
+            [chia.view.class.util :as class-util]
             [chia.util :as u])
-  (:require-macros [chia.view.legacy :as class]))
+  (:require-macros [chia.view.class :as class]))
 
 (def Component react/Component)
 (def -create-element react/createElement)

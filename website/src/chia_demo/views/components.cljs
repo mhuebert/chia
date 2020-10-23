@@ -1,6 +1,6 @@
 (ns chia-demo.views.components
   (:require [chia.view :as v]
-            [chia.view.legacy :as legacy]
+            [chia.view.class :as legacy]
             ["@material-ui/core/Button" :default Button]))
 
 (legacy/defclass my-method

@@ -1,4 +1,4 @@
-(ns chia.view.legacy.util)
+(ns chia.view.class.util)
 
 (def lifecycle-keys
   "Mapping of methods-map keys to React lifecycle keys."

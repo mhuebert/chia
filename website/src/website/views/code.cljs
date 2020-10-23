@@ -1,6 +1,6 @@
 (ns website.views.code
   (:require [chia.view :as v]
-            [chia.view.legacy :as legacy]
+            [chia.view.class :as legacy]
             [website.views :as views]
             [goog.string.path :as path]
             [chia.view.props :as props]))

@@ -1,6 +1,6 @@
 (ns chia.ns-browser.views
   (:require [chia.view :as v]
-            [chia.view.legacy :as legacy]
+            [chia.view.class :as legacy]
             [chia.db :as d]
             [clojure.string :as str]
             [cljs.pprint :as pp]

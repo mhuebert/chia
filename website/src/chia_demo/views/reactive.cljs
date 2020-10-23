@@ -1,6 +1,6 @@
 (ns chia-demo.views.reactive
   (:require [chia.view :as v]
-            [chia.view.legacy :as legacy]
+            [chia.view.class :as legacy]
             [chia.reactive.atom-db :as db]
             [chia-demo.views.util :as u]
             [cljs.pprint :as pp]

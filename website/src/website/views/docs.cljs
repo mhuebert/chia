@@ -1,5 +1,5 @@
 (ns website.views.docs
-  (:require [chia.view.legacy :as vl :refer [defclass]]
+  (:require [chia.view.class :as vl :refer [defclass]]
             [website.views.markdown :refer [md]]
             [goog.string.path :as path]
             [clojure.string :as string]

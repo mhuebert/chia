@@ -1,6 +1,6 @@
 (ns chia-demo.views.util
   (:require [chia.view :as v]
-            [chia.view.legacy :as legacy]))
+            [chia.view.class :as legacy]))
 
 (defn icon
   ([k] (icon {} k))

@@ -1,6 +1,6 @@
 (ns website.views
   (:require [chia.view :as v]
-            [chia.view.legacy :as legacy]
+            [chia.view.class :as legacy]
             [goog.dom :as gdom]
             [website.views.markdown :as markdown]
             [goog.dom.classes :as classes]

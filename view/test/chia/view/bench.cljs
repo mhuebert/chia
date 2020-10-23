@@ -9,7 +9,7 @@
    [fulcro.client.dom :as fulcro-dom]
    [cljs.test :as t]
    [chia.view :as v]
-   [chia.view.legacy :as legacy]
+   [chia.view.class :as legacy]
    [chia.view.hiccup :as hiccup]
    [sablono.interpreter :as sab]
    [uix.compiler.reagent :as uix]

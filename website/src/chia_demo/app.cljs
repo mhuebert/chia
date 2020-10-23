@@ -1,6 +1,6 @@
 (ns chia-demo.app
   (:require [chia.view :as v]
-            [chia.view.legacy :as legacy]
+            [chia.view.class :as legacy]
             [chia.jss :as jss]
             [chia-demo.styles]
 

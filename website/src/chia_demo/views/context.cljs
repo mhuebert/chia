@@ -1,6 +1,6 @@
 (ns chia-demo.views.context
   (:require [chia.view :as v]
-            [chia.view.legacy :as legacy]
+            [chia.view.class :as legacy]
             [chia.reactive :as r]))
 
 (defn counter []

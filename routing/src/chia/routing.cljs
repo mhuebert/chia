@@ -2,7 +2,6 @@
   (:require [clojure.string :as str]
             [chia.util.string :as string]
             [applied-science.js-interop :as j]
-            [clojure.edn :as edn]
             [chia.util :as u]))
 
 (defonce ^:private listeners (atom {}))

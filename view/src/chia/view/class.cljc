@@ -1,8 +1,8 @@
-(ns chia.view.legacy
+(ns chia.view.class
   (:require [clojure.core :as core]
             [clojure.string :as str]
             [clojure.spec.alpha :as s]
-            [chia.view.legacy.util :as class-util]
+            [chia.view.class.util :as class-util]
             [chia.util :as u]))
 
 (defmacro ^:private apply-fn [f this]
@@ -34,13 +34,13 @@
     `(fn ~fn-name [~props-sym]
        (core/this-as ~this-name
          ;; super()
-         (~'.call ~'chia.view.legacy/Component ~this-name ~props-sym)
+         (~'.call ~'chia.view.class/Component ~this-name ~props-sym)
          ;; init internal state
 
          (~'applied-science.js-interop/assoc! ~this-name ~'.-state (~'js-obj))
 
          ~(when initial-state
-            `(~'chia.view.legacy/populate-initial-state! ~this-name ~props-sym ~initial-state))
+            `(~'chia.view.class/populate-initial-state! ~this-name ~props-sym ~initial-state))
 
          ;; return component
          ~this-name))))
@@ -113,7 +113,7 @@
                                    doc (assoc :doc doc)))
                     (group-methods))]
     (let [constructor (make-constructor name (:view/initial-state options))]
-      `(~'chia.view.legacy/view* ~methods ~constructor))))
+      `(~'chia.view.class/view* ~methods ~constructor))))
 
 (defmacro view
   [& args]
@@ -170,7 +170,7 @@
                      [doc args]
                      [nil (cons doc args)])]
     `(when ~'js/goog.DEBUG
-       (swap! ~'chia.view.legacy.view-specs/spec-meta assoc ~kw {:doc ~doc})
+       (swap! ~'chia.view.class.view-specs/spec-meta assoc ~kw {:doc ~doc})
        (clojure.spec.alpha/def ~kw ~@args))))
 
 (defmacro consume [bindings & body]
@@ -178,7 +178,7 @@
          out (cons 'do body)]
     (if-let [[ctx-sym ctx-k] (first bindings)]
       (recur (rest bindings)
-             `(~'chia.view.legacy/consume*
+             `(~'chia.view.class/consume*
                (~'chia.view.impl/lookup-context ~ctx-k)
                (fn [~ctx-sym] ~out)))
       out)))

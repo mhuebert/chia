@@ -100,4 +100,4 @@
        ~name)))
 
 (defmacro defclass [& body]
-  `(~'chia.view.legacy/defclass ~@body))
+  `(~'chia.view.class/defclass ~@body))
