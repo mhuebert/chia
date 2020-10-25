@@ -1,13 +1,15 @@
 (ns chia.view.bench
   (:require
-   ["benchmark" :as b]
-   ["react" :as react :refer [Fragment] :rename {createElement rce}]
-   ["react-dom/server" :as rdom]
-   [reagent.core :as reagent]
-   [cljs.test :as t]
-   [chia.view :as v]
-   [chia.view.class :as class]
-   [chia.view.hiccup :as hiccup]))
+    ["benchmark" :as b]
+    ["react" :as react :refer [Fragment] :rename {createElement rce}]
+    ["react-dom/server" :as rdom]
+    [reagent.core :as reagent]
+    [cljs.test :as t]
+    [chia.view :as v]
+    [chia.view.class :as class]
+    [chia.view.hiccup :as hiccup]
+    [triple.view :as triple]
+    [triple.view.hiccup :as triple-hiccup]))
 
 (def element react/createElement)
 (def to-string rdom/renderToString)
@@ -17,16 +19,16 @@
 
 (defn reagent-render [{:keys [title body items]}]
   (reagent/as-element
-   [:div.card
-    [:div.card-title title]
-    [:div.card-body body]
-    [:ul.card-list
-     (for [item items]
-       ^{:key item} [:li item])]
-    [:div.card-footer
-     [:div.card-actions
-      [:button "ok"]
-      [:button "cancel"]]]]))
+    [:div.card
+     [:div.card-title title]
+     [:div.card-body body]
+     [:ul.card-list
+      (for [item items]
+        ^{:key item} [:li item])]
+     [:div.card-footer
+      [:div.card-actions
+       [:button "ok"]
+       [:button "cancel"]]]]))
 
 (defn react-render [{:keys [title body items]}]
 
@@ -56,8 +58,20 @@
      [:button "ok"]
      [:button "cancel"]]]])
 
+(triple/defview triple-view [{:keys [title body items]}]
+  [:div.card
+   [:div.card-title title]
+   [:div.card-body body]
+   [:ul.card-list
+    (for [item items]
+      [:li {:key item} item])]
+   [:div.card-footer
+    [:div.card-actions
+     [:button "ok"]
+     [:button "cancel"]]]])
+
 (class/defclass chia-legacy [{:keys [title body items]}]
-                [:div.card
+  [:div.card
    [:div.card-title title]
    [:div.card-body body]
    [:ul.card-list
@@ -70,24 +84,27 @@
 
 (defn chia-hiccup [{:keys [title body items]}]
   (hiccup/to-element
-   [:div.card
-    [:div.card-title title]
-    [:div.card-body body]
-    [:ul.card-list
-     (for [item items]
-       [:li {:key item} item])]
-    [:div.card-footer
-     [:div.card-actions
-      [:button "ok"]
-      [:button "cancel"]]]]))
+    [:div.card
+     [:div.card-title title]
+     [:div.card-body body]
+     [:ul.card-list
+      (for [item items]
+        [:li {:key item} item])]
+     [:div.card-footer
+      [:div.card-actions
+       [:button "ok"]
+       [:button "cancel"]]]]))
 
 (defn log-cycle [event]
   (println (.toString (.-target event))))
 
+(defn sample-data []
+  {:title "hello world"
+   :body "body"
+   :items (shuffle (range 10))})
+
 (defn ^:dev/after-load main [& args]
-  (let [test-data {:title "hello world"
-                   :body  "body"
-                   :items (shuffle (range 10))}
+  (let [test-data (sample-data)
         suite (b/Suite.)]
     (aset js/window "Benchmark" suite)
     #_(println "chia")
@@ -107,19 +124,23 @@
 
     (print :react "\n" (to-string (react-render test-data)))
     (print :chia-legacy "\n" (to-string (chia-legacy test-data)))
+    (print :triple "\n" (to-string (triple-hiccup/to-element
+                                     [triple-view test-data])))
 
     (-> suite
 
-        (.add "reagent/interpret" (comp to-string #(reagent-render test-data)))
-
-
-        (.add "chia-legacy/interpret" (comp to-string #(chia-legacy test-data)))
-        (.add "chia-wrapped/interpret" (comp to-string #(chia-view test-data)))
-        (.add "chia-hiccup/interpret" (comp to-string #(chia-hiccup test-data)))
+        (.add "reagent/interpret" (comp to-string
+                                        #(reagent-render test-data)))
+        (.add "chia-hiccup/interpret" (comp to-string
+                                            #(chia-hiccup test-data)))
+        (.add "triple/interpret" (comp to-string
+                                       #(triple-hiccup/to-element
+                                          [triple-view test-data])))
 
         (.on "cycle" log-cycle)
         (.run))))
 
+(prn :loaded)
 (defonce _ (main))
 
 

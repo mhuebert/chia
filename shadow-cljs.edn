@@ -8,6 +8,6 @@
                                        :http-root "public/compiled/browser-tests"}}
           :bench   {:target     :browser
                     :modules    {:main {:entries [chia.view.bench]}}
-                    :output-dir "public/compiled/bench"
+                    :output-dir "public/compiled/bench/js"
                     :devtools   {:http-port 8031
                                  :http-root "public/compiled/bench"}}}}
