@@ -44,7 +44,7 @@
     :else
     m))
 
-(defn element?
+(defn hiccup-vector?
   "- is x a vector?
   AND
    - first element is a keyword?"
@@ -58,23 +58,6 @@
        (flatten)
        (remove nil?)
        (str/join " ")))
-
-(defn controlled-input-class
-  "Returns the React class that is to be used for this component or nil if it's not a controlled
-   input."
-  [type attrs]
-  (when (keyword? type)
-    (case (name type)
-      "input" (cond
-                (:checked attrs) '(hicada.input/wrapped-checked)
-                (:value attrs) '(hicada.input/wrapped-input)
-                :else nil)
-      "select" (when (:value attrs) '(hicada.input/wrapped-select))
-      "textarea" (when (:value attrs) '(hicada.input/wrapped-textarea))
-      nil)))
-
-
-
 
 (defn html-to-dom-attrs
   "Converts all HTML attributes to their DOM equivalents."

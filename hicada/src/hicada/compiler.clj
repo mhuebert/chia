@@ -15,6 +15,7 @@
   (:refer-clojure :exclude [compile])
   (:require
    cljs.analyzer
+   [hicada.compiler.impl :as compiler]
    [hicada.normalize :as norm]
    [hicada.util :as util]))
 
@@ -28,10 +29,8 @@
 
 ;; TODO: We should take &env around everything and also expect it as an argument.
 (def default-config {:inline? false
-                     :wrap-input? false
                      :array-children? false
                      :emit-fn nil
-                     :rewrite-for? false
                      :server-render? false
                      :warn-on-interpretation? true
                      ;; If you also want to camelcase string map keys, add string? here:
@@ -126,112 +125,6 @@
 
 (declare compile-html)
 
-(defmulti compile-form
-          "Pre-compile certain standard forms, where possible."
-          form-name)
-
-(declare emitter)
-(defmethod compile-form "do"
-  [[_ & forms]]
-  `(do ~@(butlast forms) ~(emitter (last forms))))
-
-(defmethod compile-form "array"
-  [[_ & forms]]
-  `(cljs.core/array ~@(mapv emitter forms)))
-
-(defmethod compile-form "let"
-  [[_ bindings & body]]
-  `(let ~bindings ~@(butlast body) ~(emitter (last body))))
-
-(defmethod compile-form "let*"
-  [[_ bindings & body]]
-  `(let* ~bindings ~@(butlast body) ~(emitter (last body))))
-
-(defmethod compile-form "letfn"
-  [[_ bindings & body]]
-  `(letfn ~bindings ~@(butlast body) ~(emitter (last body))))
-
-(defmethod compile-form "letfn*"
-  [[_ bindings & body]]
-  `(letfn* ~bindings ~@(butlast body) ~(emitter (last body))))
-
-(defmethod hicada.compiler/compile-form "list"
-  [[_ & forms]]
-  `(cljs.core/array ~@(mapv emitter forms)))
-
-(defmethod compile-form "for"
-  [[_ bindings body]]
-  ;; Special optimization: For a simple (for [x xs] ...) we rewrite the for
-  ;; to a fast reduce outputting a JS array:
-  (if (:rewrite-for? *config*)
-    (if (== 2 (count bindings))
-      (let [[item coll] bindings]
-        `(reduce (fn ~'hicada-for-reducer [out-arr# ~item]
-                   (.push out-arr# ~(emitter body))
-                   out-arr#)
-                 (cljs.core/array) ~coll))
-      ;; Still optimize a little by giving React an array:
-      (list 'cljs.core/into-array `(for ~bindings ~(emitter body))))
-    `(for ~bindings ~(emitter body))))
-
-(defmethod compile-form "when"
-  [[_ condition & body]]
-  `(when ~condition ~@(butlast body) ~(emitter (last body))))
-
-(defmethod compile-form "when-let"
-  [[_ bindings & body]]
-  `(when-let ~bindings ~@(butlast body) ~(emitter (last body))))
-
-(defmethod compile-form "when-some"
-  [[_ bindings & body]]
-  `(when-some ~bindings ~@(butlast body) ~(emitter (last body))))
-
-(defmethod compile-form "when-not"
-  [[_ condition & body]]
-  `(when-not ~condition ~@(butlast body) ~(emitter (last body))))
-
-(defmethod compile-form "if"
-  [[_ condition & body]]
-  `(if ~condition ~@(doall (for [x body] (emitter x)))))
-
-(defmethod compile-form "if-let"
-  [[_ bindings & body]]
-  `(if-let ~bindings ~@(doall (for [x body] (emitter x)))))
-
-(defmethod compile-form "if-not"
-  [[_ condition & body]]
-  `(if-not ~condition ~@(doall (for [x body] (emitter x)))))
-
-(defmethod compile-form "if-some"
-  [[_ bindings & body]]
-  `(if-some ~bindings ~@(doall (for [x body] (emitter x)))))
-
-(defmethod compile-form "case"
-  [[_ v & cases]]
-  `(case ~v
-     ~@(doall (mapcat
-                (fn [[test hiccup]]
-                  (if hiccup
-                    [test (emitter hiccup)]
-                    [(emitter test)]))
-                (partition-all 2 cases)))))
-
-(defmethod compile-form "condp"
-  [[_ f v & cases]]
-  `(condp ~f ~v
-     ~@(doall (mapcat
-                (fn [[test hiccup]]
-                  (if hiccup
-                    [test (emitter hiccup)]
-                    [(emitter test)]))
-                (partition-all 2 cases)))))
-
-(defmethod compile-form "cond"
-  [[_ & clauses]]
-  `(cond ~@(mapcat
-             (fn [[check expr]] [check (emitter expr)])
-             (partition 2 clauses))))
-
 
 (defn infer-type
   [expr env]
@@ -256,21 +149,25 @@
         `(hicada.interpreter/interpret ~expr)))))
 
 
-(defmethod compile-form :default
-  [expr]
+(defn compile-form
+  [expr {:keys [interpret-or-inline-fn
+                wrap-interpret]
+         :or {interpret-or-inline-fn (constantly nil)}}]
+  (if-let [f (get-method compiler/wrap-return expr)]
+    (f expr compile-form)
+    (let [interpret-or-inline (interpret-or-inline-fn expr)
+          expr-meta (meta expr)]
+      (cond
+        (or (= interpret-or-inline :inline)
+            (:inline expr-meta))
+        expr
 
-  (let [interpret-or-inline ((:interpret-or-inline-fn *config* (constantly nil)) expr)]
-    (cond
-      (or (= interpret-or-inline :inline)
-          (-> expr meta :inline))
-      expr
+        (or (= interpret-or-inline :interpret)
+            (:interpret expr-meta))
+        (wrap-interpret expr)
 
-      (or (= interpret-or-inline :interpret)
-          (-> expr meta :interpret))
-      `(hicada.interpreter/interpret ~expr)
-
-      :else
-      `(interpret-when-necessary ~expr))))
+        :else
+        `(interpret-when-necessary ~expr)))))
 
 
 (defn- literal?
@@ -356,7 +253,7 @@
     :else (compile-form content)))
 
 (defmethod compile-react :vector [xs]
-  (if (util/element? xs)
+  (if (util/hiccup-vector? xs)
     (compile-react-element xs)
     (compile-react (seq xs))))
 
@@ -423,12 +320,11 @@
 (defn emit-react
   "Emits the final react js code"
   [tag attrs children]
-  (let [{:keys [transform-fn emit-fn inline? wrap-input?
+  (let [{:keys [transform-fn emit-fn inline?
                 create-element array-children?]} *config*
         [tag attrs children] (transform-fn [tag attrs children *env*])]
     (if inline?
-      (let [type (or (and wrap-input? (util/controlled-input-class tag attrs))
-                     (tag->el tag))
+      (let [type (tag->el tag)
             props (to-js
                     (merge (when-not (empty? children) {:children (collapse-one children)})
                            (compile-config (dissoc attrs :key :ref))))]
@@ -445,11 +341,7 @@
                        ;; Though, in debug builds of react this will warn about "no keys".
                        [(apply list 'cljs.core/array children)]
                        children)
-            el (if-some [wrapper-class (util/controlled-input-class tag attrs)]
-                 (if wrap-input?
-                   wrapper-class
-                   (tag->el tag))
-                 (tag->el tag))
+            el (tag->el tag)
             cfg (to-js (compile-config attrs))]
         (if emit-fn
           (emit-fn el cfg children)
@@ -469,9 +361,6 @@
    o :interpret-or-inline-fn - optional; fn of expr that returns `:inline` or `:interpret` to force one of those options.
    o :array-children? - for product build of React only or you'll enojoy a lot of warnings :)
    o :create-element 'js/React.createElement - you can also use your own function here.
-   o :wrap-input? - if inputs should be wrapped. Try without!
-   o :rewrite-for? - rewrites simple (for [x xs] ...) into efficient reduce pushing into
-                          a JS array.
    o :emit-fn - optinal: called with [type config-js child-or-children]
    o :server-render? - defaults to false. Doesn't do any JS outputting. Still requires an :emit-fn!
    o :camelcase-key-pred - defaults to (some-fn keyword? symbol?), ie. map keys that have
@@ -577,3 +466,5 @@
 
 )
 
+;; CHANGES
+;; - pass :wrap-interpret, was `(hicada.interpreter/interpret ~expr)

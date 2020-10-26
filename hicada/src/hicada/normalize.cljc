@@ -8,19 +8,17 @@
 (defn compact-map
   "Removes all map entries where the value of the entry is empty."
   [m]
-  (reduce
-    (fn [m k]
-      (let [v (get m k)]
-        (if (empty? v)
-          (dissoc m k) m)))
-    m (keys m)))
+  (reduce-kv
+    (fn [m k v]
+      (cond-> m
+              (not (some? v))
+              (dissoc k)))
+    m m))
 
-(defn class-name
+(defn kw->name
   [x]
-  (cond
-    (string? x) x
-    (keyword? x) (name x)
-    :else x))
+  (cond-> x
+          (keyword? x) name))
 
 (defn vec+stringify-class
   "Normalize `class` into a vector of classes (keywords will be stringified)."
@@ -32,7 +30,7 @@
     (list? klass)
     (if (symbol? (first klass))
       [klass]
-      (map class-name klass))
+      (map kw->name klass))
 
     (symbol? klass)
     [klass]
@@ -41,17 +39,16 @@
     [klass]
 
     (keyword? klass)
-    [(class-name klass)]
+    [(kw->name klass)]
 
     (or (set? klass)
         (sequential? klass))
-    (mapv class-name klass)
+    (mapv kw->name klass)
 
     (map? klass)
     [klass]
 
     :else klass))
-#_(vec+stringify-class :foo)
 
 (defn attributes
   "Normalize the :class, :class-name and :className elements"
@@ -73,18 +70,22 @@
     (cond-> (conj m0 m1)
       (not (empty? classes))
       (assoc :class classes))))
-#_(merge-with-class {:class "a"} {:class ["b"]})
+
+(comment
+  (merge-with-class {:class "a"} {:class ["b"]}))
 
 (defn strip-css
   "Strip the # and . characters from the beginning of `s`."
   [s]
-  (when (some? s)
-    (cond
-      (.startsWith s ".") (subs s 1)
-      (.startsWith s "#") (subs s 1)
-      :else s)))
-#_(strip-css "#foo")
-#_(strip-css ".foo")
+  (cond-> s
+          (and (some? s)
+               (or (.startsWith s ".")
+                   (.startsWith s "#")))
+          (subs 1)))
+
+(comment
+  (strip-css "#foo")
+  (strip-css ".foo"))
 
 (defn match-tag
   "Match `s` as a CSS tag and return a vector of tag name, CSS id and
@@ -101,37 +102,32 @@
     [(keyword tag-name)
      (first (map strip-css (filter #(= \# (first %1)) names)))
      (vec (map strip-css (filter #(= \. (first %1)) names)))]))
-#_(match-tag :.foo.bar#some-id)
-#_(match-tag :foo/span.foo.bar#some-id.hi)
+
+(comment
+  (match-tag :.foo.bar#some-id)
+  (match-tag :foo/span.foo.bar#some-id.hi))
+
+(defmacro t [expr]
+  {:list? (list? expr)
+   :sym? (symbol? expr)
+   :seq? (seq? expr)})
+
+(t 'x)
+
 
 (defn children
   "Normalize the children of a HTML element."
   [x]
-  (->> (cond
-         (string? x)
-         (list x)
+  (when x
+    (if (sequential? x)
+      (cond
+        (util/hiccup-vector? x) (list x)
+        (and (= (count x) 1)
+             (sequential? (first x))) (children (first x))
+        :else x)
+      (list x))))
 
-         (util/element? x)
-         (list x)
-
-         (and (list? x)
-              (symbol? x))
-         (list x)
-
-         (list? x)
-         x
-
-         (and (sequential? x)
-              (sequential? (first x))
-              (not (string? (first x)))
-              (not (util/element? (first x)))
-              (= (count x) 1))
-         (children (first x))
-
-         (sequential? x)
-         x
-         :else (list x))
-       (filterv some?)))
+(defn guard [x f] (when (f x) x))
 
 (defn element
   "Given:
@@ -144,16 +140,17 @@
   (when (not (or (keyword? tag) (symbol? tag) (string? tag)))
     (throw (ex-info (str tag " is not a valid element name.") {:tag tag :content content})))
   (let [[tag id klass] (match-tag tag)
-        tag-attrs (compact-map {:id id :class klass})
-        map-attrs (first content)]
-    (if (map? map-attrs)
+        tag-attrs (compact-map {:id id :class klass})]
+    (if-let [map-attrs (guard (first content) map?)]
       [tag
        (merge-with-class tag-attrs map-attrs)
        (children (next content))]
       [tag
        (attributes tag-attrs)
        (children content)])))
-#_(element [:div#foo 'a])
-#_(element [:div.a#foo])
-#_(element [:h1.b {:className "a"}])
+
+(comment
+  (element [:div#foo 'a])
+  (element [:div.a#foo])
+  (element [:h1.b {:className "a"}]))
 
