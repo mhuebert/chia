@@ -3,7 +3,9 @@
             [clojure.string :as str]
             [clojure.string :refer [blank? join]]
             [hicada.normalize :as normalize]
-            [hicada.util :as util]))
+            [hicada.util :as util]
+            hicada.macros))
+
 
 (defprotocol IInterpreter
   (interpret [this] "Interpret a Clojure data structure as a React fn call."))
@@ -12,7 +14,7 @@
   "Create a React element. Returns a JavaScript object when running
   under ClojureScript, and a om.dom.Element record in Clojure."
   [type props & children]
-  #?(:clj nil
+  #?(:clj  nil
      :cljs (apply js/React.createElement type props children)))
 
 (defn classes-string [classes]
@@ -30,26 +32,30 @@
       (assoc m :class classes-string)
       m)))
 
+
+#?(:cljs
+   (defn update-class! [obj class-string]
+         (j/update! obj :class
+                    (fn [x]
+                        (if (some? x)
+                          (str class-string " " x)
+                          class-string)))))
+
+(declare element)
+
 (defn props
-  ([attrs]
-   (props nil nil attrs))
-  ([id class-string attrs]
-   #?(:clj  (let [props (reduce-kv
-                          (fn [m k v] (util/compile-prop assoc m k v))
-                          (cond-> {} (some? id) (assoc "id" id))
-                          attrs)]
-              (if class-string
-                (update props "class"
-                        #(cond (nil? %) class-string
-                               (string? %) (str % " " class-string)
-                               :else `(str ~% " " ~class-string)))
-                props))
-      :cljs (if (object? attrs)
-              attrs
-              (reduce-kv
-                (fn [m k v] (util/interpret-prop j/assoc! m k v))
-                (cond-> #js{} (some? id) (j/assoc! :id id))
-                (join-classes attrs class-string (:class attrs)))))))
+  [attrs]
+  #?(:clj  (reduce-kv
+             (fn [m k v] (util/compile-prop assoc m k v))
+             {}
+             attrs)
+     :cljs (if (object? attrs)
+             attrs
+             (reduce-kv
+               (fn [m k v] (util/interpret-prop j/assoc! m k v))
+               #js{}
+               attrs))))
+
 
 (defn- interpret-seq
   "Eagerly interpret the seq `x` as HTML elements."
@@ -66,7 +72,7 @@
 
 (extend-protocol IInterpreter
 
-  #?(:clj clojure.lang.ChunkedCons
+  #?(:clj  clojure.lang.ChunkedCons
      :cljs cljs.core.ChunkedCons)
   (interpret [this]
     (interpret-seq this))
@@ -76,37 +82,37 @@
              (interpret [this]
                         (interpret-seq this))])
 
-  #?(:clj clojure.lang.PersistentVector$ChunkedSeq
+  #?(:clj  clojure.lang.PersistentVector$ChunkedSeq
      :cljs cljs.core.ChunkedSeq)
   (interpret [this]
     (interpret-seq this))
 
-  #?(:clj clojure.lang.Cons
+  #?(:clj  clojure.lang.Cons
      :cljs cljs.core.Cons)
   (interpret [this]
     (interpret-seq this))
 
-  #?(:clj clojure.lang.LazySeq
+  #?(:clj  clojure.lang.LazySeq
      :cljs cljs.core.LazySeq)
   (interpret [this]
     (interpret-seq this))
 
-  #?(:clj clojure.lang.PersistentList
+  #?(:clj  clojure.lang.PersistentList
      :cljs cljs.core.List)
   (interpret [this]
     (interpret-seq this))
 
-  #?(:clj clojure.lang.IndexedSeq
+  #?(:clj  clojure.lang.IndexedSeq
      :cljs cljs.core.IndexedSeq)
   (interpret [this]
     (interpret-seq this))
 
-  #?(:clj clojure.lang.APersistentVector$SubVector
+  #?(:clj  clojure.lang.APersistentVector$SubVector
      :cljs cljs.core.Subvec)
   (interpret [this]
     (element this))
 
-  #?(:clj clojure.lang.PersistentVector
+  #?(:clj  clojure.lang.PersistentVector
      :cljs cljs.core.PersistentVector)
   (interpret [this]
     (element this))

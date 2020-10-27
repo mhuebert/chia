@@ -19,7 +19,7 @@
 (defn wrap-return
   "Wraps return clauses of common Clojure operators with `f`"
   [form f]
-  (when-let [op (doto (form-op form) prn)]
+  (when-let [op (form-op form)]
     (case (name op)
       "do"
       `(do ~@(butlast (rest form)) ~(f (last form)))
@@ -37,7 +37,7 @@
 
       "for"
       (let [[_ bindings body] form]
-        `(for ~bindings ~(f body)))
+        `(~'hicada.macros/for ~bindings ~(f body)))
 
       ("when"
         "when-not"

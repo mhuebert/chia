@@ -1,8 +1,8 @@
 {:paths []
  :aliases {:test {:extra-paths ["view/test"
-                                "db/test"
-                                "hicada/src"]
-                  :extra-deps {reagent {:mvn/version "1.0.0-alpha2"}}}}
+                                "db/test"]
+                  :extra-deps {reagent {:mvn/version "1.0.0-alpha2"}
+                               hicada {:local/root "hicada"}}}}
  :deps {thheller/shadow-cljs {:mvn/version "2.11.5"}
         org.clojure/test.check {:mvn/version "1.1.0"}
 

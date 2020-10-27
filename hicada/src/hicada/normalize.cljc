@@ -5,16 +5,6 @@
   (:require
     [hicada.util :as util]))
 
-(defn map-of-some
-  "Returns map for non-nil values"
-  [& kvs]
-  (reduce
-    (fn [m [k v]]
-      (cond-> m
-              (some? v)
-              (assoc k v)))
-    {} (partition 2 kvs)))
-
 (defn kw->name
   [x]
   (cond-> x (keyword? x) name))
@@ -31,9 +21,19 @@
   (cond (nil? classes) class-string
         (vector? classes) (conj classes class-string)
         (string? classes) (str classes " " class-string)
-        :else `(str (~'hicada.interpreter/classes-string ~classes)
+        :else `(str (~'hicada.compiler/ensure-class-string ~classes)
                     " "
                     ~class-string)))
+
+(defn props-mode [props]
+  (or (when (map? props) :map)
+      (when (nil? props) :nil)
+      (when (or (seq? props) (symbol? props))
+        (let [props-meta (meta props)]
+          (cond (:props props-meta) :dynamic-map
+                (#{'object
+                   'js} (:tag props-meta)) :js-object)))
+      :no-props))
 
 (defn hiccup-vec
   "Given:
@@ -42,30 +42,29 @@
   [:div {:id \"id\"
          :class [\"x\" \"y\"]}
     (other)]"
-  [[tag & body]]
-  (let [[tag id class-string] (if (or (keyword? tag)
-                                      (string? tag))
-                                (util/parse-tag (name tag))
-                                [tag nil nil])
-        options {:compile-children? (string? tag)}]
-    ;; TODO
-    ;; what about a dynamic keyword?
-    (if-let [map-props (util/guard (first body) map?)]
-      [tag
-       (cond-> map-props
-               id (assoc :id id)
-               class-string (update :class conj-class class-string))
-       (children-as-list (next body))
-       options]
-      (if-let [map-props-interpreted (util/guard (first body) (comp :props meta))]
+  [[tag & body :as vec]]
+  (let [js-element? (or (string? tag)
+                        (keyword? tag)
+                        (and (symbol? tag)
+                             (= 'js (:tag (meta tag)))))]
+    (if js-element?
+      (let [[tag id class-string] (if (or (keyword? tag)
+                                          (string? tag))
+                                    (util/parse-tag (name tag))
+                                    [tag nil nil])
+            props (first body)
+            mode (props-mode props)
+            props? (not= mode :no-props)]
         [tag
-         `(~'hicada.interpreter/props ~id ~class-string ~map-props-interpreted)
-         (children-as-list body)
-         options]
-        [tag
-         (map-of-some :id id :class class-string)
-         (children-as-list body)
-         options]))))
+         (when props? props)
+         (children-as-list (cond-> body props? next))
+         (merge
+           {:js-element? true
+            :id id
+            :class-string class-string
+            :prop-mode mode}
+           (select-keys (meta vec) [:ref :key]))])
+      [tag nil body (select-keys (meta vec) [:key :ref])])))
 
 
 (comment

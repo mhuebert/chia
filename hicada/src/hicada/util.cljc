@@ -7,6 +7,13 @@
 
 (defn guard [x f] (when (f x) x))
 
+(defn interpreted? [x]
+  (some-> (guard x seq?)
+          first
+          (guard symbol?)
+          namespace
+          (= "hicada.interpreter")))
+
 (defn join-classes-js-emit
   "Joins strings space separated"
   ([] "")
@@ -70,6 +77,9 @@
                  vec
                  (update 2 #(when % (dots->spaces %)))))))
 
+(defn hiccup-vec? [form]
+  (and (vector? form) (keyword? (first form))))
+
 (defn compile-prop [xf m k v]
   (let [kname (if (string? k)
                 k (camel-case (name k)))]
@@ -80,7 +90,7 @@
                           (if (every? string? v)
                             (str/join " " v)
                             (join-classes-js-emit v))
-                          :else v))
+                          :else `(~'hicada.compiler/ensure-class-string ~v)))
                 "for"
                 (xf m "htmlFor" v)
                 "style"
@@ -103,3 +113,20 @@
                 (xf m kname #?(:cljs (camel-case-keys-js v)
                                :clj (camel-case-keys v)))
                 v)))
+
+(defn assoc-some
+  ([m k v] (cond-> m (some? v) (assoc k v)))
+  ([m k v & kvs]
+   (let [ret (assoc-some m k v)]
+     (if kvs
+       (recur ret (first kvs) (second kvs) (nnext kvs))
+       ret))))
+
+#?(:cljs
+   (defn assoc-some-js!
+         ([m k v] (cond-> m (some? v) (j/assoc! k v)))
+         ([m k v & kvs]
+          (let [ret (assoc-some-js! m k v)]
+               (if kvs
+                 (recur ret (first kvs) (second kvs) (nnext kvs))
+                 ret)))))

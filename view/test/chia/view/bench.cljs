@@ -9,8 +9,10 @@
     [chia.view.class :as class]
     [chia.view.hiccup :as hiccup]
     [triple.view :as triple]
-    [triple.view.hiccup :as triple-hiccup])
+    [triple.view.hiccup :as triple-hiccup]
+    [clojure.string :as str])
   (:require-macros [chia.view.bench :as bench]
+                   [hicada.compiler :as hc]
                    [hicada.infer :as infer]))
 
 (def element react/createElement)
