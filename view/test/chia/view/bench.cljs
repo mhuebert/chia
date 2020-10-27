@@ -9,7 +9,9 @@
     [chia.view.class :as class]
     [chia.view.hiccup :as hiccup]
     [triple.view :as triple]
-    [triple.view.hiccup :as triple-hiccup]))
+    [triple.view.hiccup :as triple-hiccup])
+  (:require-macros [chia.view.bench :as bench]
+                   [hicada.inference :as infer]))
 
 (def element react/createElement)
 (def to-string rdom/renderToString)
@@ -127,7 +129,7 @@
     (print :triple "\n" (to-string (triple-hiccup/to-element
                                      [triple-view test-data])))
 
-    (-> suite
+    #_(-> suite
 
         (.add "reagent/interpret" (comp to-string
                                         #(reagent-render test-data)))
@@ -140,7 +142,5 @@
         (.on "cycle" log-cycle)
         (.run))))
 
-(prn :loaded)
+
 (defonce _ (main))
-
-

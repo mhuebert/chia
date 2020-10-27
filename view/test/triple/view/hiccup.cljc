@@ -139,8 +139,14 @@
   "Returns array of [tag-name, id, classes] from a tag-name like div#id.class1.class2"
   [tag-name]
   (let [pattern #"([^#.]+)?(?:#([^.]+))?(?:\.(.*))?"]
-    #?(:cljs (-> (.exec pattern tag-name) (.slice 1 4))
-       :clj  (rest (re-find pattern tag-name)))))
+    #?(:cljs (-> (.exec pattern tag-name)
+                 (.slice 1 4)
+                 (j/update! 2 #(when % (dots->spaces %))))
+       :clj  (-> (rest (re-find pattern tag-name))
+                 vec
+                 (update 2 #(when % (dots->spaces %)))))))
+
+(-parse-tag "div#id.c1.c2")
 
 (def parse-tag (memo/by-string -parse-tag))
 

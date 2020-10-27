@@ -1,5 +1,5 @@
 (ns hicada.interpreter
-  (:require #?(:cljs [goog.object :as object])
+  (:require #?(:cljs [applied-science.js-interop :as j])
             [clojure.string :as str]
             [clojure.string :refer [blank? join]]
             [hicada.normalize :as normalize]
@@ -15,16 +15,41 @@
   #?(:clj nil
      :cljs (apply js/React.createElement type props children)))
 
-(defn attributes [attrs]
-  #?(:clj (-> (util/html-to-dom-attrs attrs)
-              (update :className #(some->> % (str/join " "))))
-     :cljs (when-let [js-attrs (clj->js (util/html-to-dom-attrs attrs))]
-             (let [class (.-className js-attrs)
-                   class (if (array? class) (join " " class) class)]
-               (if (blank? class)
-                 (js-delete js-attrs "className")
-                 (set! (.-className js-attrs) class))
-               js-attrs))))
+(defn classes-string [classes]
+  (cond (string? classes) classes
+        (vector? classes) (str/join " " classes)
+        :else classes))
+
+(defn- join-classes [m class-string classes]
+  ;; joins `a` and `b` which may be nil
+  (if (some? class-string)
+    (assoc m :class (if (some? classes)
+                      (str class-string " " (classes-string classes))
+                      class-string))
+    (if (some? classes-string)
+      (assoc m :class classes-string)
+      m)))
+
+(defn props
+  ([attrs]
+   (props nil nil attrs))
+  ([id class-string attrs]
+   #?(:clj  (let [props (reduce-kv
+                          (fn [m k v] (util/compile-prop assoc m k v))
+                          (cond-> {} (some? id) (assoc "id" id))
+                          attrs)]
+              (if class-string
+                (update props "class"
+                        #(cond (nil? %) class-string
+                               (string? %) (str % " " class-string)
+                               :else `(str ~% " " ~class-string)))
+                props))
+      :cljs (if (object? attrs)
+              attrs
+              (reduce-kv
+                (fn [m k v] (util/interpret-prop j/assoc! m k v))
+                (cond-> #js{} (some? id) (j/assoc! :id id))
+                (join-classes attrs class-string (:class attrs)))))))
 
 (defn- interpret-seq
   "Eagerly interpret the seq `x` as HTML elements."
@@ -35,17 +60,9 @@
   "Render an element vector as a HTML element."
   [element]
   (let [[type attrs content] (normalize/element element)]
-    (apply create-element (name type) ;;hicada uses keyword tags, unlike sablono
-           (attributes attrs)
+    (apply create-element type
+           (props attrs)
            (interpret-seq content))))
-
-(defn- interpret-vec
-  "Interpret the vector `x` as an HTML element or a the children of an
-  element."
-  [x]
-  (if (util/hiccup-vector? x)
-    (element x)
-    (interpret-seq x)))
 
 (extend-protocol IInterpreter
 
@@ -87,12 +104,12 @@
   #?(:clj clojure.lang.APersistentVector$SubVector
      :cljs cljs.core.Subvec)
   (interpret [this]
-    (interpret-vec this))
+    (element this))
 
   #?(:clj clojure.lang.PersistentVector
      :cljs cljs.core.PersistentVector)
   (interpret [this]
-    (interpret-vec this))
+    (element this))
 
   #?(:clj Object :cljs default)
   (interpret [this]

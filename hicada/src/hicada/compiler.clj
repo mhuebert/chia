@@ -3,354 +3,131 @@
   Hicada - Hiccup compiler aus dem Allgaeu
 
   NOTE: The code for has been forked like this:
-  weavejester/hiccup -> r0man/sablono -> Hicada.
-
-  Note about :array-children? :
-  Go read the React.createElement() function, it's very short and easy to understand.
-  Do you see how the children are just copied from the arguments and then just put into
-  props.children? This is exactly what :array-children? avoids. It's completely safe to do.
-
-  Dev Note: Do NOT use any laziness here! Not when generating code! Or it won't pick up
-  the ^:dynamic config anymore!"
+  weavejester/hiccup -> r0man/sablono -> Hicada."
   (:refer-clojure :exclude [compile])
   (:require
-   cljs.analyzer
-   [hicada.compiler.impl :as compiler]
-   [hicada.normalize :as norm]
-   [hicada.util :as util]))
+    cljs.analyzer
+    [hicada.compiler.impl :as compiler]
+    [hicada.compiler.env :as env]
+    [hicada.inference :as infer]
+    [hicada.normalize :as norm]
+    [hicada.util :as util]
+    [clojure.string :as str]))
 
-(def default-handlers {:> (fn [_ klass attrs & children]
-                            [klass attrs children])
-                       :* (fn [_ attrs & children]
-                            (if (map? attrs)
-                              ['js/React.Fragment attrs children]
-                              ['js/React.Fragment {} (cons attrs children)]))})
-
-
-;; TODO: We should take &env around everything and also expect it as an argument.
-(def default-config {:inline? false
-                     :array-children? false
-                     :emit-fn nil
-                     :server-render? false
-                     :warn-on-interpretation? true
-                     ;; If you also want to camelcase string map keys, add string? here:
-                     :camelcase-key-pred (some-fn keyword? symbol?)
-                     ;; A fn that will get [tag attr children] and return
-                     ;; [tag attr children] just before emitting.
-                     :transform-fn identity
-                     :create-element 'js/React.createElement
-                     :inlineable-types #{'number 'string}
-                     :child-config (fn [options form expanded] options)})
-
-(def ^:dynamic *config* default-config)
-(def ^:dynamic *handlers* default-handlers)
-(def ^:dynamic *env* nil)
-
-(defmacro with-child-config [form expanded-form & body]
-  `(let [cfg# *config*
-         new-cfg# ((:child-config *config*) *config* ~form ~expanded-form)]
-     (binding [*config* new-cfg#] ~@body)))
-
-(defmulti compile-react
-          "Compile a Clojure data structure into a React fn call."
-          (fn [x]
-            (cond
-              (vector? x) :vector
-              (seq? x) :seq
-              :else (class x))))
-
-(defmulti compile-config-kv (fn [name value] name))
-
-(defmethod compile-config-kv :class [name value]
-  (cond (or (nil? value)
-            (keyword? value)
-            (string? value))
-        value
-
-        (and (or (sequential? value)
-                 (set? value))
-             (every? string? value))
-        (util/join-classes value)
-
-        (and (vector? value) (not (:server-render? *config*)))
-        (apply util/join-classes-js value)
-
-        :else value))
-
-(defmethod compile-config-kv :style [name value]
-  (if (list? value)
-    (list 'clj->js value)
-    (util/camel-case-keys value)))
-
-(defmethod compile-config-kv :default [name value]
-  (if (list? value)
-    (list 'clj->js value)
-    value))
-
-(defn compile-config
+(defn compile-props
   "Compile a HTML attribute map to react (class -> className), camelCases :style."
   [attrs]
   (if (map? attrs)
-    (reduce-kv (fn [m k v]
-                 (assoc m
-                   (case k
-                     :class :className
-                     :for :htmlFor
-                     (if ((:camelcase-key-pred *config*) k)
-                       (util/camel-case k)
-                       k))
-                   (compile-config-kv k v))) {} attrs)
+    (reduce-kv (fn [m k v] (util/compile-prop assoc m k v)) {} attrs)
     attrs))
-#_(compile-config {:class ["b" 'c] :style {:border-width "2px"}}) ;; camelcase style
-;; React native style:
-#_(compile-config {:class ["b" 'c] :style [{:border-width "2px"}]}) ;; camelcase style
-#_(compile-config {:on-click ()})
 
-
-(defn- unevaluated?
-  "True if the expression has not been evaluated.
-   - expr is a symbol? OR
-   - it's something like (foo bar)"
-  [expr]
-  (or (symbol? expr)
-      (and (seq? expr)
-           (not= (first expr) `quote))))
-#_(unevaluated? '(foo))
-
-(defn- form-name
-  "Get the name of the supplied form."
-  [form]
-  (when (and (seq? form) (symbol? (first form)))
-    (name (first form))))
+(comment
+  (compile-props {:class ["b" 'c] :style {:border-width "2px"}}) ;; camelcase style
+  ;; React native style:
+  (compile-props {:class ["b" 'c] :style [{:border-width "2px"}]}) ;; camelcase style
+  (compile-props {:on-click ()}))
 
 (declare compile-html)
 
-
-(defn infer-type
-  [expr env]
-  (cljs.analyzer/infer-tag env (cljs.analyzer/no-warn (cljs.analyzer/analyze env expr))))
-
-
-(defmacro interpret-when-necessary
-  "Macro that wraps `expr` with interpreter call, if it cannot be inlined based on inferred type."
-  [expr]
-  (let [tag (infer-type expr &env)]
-    (if (contains? (:inlineable-types *config*) tag)
-      expr
-      (binding [*out* *err*]
-        (when (:warn-on-interpretation? *config*)
-          (println "WARNING: interpreting by default, please specify ^:inline or ^:interpret")
-          (prn expr)
-          (println "Inferred tag was:" tag)
-          (let [{:keys [line file]} (meta expr)]
-            (when (and line file)
-              (println (str file ":" line))))
-          (println ""))
-        `(hicada.interpreter/interpret ~expr)))))
-
-
-(defn compile-form
-  [expr {:keys [interpret-or-inline-fn
-                wrap-interpret]
-         :or {interpret-or-inline-fn (constantly nil)}}]
-  (if-let [f (get-method compiler/wrap-return expr)]
-    (f expr compile-form)
-    (let [interpret-or-inline (interpret-or-inline-fn expr)
-          expr-meta (meta expr)]
-      (cond
-        (or (= interpret-or-inline :inline)
-            (:inline expr-meta))
-        expr
-
-        (or (= interpret-or-inline :interpret)
-            (:interpret expr-meta))
-        (wrap-interpret expr)
-
-        :else
-        `(interpret-when-necessary ~expr)))))
-
-
-(defn- literal?
+(defn- primitive?
   "True if x is a literal value that can be rendered as-is."
   [x]
-  (and (not (unevaluated? x))
-       (or (not (or (vector? x) (map? x)))
-           (and (every? literal? x)
-                (not (keyword? (first x)))))))
-#_(literal? [:div "foo"])
+  (or (string? x)
+      (keyword? x)
+      (number? x)
+      (nil? x)))
 
-(declare emit-react)
+(defn is-inline? [form]
+  (or
+    (primitive? form)
+    (let [form-meta (meta form)]
+      (cond (:inline form-meta) true
+            (:interpret form-meta) false
+            :else nil))))
 
-(defn compile-react-element
-  "Render an element vector as a HTML element."
-  [element]
-  (let [[tag attrs content] (norm/element element)]
-    (emit-react tag attrs (when content (compile-react content)))))
+(declare emit compile-form)
 
-(defn compile-element
-  "Returns an unevaluated form that will render the supplied vector as a HTML element."
-  [[tag attrs & children :as element]]
-  (cond
-    ;; Special syntax:
-    ;; [:> ReactNav {:key "xyz", :foo "bar} ch0 ch1]
-    (get *handlers* tag)
-    (let [f (get *handlers* tag)
-          [klass attrs children] (apply f element)]
-      (emit-react klass attrs
-                  (with-child-config element [klass attrs]
-                    (mapv compile-html children))))
+(comment
+  (compile-form `(let [] [:div props "X"])))
 
-    ;; e.g. [:span "foo"]
-    ;(every? literal? element)
-    ;(compile-react-element element)
+(defn compile-vec
+  "Returns an unevaluated form that returns a react element"
+  [[tag :as form]]
+  ;; special forms
+  (if-let [handler (get-in env/*options* [:handlers tag])]
+    (let [[klass attrs children] (handler form)]
+      (emit klass attrs (mapv compile-form children)))
+    (let [[klass attrs children] (norm/element form)]
+      (emit klass attrs (mapv compile-form children)))))
 
-    ;; e.g. [:span {} x]
-    (and (literal? tag) (map? attrs))
-    (let [[tag attrs _] (norm/element [tag attrs])]
-      (emit-react tag attrs
-                  (with-child-config element [tag attrs]
-                    (mapv compile-html children))))
+(comment
+  (compile-vec '[:div (for [x xs] [:span x])])
 
-    (literal? tag)
-    ;; We could now interpet this as either:
-    ;; 1. First argument is the attributes (in #js{} provided by the user) OR:
-    ;; 2. First argument is the first child element.
-    ;; We assume #2. Always!
-    (compile-element (list* tag {} attrs children))
+  (compile-vec '[:> A {:foo "bar"} a])
+  (compile-vec '[:> A a b])
+  (compile-form 'b)
+  (compile-vec '[A {:foo "bar"}
+                 [:span a]])
+  (compile-vec '[A b a])
+  (compile-vec '[:* 0 1 2])
+  (compile-vec '(array [:div "foo"] [:span "foo"])))
 
-    ;; Problem: [a b c] could be interpreted as:
-    ;; 1. The coll of ReactNodes [a b c] OR
-    ;; 2. a is a React Element, b are the props and c is the first child
-    ;; We default to 1) (handled below) BUT, if b is a map, we know this must be 2)
-    ;; since a map doesn't make any sense as a ReactNode.
-    ;; [foo {...} ch0 ch1] NEVER makes sense to interpret as a sequence
-    (and (vector? element) (map? attrs))
-    (emit-react tag attrs
-                (with-child-config element [tag attrs]
-                  (mapv compile-html children)))
+(defn compile-other
+  [expr]
+  (let [{:keys [is-inline?
+                interpret]
+         :or {is-inline? is-inline?}} env/*options*]
+    (or (compiler/wrap-return expr compile-form)
+        (case (is-inline? expr)
+          true expr
+          false `(~interpret ~expr)
+          nil `(infer/interpret-when-necessary ~expr)))))
 
-    (seq? element)
-    (seq (mapv compile-html element))
-
-    ;; We have nested children
-    ;; [[:div "foo"] [:span "foo"]]
-    :else
-    (mapv compile-html element)))
-#_(compile-element '[:> A {:foo "bar"} a])
-#_(compile-element '[:> A a b])
-#_(compile-element '[A {:foo "bar"}
-                     [:span  a]])
-#_(compile-element '[A b a])
-#_(compile-element '[:* 0 1 2])
-#_(compile-element '(array [:div "foo"] [:span "foo"]))
-
-(defn compile-html
+(defn compile-form
   "Pre-compile data structures"
-  [content]
+  [form]
   (cond
-    (vector? content) (compile-element content)
-    (literal? content) content
-    :else (compile-form content)))
+    (vector? form) (compile-vec form)
+    (primitive? form) form
+    (map? form) (throw (ex-info "a map is an invalid form" {:form form}))
+    :else (compile-other form)))
 
-(defmethod compile-react :vector [xs]
-  (if (util/hiccup-vector? xs)
-    (compile-react-element xs)
-    (compile-react (seq xs))))
+(comment
+  (compile-form [:div {:class "b"} "c"])
+  (compile-form '[my-fn {:class "b"} "c"]))
 
-(defmethod compile-react :seq [xs]
-  (mapv compile-react xs))
+(declare to-js)
 
-(defmethod compile-react :default [x] x)
-
-#_(ns-unmap *ns* 'to-js)
-(defmulti to-js
-          "Compiles to JS"
-          (fn [x]
-            (cond
-              (:server-render? *config*) :server-render ;; ends up in default but let user handle it
-              (map? x) :map
-              (vector? x) :vector
-              (keyword? x) :keyword
-              :else (class x))))
-
-(defn- to-js-map
-  "Convert a map into a JavaScript object."
-  [m]
+(defn map-to-js [m]
+  {:pre [(every? primitive? (keys m))]}
   (when-not (empty? m)
-    (let [key-strs (mapv to-js (keys m))
-          non-str (remove string? key-strs)
-          _ (assert (empty? non-str)
-                    (str "Hicada: Props can't be dynamic:"
-                         (pr-str non-str) "in: " (pr-str m)))
-          kvs-str (->> (mapv #(-> (str \' % "':~{}")) key-strs)
+    (let [kvs-str (->> (keys m)
+                       (mapv #(str \' (to-js %) "':~{}"))
                        (interpose ",")
-                       (apply str))]
+                       (str/join))]
       (vary-meta
         (list* 'js* (str "{" kvs-str "}") (mapv to-js (vals m)))
-        assoc :tag 'object)))
-  ;; We avoid cljs.core/js-obj here since it introduces a let and an IIFE:
-  #_(apply list 'cljs.core/js-obj
-           (doall (interleave (mapv to-js (keys m))
-                              (mapv to-js (vals m))))))
+        assoc :tag 'object))))
 
-(defmethod to-js :keyword [x] (name x))
-(defmethod to-js :map [m] (to-js-map m))
-(defmethod to-js :vector [xs]
-  (apply list 'cljs.core/array (mapv to-js xs)))
-(defmethod to-js :default [x] x)
-
-(defn collapse-one
-  "We can collapse children to a non-vector if there is only one."
-  [xs]
-  (cond-> xs
-    (== 1 (count xs)) first))
-
-(defn tag->el
-  "A :div is translated to \"div\" and symbol 'ReactRouter stays."
+(defn to-js
+  "Efficiently emit to literal JS form"
   [x]
-  (assert (or (symbol? x) (keyword? x) (string? x) (seq? x))
-          (str "Got: " (class x)))
-  (if (keyword? x)
-    (if (:no-string-tags? *config*)
-      (symbol (or (namespace x) (some-> (:default-ns *config*) name)) (name x))
-      (name x))
-    x))
+  (cond
+    (keyword? x) (name x)
+    (string? x) x
+    (vector? x) (apply list 'cljs.core/array (mapv to-js x))
+    (map? x) (map-to-js x)
+    :else x))
 
-
-(defn emit-react
+(defn emit
   "Emits the final react js code"
-  [tag attrs children]
-  (let [{:keys [transform-fn emit-fn inline?
-                create-element array-children?]} *config*
-        [tag attrs children] (transform-fn [tag attrs children *env*])]
-    (if inline?
-      (let [type (tag->el tag)
-            props (to-js
-                    (merge (when-not (empty? children) {:children (collapse-one children)})
-                           (compile-config (dissoc attrs :key :ref))))]
-        (if emit-fn
-          (emit-fn type (:key attrs) (:ref attrs) props)
-          (list create-element type (:key attrs) (:ref attrs) props)))
-      (let [children (if (and array-children?
-                              (not (empty? children))
-                              (< 1 (count children)))
-                       ;; In production:
-                       ;; React.createElement will just copy all arguments into
-                       ;; the children array. We can avoid this by just passing
-                       ;; one argument and make it the array already. Faster.
-                       ;; Though, in debug builds of react this will warn about "no keys".
-                       [(apply list 'cljs.core/array children)]
-                       children)
-            el (tag->el tag)
-            cfg (to-js (compile-config attrs))]
-        (if emit-fn
-          (emit-fn el cfg children)
-          (apply list create-element el cfg children))))))
-
-(defn emitter
-  [content]
-  (cond-> (compile-html content)
-    (:inline? *config*) to-js))
+  [tag props children]
+  (let [{:keys [create-element]} env/*options*
+        props (cond (map? props) (to-js (compile-props props))
+                    (and (seq? props)
+                         (= 'hicada.interpreter/props (first props))) props
+                    :else `(~'hicada.interpreter/props ~props))]
+    (list* create-element tag props children)))
 
 (defn compile
   "Arguments:
@@ -358,80 +135,66 @@
   - opts
    o :warn-on-interpretation? - Print warnings when code cannot be pre-compiled and must be interpreted at runtime? (Defaults to `true`)
    o :inlineable-types - CLJS type tags that are safe to inline without interpretation. Defaults to `#{'number 'string}`
-   o :interpret-or-inline-fn - optional; fn of expr that returns `:inline` or `:interpret` to force one of those options.
-   o :array-children? - for product build of React only or you'll enojoy a lot of warnings :)
+   o :is-inline? (opt) fn of expr that returns true (inline), false (interpret), or nil (maybe-interpret)
    o :create-element 'js/React.createElement - you can also use your own function here.
-   o :emit-fn - optinal: called with [type config-js child-or-children]
-   o :server-render? - defaults to false. Doesn't do any JS outputting. Still requires an :emit-fn!
    o :camelcase-key-pred - defaults to (some-fn keyword? symbol?), ie. map keys that have
                            string keys, are NOT by default converted from kebab-case to camelCase!
-   o :inline? false - NOT supported yet. Possibly in the future...
-   o :child-config - Called for every element with [config raw-element normalized-element]
-                     to get a new configuration for element's children
-   o :transform-fn - Called with [[tag attrs children *env*]] before emitting, to get
-                     transformed element as [tag attrs children]
-
-   React Native special recommended options:
-   o :no-string-tags? - Never output string tags (don't exits in RN)
-   o :default-ns - Any unprefixed component will get prefixed with this ns.
-   o :child-config - (fn [config raw-element normalized-element] -> config) change processing options as hicada goes down the tree
   - handlers:
    A map to handle special tags. See default-handlers in this namespace.
   - env: The macro environment. Not used currently."
   ([content]
-   (compile content default-config))
-  ([content opts]
-   (compile content opts default-handlers))
-  ([content opts handlers]
-   (compile content opts handlers nil))
-  ([content opts handlers env]
-   (assert (not (:inline? opts)) ":inline? isn't supported yet")
-   (binding [*config* (merge default-config opts)
-             *handlers* (merge default-handlers handlers)
-             *env* env]
-     (emitter content))))
+   (compile content nil))
+  ([content options]
+   (binding [env/*options* (env/with-defaults options)]
+     (compile-form content))))
+
+;; should be "b c a", order preserved
+
+(defmacro to-element [body]
+  (compile body))
 
 (comment
 
-  (compile [:h1.b.c {:class "a"}]) ;; should be "b c a", order preserved
+  (defmacro t [x]
+    (tap> [&env])
+    (str (infer/infer-type x &env)))
+ (tap> 8)
+  ;; works
+  (t ""
+     )
+  (t ())
+  (t [])
+  (t {})
+  (t (str ""))
+  )
+
+(comment
+  (require 'hicada.interpreter)
+
+  (compile [:h1.b.c {:class "a"}])
   (compile [:h1.b.c {:className "a"}])
   (compile [:h1.b.c {:class-name "a"}])
 
-  (compile '[:div {:class [a]} "hmm"]
-           {:server-render? true
-            :emit-fn (fn [a b c]
-                       (into [a b] c))})
-
+  (macroexpand '(to-element [:div (for [x xs]
+                                   [:span x])]))
   (compile '[:div (for [x xs]
-                    [:span x])]
-           {:rewrite-for? true})
+                    [:span x])])
 
-  ;; Example :clone handler + emitter:
-  (compile '[:div
-             [:span {:key "foo"} a b c]
-             [:clone x {:key k} one two]
-             [:clone x {:key k}]]
-           {:array-children? false ;; works with both!
-            :emit-fn (fn [tag attr children]
-                       ;; Now handle the emitter case:
-                       (if (and (seq? tag) (= ::clone (first tag)))
-                         (list* 'js/React.cloneElement (second tag) attr children)
-                         (list* 'js/React.createElement tag attr children)))}
-           {:clone (fn [_ node attrs & children]
-                     ;; Ensure props + children are in the right position:
-                     [(list ::clone node) attrs children])})
-
-  (compile '[:* {:key "a"} a b])
-
-  (compile '[:* a b])
+  (compile '[:<> {:key "a"} a b])
+  (compile '[:<> a b])
   (compile '[:> :div props b])
+  (compile '[:> :div {:a "b"} b])
 
   ;; Doesn't convert string keys, but do convert keywords & symbols:
   (compile '[X {"kebab-case" y :camel-case x camel-case-2 8}])
 
-  (compile '[Transition {:in in-prop} (fn [state])]) ;; works eq to :>
-  (compile '[a b c]) ;; We have a coll of ReactNodes. Don't touch
-  (compile '(some-fn {:in in-prop} (fn [state]))) ;; FN call, don't touch
+  (compile '[Transition {:in in-prop} (fn [state])])        ;; works eq to :>
+  (compile '[a b c])                                        ;; We have a coll of ReactNodes. Don't touch
+  (compile '[a ^:props b c])
+  (compile '[:div#id.class ^:props b c])
+  (compile '[:div.c1 {:class x} "D"])
+  (compile '[:div.c1 {:class ["y" d]}])
+  (compile '(some-fn {:in in-prop} (fn [state])))           ;; FN call, don't touch
 
   (compile
     '[:> Transition {:in in-prop
@@ -440,31 +203,24 @@
       (fn [state])])
 
   ;; Issue #2:
+  ;; DEPRECATED - :before-emit is no lonter
   (compile '[:div {:ihtml "<div>hi</div>"}]
-           {:transform-fn (fn [[tag attr ch]]
-                            (if-some [html (:ihtml attr)]
-                              [tag
-                               (-> attr
-                                   (dissoc :ihtml)
-                                   (assoc :dangerouslySetInnerHTML {:__html html}))
-                               ch]
-                              [tag attr ch]))})
-
-  (compile '[:Text a b]
-           {:no-string-tags? true
-            :default-ns 'my.rn.native})
-  (compile '[:rn/Text a b] {})
-  (compile '[:Text a b] {:no-string-tags? true})
+           {:before-emit (fn [[tag attr ch]]
+                           (if-some [html (:ihtml attr)]
+                             [tag
+                              (-> attr
+                                  (dissoc :ihtml)
+                                  (assoc :dangerouslySetInnerHTML {:__html html}))
+                              ch]
+                             [tag attr ch]))})
 
   (compile '[:Text {:style [{:border-bottom "2px"}]}])
-
-  (compile '[:div a b] {:array-children? false})
 
   (compile '[:div {:style (assoc {} :width 10)}])
   (compile '[:div {:data-style (assoc {} :width 10)}])
   (compile '[:div (assoc {} :style {:width 10})])
 
-)
+  )
 
 ;; CHANGES
 ;; - pass :wrap-interpret, was `(hicada.interpreter/interpret ~expr)

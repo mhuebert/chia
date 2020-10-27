@@ -1,103 +1,84 @@
-(ns hicada.compiler.impl)
+(ns hicada.compiler.impl
+  (:require [hicada.util :as util]))
 
-(defn- form-name
+(defn form-op
   "Get the name of the supplied form."
   [form]
-  (when (and (seq? form) (symbol? (first form)))
-    (name (first form))))
+  (when (seq? form)
+    (some-> (first form)
+            (util/guard symbol?))))
 
-(defmulti wrap-return
+(defmulti wrap-return*
           "Pre-compile certain standard forms, where possible."
-          form-name)
+          form-op)
 
-(defmethod wrap-return "do"
-  [[_ & forms] f]
-  `(do ~@(butlast forms) ~(f (last forms))))
+(defmethod wrap-return* :default
+  [form]
+  form)
 
-(defmethod wrap-return "array"
-  [[_ & forms] f]
-  `(cljs.core/array ~@(mapv f forms)))
+(defn wrap-return
+  "Wraps return clauses of common Clojure operators with `f`"
+  [form f]
+  (if-let [op (form-op form)]
+    (case (name op)
+      "do"
+      `(do ~@(butlast (rest form)) ~(f (last form)))
 
-(defmethod wrap-return "let"
-  [[_ bindings & body] f]
-  `(let ~bindings ~@(butlast body) ~(f (last body))))
+      ("array"
+        "list")
+      `(cljs.core/array ~@(mapv f (rest form)))
 
-(defmethod wrap-return "let*"
-  [[_ bindings & body] f]
-  `(let* ~bindings ~@(butlast body) ~(f (last body))))
+      ("let"
+        "let*"
+        "letfn"
+        "letfn*")
+      (let [[_ bindings & body] form]
+        `(~op ~bindings ~@(butlast body) ~(f (last body))))
 
-(defmethod wrap-return "letfn"
-  [[_ bindings & body] f]
-  `(letfn ~bindings ~@(butlast body) ~(f (last body))))
+      "for"
+      (let [[_ bindings body] form]
+        `(for ~bindings ~(f body)))
 
-(defmethod wrap-return "letfn*"
-  [[_ bindings & body] f]
-  `(letfn* ~bindings ~@(butlast body) ~(f (last body))))
+      ("when"
+        "when-not"
+        "when-let"
+        "when-some")
+      (let [[_ condition & body] form]
+        `(~op ~condition ~@(butlast body) ~(f (last body))))
 
-(defmethod wrap-return "list"
-  [[_ & forms] f]
-  `(cljs.core/array ~@(mapv f forms)))
+      ("if"
+        "if-let"
+        "if-not"
+        "if-some")
+      (let [[_ condition then else] form]
+        `(~op ~condition
+           `(do ~@(butlast then) ~(f (last then)))
+           `(do ~@(butlast else) ~(f (last else)))))
 
-(defmethod wrap-return "for"
-  [[_ bindings body] f]
-  `(for ~bindings ~(f body)))
+      "case"
+      (let [[_ v & cases] form]
+        `(case ~v
+           ~@(doall (mapcat
+                      (fn [[test hiccup]]
+                        (if hiccup
+                          [test (f hiccup)]
+                          [(f test)]))
+                      (partition-all 2 cases)))))
 
-(defmethod wrap-return "when"
-  [[_ condition & body] f]
-  `(when ~condition ~@(butlast body) ~(f (last body))))
+      "condp"
+      (let [[_ f v & cases] form]
+        `(condp ~f ~v
+           ~@(doall (mapcat
+                      (fn [[test hiccup]]
+                        (if hiccup
+                          [test (f hiccup)]
+                          [(f test)]))
+                      (partition-all 2 cases)))))
 
-(defmethod wrap-return "when-let"
-  [[_ bindings & body] f]
-  `(when-let ~bindings ~@(butlast body) ~(f (last body))))
-
-(defmethod wrap-return "when-some"
-  [[_ bindings & body] f]
-  `(when-some ~bindings ~@(butlast body) ~(f (last body))))
-
-(defmethod wrap-return "when-not"
-  [[_ condition & body] f]
-  `(when-not ~condition ~@(butlast body) ~(f (last body))))
-
-(defmethod wrap-return "if"
-  [[_ condition & body] f]
-  `(if ~condition ~@(doall (for [x body] (f x)))))
-
-(defmethod wrap-return "if-let"
-  [[_ bindings & body] f]
-  `(if-let ~bindings ~@(doall (for [x body] (f x)))))
-
-(defmethod wrap-return "if-not"
-  [[_ condition & body] f]
-  `(if-not ~condition ~@(doall (for [x body] (f x)))))
-
-(defmethod wrap-return "if-some"
-  [[_ bindings & body] f]
-  `(if-some ~bindings ~@(doall (for [x body] (f x)))))
-
-(defmethod wrap-return "case"
-  [[_ v & cases] f]
-  `(case ~v
-     ~@(doall (mapcat
-                (fn [[test hiccup]]
-                  (if hiccup
-                    [test (f hiccup)]
-                    [(f test)]))
-                (partition-all 2 cases)))))
-
-(defmethod wrap-return "condp"
-  [[_ f v & cases] f]
-  `(condp ~f ~v
-     ~@(doall (mapcat
-                (fn [[test hiccup]]
-                  (if hiccup
-                    [test (f hiccup)]
-                    [(f test)]))
-                (partition-all 2 cases)))))
-
-(defmethod wrap-return "cond"
-  [[_ & clauses] f]
-  `(cond ~@(mapcat
-             (fn [[check expr]] [check (f expr)])
-             (partition 2 clauses))))
-
-(defmethod wrap-return :default [_ _] nil)
+      "cond"
+      (let [[_ & clauses] form]
+        `(cond ~@(mapcat
+                   (fn [[check expr]] [check (f expr)])
+                   (partition 2 clauses))))
+      (wrap-return* form))
+    form))

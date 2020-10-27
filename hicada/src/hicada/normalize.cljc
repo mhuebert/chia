@@ -3,7 +3,8 @@
   Mostly from sablono + hiccup project.
   "
   (:require
-    [hicada.util :as util]))
+    [hicada.util :as util]
+    [clojure.string :as str]))
 
 (defn compact-map
   "Removes all map entries where the value of the entry is empty."
@@ -74,39 +75,6 @@
 (comment
   (merge-with-class {:class "a"} {:class ["b"]}))
 
-(defn strip-css
-  "Strip the # and . characters from the beginning of `s`."
-  [s]
-  (cond-> s
-          (and (some? s)
-               (or (.startsWith s ".")
-                   (.startsWith s "#")))
-          (subs 1)))
-
-(comment
-  (strip-css "#foo")
-  (strip-css ".foo"))
-
-(defn match-tag
-  "Match `s` as a CSS tag and return a vector of tag name, CSS id and
-  CSS classes."
-  [s]
-  (let [matches (re-seq #"[#.]?[^#.]+" (subs (str s) 1))
-        [tag-name names]
-        (cond (empty? matches)
-              (throw (ex-info (str "Can't match CSS tag: " s) {:tag s}))
-              (#{\# \.} (ffirst matches)) ;; shorthand for div
-              ["div" matches]
-              :default
-              [(first matches) (rest matches)])]
-    [(keyword tag-name)
-     (first (map strip-css (filter #(= \# (first %1)) names)))
-     (vec (map strip-css (filter #(= \. (first %1)) names)))]))
-
-(comment
-  (match-tag :.foo.bar#some-id)
-  (match-tag :foo/span.foo.bar#some-id.hi))
-
 (defmacro t [expr]
   {:list? (list? expr)
    :sym? (symbol? expr)
@@ -114,6 +82,14 @@
 
 (t 'x)
 
+(defn unevaluated?
+  "True if the expression has not been evaluated.
+   - expr is a symbol? OR
+   - it's something like (foo bar)"
+  [expr]
+  (or (symbol? expr)
+      (and (seq? expr)
+           (not= (first expr) `quote))))
 
 (defn children
   "Normalize the children of a HTML element."
@@ -121,13 +97,23 @@
   (when x
     (if (sequential? x)
       (cond
-        (util/hiccup-vector? x) (list x)
+        (vector? x) (list x)
         (and (= (count x) 1)
-             (sequential? (first x))) (children (first x))
+             (sequential? (first x))
+             (not (unevaluated? x))) (children (first x))
         :else x)
       (list x))))
 
-(defn guard [x f] (when (f x) x))
+(defn conj-class [classes class-string]
+  (if-not classes
+    class-string
+    (cond (nil? classes) class-string
+          (vector? classes) (conj classes class-string)
+          (string? classes) (str classes " " class-string)
+          :else `(str (~'hicada.interpreter/classes-string ~classes)
+                      " "
+                      ~class-string)
+          )))
 
 (defn element
   "Given:
@@ -139,18 +125,29 @@
   [[tag & content]]
   (when (not (or (keyword? tag) (symbol? tag) (string? tag)))
     (throw (ex-info (str tag " is not a valid element name.") {:tag tag :content content})))
-  (let [[tag id klass] (match-tag tag)
-        tag-attrs (compact-map {:id id :class klass})]
-    (if-let [map-attrs (guard (first content) map?)]
+  (let [[tag id class-string] (if (or (keyword? tag)
+                               (string? tag))
+                         (util/parse-tag (name tag))
+                         [tag nil nil])
+        tag-props (compact-map {:id id :class class-string})]
+    (if-let [map-props (util/guard (first content) map?)]
       [tag
-       (merge-with-class tag-attrs map-attrs)
+       (cond-> map-props
+               id (assoc :id id)
+               class-string (update :class conj-class class-string))
        (children (next content))]
-      [tag
-       (attributes tag-attrs)
-       (children content)])))
+      (if-let [map-props-interpreted (util/guard (first content) (comp :props meta))]
+        [tag
+         `(~'hicada.interpreter/props ~id ~class-string ~map-props-interpreted)
+         (children content)]
+        [tag
+         (attributes tag-props)
+         (children content)]))))
+
 
 (comment
   (element [:div#foo 'a])
   (element [:div.a#foo])
-  (element [:h1.b {:className "a"}]))
+  (element [:h1.b {:className "a"}])
+  (element '[:div (for [x xs] [:span 1])]))
 

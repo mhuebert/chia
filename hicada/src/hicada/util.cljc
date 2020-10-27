@@ -1,9 +1,13 @@
 (ns hicada.util
   (:require
+    #?(:cljs
+       [applied-science.js-interop :as j])
     [clojure.string :as str]
     [clojure.set :refer [rename-keys]]))
 
-(defn join-classes-js
+(defn guard [x f] (when (f x) x))
+
+(defn join-classes-js-emit
   "Joins strings space separated"
   ([] "")
   ([& xs]
@@ -12,56 +16,90 @@
                    (apply str))]
      (list* 'js* (str "[" strs "].join(' ')") xs))))
 
-(defn camel-case
-  "Returns camel case version of the key, e.g. :http-equiv becomes :httpEquiv."
-  [k]
-  (if (or (keyword? k)
-          (string? k)
-          (symbol? k))
-    (let [[first-word & words] (str/split (name k) #"-")]
-      (if (or (empty? words)
-              (= "aria" first-word)
-              (= "data" first-word))
-        k
-        (-> (map str/capitalize words)
-            (conj first-word)
-            str/join
-            keyword)))
-    k))
+(defn camel-case [s]
+  (cond-> s
+          (not (or (str/starts-with? s "data-")
+                   (str/starts-with? s "aria-")))
+          (str/replace #"-(.)" (fn [[_ s]] (str/upper-case s)))))
+
+#?(:cljs
+   (defn camel-case-keys-js [m]
+     (reduce-kv
+       (fn [m k v]
+         (j/!set m (camel-case (name k)) v))
+       #js{} m)))
+
+(defn camel-case-keys-emit [m]
+  `(~'hicada.util/camel-case-keys-js ~m))
 
 (defn camel-case-keys
-  "Recursively transforms all map keys into camel case."
+  "returns map with keys camel-cased"
   [m]
-  (cond
-    (map? m)
+  (if (map? m)
     (reduce-kv
       (fn [m k v]
-        (assoc m (camel-case k) v))
+        (assoc m (camel-case (name k)) v))
       {} m)
-    ;; React native accepts :style [{:foo-bar ..} other-styles] so camcase those keys:
-    (vector? m)
-    (mapv camel-case-keys m)
-    :else
-    m))
-
-(defn hiccup-vector?
-  "- is x a vector?
-  AND
-   - first element is a keyword?"
-  [x]
-  (and (vector? x) (keyword? (first x))))
-
-(defn join-classes
-  "Join the `classes` with a whitespace."
-  [classes]
-  (->> (map #(if (string? %) % (seq %)) classes)
-       (flatten)
-       (remove nil?)
-       (str/join " ")))
+    (camel-case-keys-emit m)))
 
 (defn html-to-dom-attrs
   "Converts all HTML attributes to their DOM equivalents."
   [attrs]
   (rename-keys (camel-case-keys attrs)
-               {:class :className
-                :for :htmlFor}))
+               {"class" "className"
+                "for" "htmlFor"}))
+
+(def ^:private dot-pattern #?(:cljs (js/RegExp "\\." "g")
+                              :clj  "."))
+
+(defn replace-pattern [s pattern rep]
+  #?(:clj (str/replace s pattern rep)
+     :cljs (.replace s (j/!set pattern :lastIndex 0) rep)))
+
+(defn dots->spaces [s]
+  (replace-pattern s dot-pattern " "))
+
+(defn parse-tag
+  "Returns array of [tag-name, id, classes] from a tag-name like div#id.class1.class2"
+  [tag-name]
+  (let [pattern #"([^#.]+)?(?:#([^.]+))?(?:\.(.*))?"]
+    #?(:cljs (-> (.exec pattern tag-name)
+                 (.slice 1 4)
+                 (j/update! 2 #(when % (dots->spaces %))))
+       :clj  (-> (rest (re-find pattern tag-name))
+                 vec
+                 (update 2 #(when % (dots->spaces %)))))))
+
+(defn compile-prop [xf m k v]
+  (let [kname (if (string? k)
+                k (camel-case (name k)))]
+    (case kname "class"
+                (xf m "className"
+                    (cond (string? v) v
+                          (vector? v)
+                          (if (every? string? v)
+                            (str/join " " v)
+                            (join-classes-js-emit v))
+                          :else v))
+                "for"
+                (xf m "htmlFor" v)
+                "style"
+                (xf m kname (if (vector? v)
+                              (mapv camel-case-keys v)
+                              (camel-case-keys v)))
+                (xf m kname v))))
+
+
+(defn interpret-prop [xf m k v]
+  (let [kname (camel-case k)]
+    (case kname "class"
+                (xf m "className"
+                    (if (vector? v)
+                      (str/join " " v)
+                      v))
+                "for"
+                (xf m "htmlFor" v)
+                "style"
+                (xf m kname #?(:cljs (camel-case-keys-js v)
+                               :clj (camel-case-keys v)))
+                v)))
