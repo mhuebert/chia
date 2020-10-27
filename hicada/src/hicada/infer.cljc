@@ -1,4 +1,4 @@
-(ns hicada.inference
+(ns hicada.infer
   (:require [cljs.analyzer :as ana]
             #?(:cljs cljs.analyzer.macros)
             [hicada.compiler.env :as env]))
@@ -12,7 +12,7 @@
 (defmacro inferred-type [x]
   (list 'quote (infer-type x &env)))
 
-(defmacro interpret-when-necessary
+(defmacro maybe-interpret
   "Macro that wraps `expr` with interpreter call, if it cannot be inlined based on inferred type."
   [expr]
   (let [{:keys [inlineable-types

@@ -9,7 +9,7 @@
     cljs.analyzer
     [hicada.compiler.impl :as compiler]
     [hicada.compiler.env :as env]
-    [hicada.inference :as infer]
+    [hicada.infer :as infer]
     [hicada.normalize :as norm]
     [hicada.util :as util]
     [clojure.string :as str]))
@@ -47,24 +47,18 @@
 
 (declare emit compile-form)
 
-(comment
-  (compile-form `(let [] [:div props "X"])))
-
 (defn compile-vec
   "Returns an unevaluated form that returns a react element"
   [[tag :as form]]
-  ;; special forms
-  (if-let [handler (get-in env/*options* [:handlers tag])]
-    (let [[klass attrs children] (handler form)]
-      (emit klass attrs (mapv compile-form children)))
-    (let [[klass attrs children] (norm/element form)]
-      (emit klass attrs (mapv compile-form children)))))
+  (let [handler (get-in env/*options* [:handlers tag] norm/hiccup-vec)
+        [klass attrs children options] (handler form)]
+    (emit klass attrs children options)))
 
 (comment
   (compile-vec '[:div (for [x xs] [:span x])])
 
   (compile-vec '[:> A {:foo "bar"} a])
-  (compile-vec '[:> A a b])
+  (compile-vec '[:<> A a b])
   (compile-form 'b)
   (compile-vec '[A {:foo "bar"}
                  [:span a]])
@@ -77,11 +71,12 @@
   (let [{:keys [is-inline?
                 interpret]
          :or {is-inline? is-inline?}} env/*options*]
+    (prn :compile-other expr (compiler/wrap-return expr compile-form))
     (or (compiler/wrap-return expr compile-form)
         (case (is-inline? expr)
           true expr
           false `(~interpret ~expr)
-          nil `(infer/interpret-when-necessary ~expr)))))
+          nil `(infer/maybe-interpret ~expr)))))
 
 (defn compile-form
   "Pre-compile data structures"
@@ -93,8 +88,9 @@
     :else (compile-other form)))
 
 (comment
-  (compile-form [:div {:class "b"} "c"])
-  (compile-form '[my-fn {:class "b"} "c"]))
+  (compile-form `(hello [:div props "X"]))                  ;; wraps form with `interpret-when-necessary`
+  (compile-form '[:div {:class "b"} x])                     ;; child is
+  (compile-form '[my-fn {:class "b"} x]))
 
 (declare to-js)
 
@@ -121,13 +117,15 @@
 
 (defn emit
   "Emits the final react js code"
-  [tag props children]
+  [tag props children {:keys [compile-children?]}]
   (let [{:keys [create-element]} env/*options*
         props (cond (map? props) (to-js (compile-props props))
                     (and (seq? props)
                          (= 'hicada.interpreter/props (first props))) props
                     :else `(~'hicada.interpreter/props ~props))]
-    (list* create-element tag props children)))
+    (list* create-element tag props (cond->> children
+                                             compile-children?
+                                             (mapv compile-form)))))
 
 (defn compile
   "Arguments:
@@ -172,7 +170,8 @@
   (require 'hicada.interpreter)
 
   (compile [:h1.b.c {:class "a"}])
-  (compile [:h1.b.c {:className "a"}])
+
+  ;; these no longer work - only :class is supported
   (compile [:h1.b.c {:class-name "a"}])
 
   (macroexpand '(to-element [:div (for [x xs]

@@ -14,12 +14,12 @@
 
 (defmethod wrap-return* :default
   [form]
-  form)
+  nil)
 
 (defn wrap-return
   "Wraps return clauses of common Clojure operators with `f`"
   [form f]
-  (if-let [op (form-op form)]
+  (when-let [op (doto (form-op form) prn)]
     (case (name op)
       "do"
       `(do ~@(butlast (rest form)) ~(f (last form)))
@@ -80,5 +80,4 @@
         `(cond ~@(mapcat
                    (fn [[check expr]] [check (f expr)])
                    (partition 2 clauses))))
-      (wrap-return* form))
-    form))
+      (wrap-return* form))))

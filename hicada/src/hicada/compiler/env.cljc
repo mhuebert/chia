@@ -2,11 +2,11 @@
   (:require [hicada.util :as util]))
 
 (def default-handlers {:> (fn [[_ klass attrs & children]]
-                            [klass attrs children])
+                            [klass attrs children {:compile-children? true}])
                        :<> (fn [form]
                              (if-let [props (util/guard (nth form 1 nil) map?)]
-                               ['js/React.Fragment props (subvec form 2)]
-                               ['js/React.Fragment {} (subvec form 1)]))})
+                               ['js/React.Fragment props (subvec form 2) {:compile-children? true}]
+                               ['js/React.Fragment {} (subvec form 1) {:compile-children? true}]))})
 
 ;; TODO: We should take &env around everything and also expect it as an argument.
 (def default-options {:inline? false

@@ -59,7 +59,7 @@
 (defn element
   "Render an element vector as a HTML element."
   [element]
-  (let [[type attrs content] (normalize/element element)]
+  (let [[type attrs content] (normalize/hiccup-vec element)]
     (apply create-element type
            (props attrs)
            (interpret-seq content))))

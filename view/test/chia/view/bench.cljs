@@ -11,7 +11,7 @@
     [triple.view :as triple]
     [triple.view.hiccup :as triple-hiccup])
   (:require-macros [chia.view.bench :as bench]
-                   [hicada.inference :as infer]))
+                   [hicada.infer :as infer]))
 
 (def element react/createElement)
 (def to-string rdom/renderToString)
