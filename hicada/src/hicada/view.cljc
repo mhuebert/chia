@@ -93,7 +93,7 @@
            ~@(when docstring [docstring])
            {:arglists (~argv)}
            ~simple-args
-           ~(list* 'hicada.interpreter/createElement
+           ~(list* 'hicada.interpret/createElement
                    constructor-sym
                    (when key-fn `(j/obj :key (~key-fn-sym ~(first argv))))
                    simple-args))

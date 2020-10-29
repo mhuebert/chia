@@ -1,4 +1,4 @@
-(ns hicada.interpreter
+(ns hicada.interpret
   (:require #?@(:cljs
                 [[applied-science.js-interop :as j]
                  ["react" :as react]
@@ -14,28 +14,11 @@
      (def Fragment react/Fragment)
      (def createElement react/createElement)))
 
-(defn create-element
-  "Create a React element. Returns a JavaScript object when running
-  under ClojureScript, and a om.dom.Element record in Clojure."
-  [type props & children]
-  #?(:clj  nil
-     :cljs (apply createElement type props children)))
-
-(defn classes-string [classes]
+(defn #?(:cljs ^string class-string
+         :clj class-string) [classes]
   (cond (string? classes) classes
         (vector? classes) (str/join " " classes)
         :else classes))
-
-(defn- join-classes [m class-string classes]
-  ;; joins `a` and `b` which may be nil
-  (if (some? class-string)
-    (assoc m :class (if (some? classes)
-                      (str class-string " " (classes-string classes))
-                      class-string))
-    (if (some? classes-string)
-      (assoc m :class classes-string)
-      m)))
-
 
 #?(:cljs
    (defn update-class! [obj class-string]
@@ -44,8 +27,6 @@
                         (if (some? x)
                           (str class-string " " x)
                           class-string)))))
-
-(declare element)
 
 (defn props
   [attrs]
@@ -60,8 +41,7 @@
                #js{}
                attrs))))
 
-(defn interpret [x]
-  (prn :interpreting x)
+(defn form [x]
   (if (vector? x)
     (str "<hiccup: " x ">")
     x))

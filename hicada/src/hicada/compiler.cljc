@@ -10,7 +10,7 @@
     [hicada.compiler.impl :as compiler]
     [hicada.compiler.env :as env]
     [hicada.infer :as infer]
-    [hicada.interpreter :as interpret]
+    [hicada.interpret :as interpret]
     [hicada.normalize :as norm]
     [hicada.util :as util]
     [clojure.string :as str]
@@ -39,7 +39,7 @@
 (defmacro ensure-class-string [s]
   (if (= 'string (infer/infer-type s &env))
     s
-    `(~'hicada.interpreter/classes-string ~s)))
+    `(~(:interpret/class env/*options*) ~s)))
 
 (declare emit)
 
@@ -57,7 +57,7 @@
 
   (cond (map? form) (throw (ex-info "a map is an invalid child" {:form form}))
         (should-inline? form) form
-        (should-interpret? form) `(~'hicada.interpreter/interpret ~form)
+        (should-interpret? form) `(~(:interpret/form env/*options*) ~form)
         (vector? form) (compile-vec form)
         :else
         (or (or (compiler/wrap-return form compile-or-interpret-child)
@@ -126,7 +126,7 @@
                                                `(~'applied-science.js-interop/assoc!
                                                   ~@static-props))
                                              (when class-string
-                                               `(~'hicada.interpreter/update-class! ~class-string))])]
+                                               `(~(:interpret/update-class! env/*options*) ~class-string))])]
                               (if (seq ops)
                                 `(-> ~form ~@ops)
                                 form)))]
@@ -159,7 +159,7 @@
                    (when props
                      (if (util/interpreted? props)
                        props
-                       `(~'hicada.interpreter/props ~props))))
+                       `(~(:interpret/props env/*options*) ~props))))
                  ;; don't compile js objects, but do add static data if present
                  :js-object
                  (emit-static-props props))
@@ -197,7 +197,7 @@
   ;;
   ;; DOM tags are compiled to `react/createElement` calls.
   (compile '[:div])
-  => (hicada.interpreter/createElement "div" nil)
+  => (hicada.interpret/createElement "div" nil)
 
   ;; Symbol tags are compiled to function calls
   (compile '[my-fn 1 2 3])
@@ -243,18 +243,20 @@
   (compile-props '{:style [{:font-size 10} x]})
 
   ;; some keys are handled as special cases when renamed
-  (compile-props {:for "htmlFor"                            ;; react-specific
-                  :class "className"
-                  :aria-key "aria-key"                      ;; not camelCased
-                  :data-key "data-key"                      ;; not camelCased
-                  "string-key" "string-key"})               ;; not camelCased
+  (compile-props {:for "htmlFor"                            ;; special case
+                  :class "className"                        ;; special case
+                  :kw-key "kwKey"                           ;; camelCase
+                  :aria-key "aria-key"                      ;; not camelCase (aria-*)
+                  :data-key "data-key"                      ;; not camelCase (data-*)
+                  "string-key" "string-key"                 ;; not camelCase (string)
+                  })
 
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;; Clojure vs React elements
 
   ;; a keyword tag is assumed to map to a DOM element and is compiled to createElement
   (compile-vec [:div])
-  => (hicada.interpreter/createElement "div" nil)
+  => (hicada.interpret/createElement "div" nil)
 
   ;; a symbol tag is assumed to be a regular function that returns a React element.
   ;; this is compiled to a regular function call - with no special handling of "props"
@@ -274,7 +276,7 @@
   ;; add a ^js hint or use `:>` as the tag
   (compile-vec '[^js my-fn])
   (compile-vec '[:> my-fn])
-  => (hicada.interpreter/createElement my-fn nil)
+  => (hicada.interpret/createElement my-fn nil)
 
   ;; behind the scenes, `infer/inline?` determines whether a form is already
   ;; a valid React element (in which case, we skip runtime interpretation).
@@ -303,7 +305,7 @@
   ;; various ways to control interpretation/inlining of children
   (compile-vec '[:div
                  a                                          ;; maybe-interpret (not as props)
-                 ^:interpret b                              ;; interpret
+                 ^:interpret b                              ;; interpret-form
                  ^:inline c                                 ;; inline
                  ^js d])                                    ;; inline
 

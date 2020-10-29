@@ -33,8 +33,7 @@
   "Macro that wraps `expr` with interpreter call, if it cannot be inlined based on inferred type."
   [expr]
   (let [{:keys [inlineable-types
-                warn-on-interpretation?
-                interpret]} env/*options*
+                warn-on-interpretation?] :as options} env/*options*
         tag (infer-type expr &env)]
     (if (inline? expr tag inlineable-types)
       expr
@@ -48,4 +47,4 @@
             (when (and line file)
               (println (str file ":" line))))
           (println ""))
-        `(~interpret ~expr)))))
+        `(~(:interpret/form options) ~expr)))))

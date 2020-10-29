@@ -12,24 +12,21 @@
 (def default-tag-handlers {:> handle-element-constructor
                            :<> (fn [form]
                                  (-> form
-                                     (assoc 0 'hicada.interpreter/Fragment)
+                                     (assoc 0 'hicada.interpret/Fragment)
                                      (as-js)))})
 
 ;; TODO: We should take &env around everything and also expect it as an argument.
-(def default-options {:inline? false
-                      :array-children? false
-                      :emit-fn nil
-                      :warn-on-interpretation? true
-                      ;; If you also want to camelcase string map keys, add string? here:
-                      :camelcase-key-pred (some-fn keyword? symbol?)
-                      :create-element 'hicada.interpreter/createElement
+(def default-options {:warn-on-interpretation? true
+                      :create-element 'hicada.interpret/createElement
+                      :interpret/form 'hicada.interpret/form
+                      :interpret/props 'hicada.interpret/props
+                      :interpret/class 'hicada.interpret/class-string
+                      :interpret/update-class! 'hicada.interpret/update-class!
                       :inlineable-types '#{number
                                            string
                                            function
                                            js}
-                      :interpret 'hicada.interpreter/interpret
-                      :tag-handlers default-tag-handlers
-                      :tags {:<> 'hicada.interpreter/Fragment}})
+                      :tag-handlers default-tag-handlers})
 
 (defn with-defaults [options]
   (-> default-options
