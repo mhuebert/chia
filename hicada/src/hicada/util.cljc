@@ -5,6 +5,14 @@
     [clojure.string :as str]
     [clojure.set :refer [rename-keys]]))
 
+(defn primitive?
+  "True if x is a literal value that can be rendered as-is."
+  [x]
+  (or (string? x)
+      (keyword? x)
+      (number? x)
+      (nil? x)))
+
 (defn guard [x f] (when (f x) x))
 
 (defn map-vals [m f]
@@ -81,7 +89,9 @@
                  (update 2 #(when % (dots->spaces %)))))))
 
 (defn hiccup-vec? [form]
-  (and (vector? form) ((some-fn keyword? symbol?) (first form))))
+  (and (vector? form)
+       (not (:inline (meta form)))
+       ((some-fn keyword? symbol?) (first form))))
 
 (defn compile-prop [xf m k v]
   (let [kname (if (string? k)

@@ -18,22 +18,22 @@
   #?(:cljs (:require-macros hicada.compiler
                             [net.cgrand.macrovich :as m])))
 
-(defn primitive?
-  "True if x is a literal value that can be rendered as-is."
-  [x]
-  (or (string? x)
-      (keyword? x)
-      (number? x)
-      (nil? x)))
+(defn should-inline? [form]
+  (if (util/primitive? form)
+    true
+    (let [{:keys [inline interpret tag]} (meta form)]
+      (cond inline true
+            interpret false
+            (= tag 'js) true
+            :else nil))))
 
-(defn is-hiccup? [form]
-  (if (primitive? form)
+(defn should-interpret? [form]
+  (if (util/primitive? form)
     false
-    (let [{:keys [hiccup element tag]} (meta form)]
-      (cond element false
+    (let [{:keys [inline interpret tag]} (meta form)]
+      (cond inline false
+            interpret true
             (= tag 'js) false
-            (false? hiccup) false
-            (true? hiccup) true
             :else nil))))
 
 (defmacro ensure-class-string [s]
@@ -41,7 +41,7 @@
     s
     `(~'hicada.interpreter/classes-string ~s)))
 
-(declare emit compile-or-interpret-form)
+(declare emit)
 
 (defn compile-vec
   "Returns an unevaluated form that returns a react element"
@@ -51,25 +51,17 @@
         [klass attrs children options] (norm/hiccup-vec handled-form)]
     (emit klass attrs children options)))
 
-(defn compile-other
-  [expr]
-  (let [{:keys [is-hiccup?
-                interpret]
-         :or {is-hiccup? is-hiccup?}} env/*options*]
-    (or (compiler/wrap-return expr compile-or-interpret-form)
-        (case (is-hiccup? expr)
-          false expr
-          true `(~interpret ~expr)
-          nil `(infer/maybe-interpret ~expr)))))
-
-(defn compile-or-interpret-form
+(defn compile-or-interpret-child
   "Compiles hiccup forms & wraps ambiguous forms for runtime interpretation"
   [form]
-  (cond
-    (vector? form) (compile-vec form)
-    (primitive? form) form
-    (map? form) (throw (ex-info "a map is an invalid form" {:form form}))
-    :else (compile-other form)))
+
+  (cond (map? form) (throw (ex-info "a map is an invalid child" {:form form}))
+        (should-inline? form) form
+        (should-interpret? form) `(~'hicada.interpreter/interpret ~form)
+        (vector? form) (compile-vec form)
+        :else
+        (or (or (compiler/wrap-return form compile-or-interpret-child)
+                `(infer/maybe-interpret ~form)))))
 
 (defn compile-form
   "Compiles hiccup forms"
@@ -87,7 +79,7 @@
 (declare to-js)
 
 (defn map-to-js [m]
-  {:pre [(every? primitive? (keys m))]}
+  {:pre [(every? util/primitive? (keys m))]}
   (when-not (empty? m)
     (let [kvs-str (->> (keys m)
                        (mapv #(str \' (to-js %) "':~{}"))
@@ -171,7 +163,7 @@
                  ;; don't compile js objects, but do add static data if present
                  :js-object
                  (emit-static-props props))
-               (mapv compile-or-interpret-form children)))
+               (mapv compile-or-interpret-child children)))
       ;; clj-element
       `(~'hicada.infer/maybe-interpret ~(with-meta `(~tag ~@(mapv compile-form children)) form-meta)))))
 
@@ -192,7 +184,7 @@
    (compile content nil))
   ([content options]
    (binding [env/*options* (env/with-defaults options)]
-     (compile-or-interpret-form content))))
+     (compile-or-interpret-child content))))
 
 ;; should be "b c a", order preserved
 
@@ -201,52 +193,135 @@
 
 (comment
 
+  ;; High-Level Overview
+  ;;
+  ;; DOM tags are compiled to `react/createElement` calls.
+  (compile '[:div])
+  => (hicada.interpreter/createElement "div" nil)
+
+  ;; Symbol tags are compiled to function calls
+  (compile '[my-fn 1 2 3])
+  => (my-fn 1 2 3)
+
+  ;; a literal map is compiled as props
+  (compile '[:span {:on-click #()}])
+
+  ;; a symbol or expression in 1st position is treated as a child element
+  (compile '[:span a])
+  (compile '[:span (a-fn)])
+
+  ;; ...unless we tag it with :props metadata
+  (compile-vec '[:span ^:props a])
+  (compile-vec '[:span ^:props (a-fn)])
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;; Props
-  (compile-props {:class ["b" "c"]})                        ;; join static class vector
-  (compile-props {:class ["b" 'c]})                         ;; join dynamic class vector
-  (compile-props '{:class x})                               ;; join dynamic class symbol
 
-  (compile-props {:style {:border-width "2px"}})            ;; camelCase style
-  (compile-props {:style [{:border-width "2px"}]})          ;; camelcase vector of style maps (RN)
-  (compile-props {:on-click ()})                            ;; camelCase event
+  ;; keys are camelCase'd
+  (compile-props {:on-click ()})
 
-  (compile-props {:for "htmlFor"
-                  :aria-x "aria-x"
-                  :data-x "data-x"
-                  :other-k "otherK"})                       ;; prop renaming
+  ;; class vector is joined at compile time
+  (compile-props {:class ["b" "c"]})
+  ;; class vector may include dynamic elements
+  (compile-props '{:class ["b" c]})
+  ;; class may be dynamic - with runtime interpretation
+  (compile-props '{:class x})
+  ;; classes from tag + props are joined
+  (compile [:h1.b.c {:class "a"}])
+  ;; warning - :class-name is ignored
+  (compile [:h1.b.c {:class-name "a"}])
+  ;; joining classes from tag + dynamic class forms
+  (compile '[:div.c1 {:class x} "D"])
+  (compile '[:div.c1 {:class ["y" d]}])
+
+  ;; style map is also converted to camel-case
+  (compile-props '{:style {:font-weight 600}})
+  ;; style map may be dynamic - with runtime interpretation
+  (compile-props '{:style x})
+  (compile '[:div {:style (assoc {} :width 10)}])
+  ;; multiple style maps may be passed (for RN)
+  (compile-props '{:style [{:font-size 10} x]})
+
+  ;; some keys are handled as special cases when renamed
+  (compile-props {:for "htmlFor"                            ;; react-specific
+                  :class "className"
+                  :aria-key "aria-key"                      ;; not camelCased
+                  :data-key "data-key"                      ;; not camelCased
+                  "string-key" "string-key"})               ;; not camelCased
+
+  ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  ;; Clojure vs React elements
+
+  ;; a keyword tag is assumed to map to a DOM element and is compiled to createElement
+  (compile-vec [:div])
+  => (hicada.interpreter/createElement "div" nil)
+
+  ;; a symbol tag is assumed to be a regular function that returns a React element.
+  ;; this is compiled to a regular function call - with no special handling of "props"
+  (compile-vec '[my-fn 1 2 3])
+  => (my-fn 1 2 3)
+
+  ;; actually, the result is wrapped in `hicada.infer/maybe-interpret`.
+  => (hicada.infer/maybe-interpret (my-fn 1 2 3))
+  ;; more on that later.
+
+  ;; arguments that look like hiccup forms are compiled unless tagged with ^:inline
+  (compile-vec '[my-fn [:div]])
+  (compile-vec '[my-fn [other-fn]])
+  (compile-vec '[my-fn ^:inline [other-fn]])
+
+  ;; to invoke a symbol with createElement (instead of calling it as a function),
+  ;; add a ^js hint or use `:>` as the tag
+  (compile-vec '[^js my-fn])
+  (compile-vec '[:> my-fn])
+  => (hicada.interpreter/createElement my-fn nil)
+
+  ;; behind the scenes, `infer/inline?` determines whether a form is already
+  ;; a valid React element (in which case, we skip runtime interpretation).
+
+  ;; primitive strings, numbers, and nil are inlined:
+  (infer/inline? "a string")                                ;; true
+  (infer/inline? 1)                                         ;; true
+  (infer/inline? nil)                                       ;; true
+  ;; skip interpretation by adding ^:inline or ^js
+  (infer/inline? '^:inline (my-fn))                         ;; true
+  (infer/inline? '^js (my-fn))                              ;; true
+
+  ;; using ^js allows us to rely on type propagation, eg. and define functions
+  ;; whose return values will be inlined. the following is just an example, and
+  ;; will not work here in a Clojure repl.
+  (defn ^js my-fn [])
+  ;; the ^js type can now be inferred at call sites
+  .. (my-fn)                                                ;; inferred tag will be 'js
 
 
-  ;; JS vs CLJ elements
-  (compile-vec '[my-fn {:foo "bar"} a [:div]])              ;; symbol => pass children as unprocessed props
-  (compile-vec '[:js my-fn {:foo "bar"} a [:div]])          ;; :js => process all args
+  ;; Here are some more complete examples that include props and children.
+  (compile-vec '[my-fn {:foo "bar"} a [:div]])
+  (compile-vec '[:> my-fn {:foo "bar"} a [:div]])
   (compile-vec '[^js my-fn {:foo "bar"} a [:div]])
 
-  ;; Children
+  ;; various ways to control interpretation/inlining of children
   (compile-vec '[:div
                  a                                          ;; maybe-interpret (not as props)
-                 ^:hiccup b                                 ;; interpret
-                 ^:element c                                ;; pass
-                 ^js d])                                    ;; pass
+                 ^:interpret b                              ;; interpret
+                 ^:inline c                                 ;; inline
+                 ^js d])                                    ;; inline
 
-  ;; fragments
-  (compile-vec '[:<> a b [:div] [x]])                       ;; all children compiled/interpreted
+  ;; :<> compiles to a react Fragment, children are compiled/interpreted
+  (compile-vec '[:<> a b [:div] [x]])
+  ;; ...with a react key
+  (compile '^{:key "a"} [:<> a b])
 
   ;; interpret
-  (compile-or-interpret-form 'b)                            ;; maybe-interpret symbol
-  (compile-or-interpret-form '(hello [:div]))               ;; maybe-interpret unknown operator
-  (compile-or-interpret-form '(do [:div]))                  ;; compile known operator
-  (compile-or-interpret-form '(let [a 1] [:div a]))         ;; maybe-interpret bound symbol
+  (compile-or-interpret-child 'b)                           ;; maybe-interpret symbol
+  (compile-or-interpret-child '(hello [:div]))              ;; maybe-interpret unknown operator
+  (compile-or-interpret-child '(do [:div]))                 ;; compile inner form
+  (compile-or-interpret-child '(let [a 1] [:div a]))        ;; compile inner form, maybe-interpret unknown symbol
+  (compile-or-interpret-child '(for [x xs] [:span x]))      ;; compile inner return values
+  (compile-or-interpret-child '(let [x (for [x [1 2 3]] x)] ;; only wrap-return at top level
+                                 x))
 
-  ;; use :props metadata to indicate dynamic props
-  (compile-vec '[:span a b])                                ;; 2 children
-  (compile-vec '[:span ^:props a b])                        ;; props + child
-
-  (compile-or-interpret-form '(for [x xs] [:span x]))       ;; compile inner return values
-  (compile-or-interpret-form '(let [x (for [x [1 2 3]] x)]  ;; only wrap-return at top level
-                                x))
-
-  ;; key & ref as metadata
-  (compile-vec '^{:key "k" :ref "r"} [my-fn {:prop 1}])     ;; handle key and ref props
+  ;; key as metadata - only on element forms
   (compile-vec ^{:key 1} [:span "x"])
   (compile-vec ^{:key 1} [:span {:foo "bar"} "x"])          ;; with props map
   (compile-vec ^{:key 1} [:span 'd "x"])                    ;; with symbol child (unrelated)
@@ -254,38 +329,13 @@
   (compile '(for [x [1 2 3]]
               ^{:key (:y x)} [:span x]))                    ;; dynamic key
 
+  ;; warning - key metadata is ignored because a-symbol is a function
+  (compile-vec '^{:key 1} [a-symbol])
 
-  (require 'hicada.interpreter)
+  ;; dynamic props with key and ref added at runtime
+  (compile '^{:key "k" :ref "r"}
+           [:div#id.class ^:props b c])
 
-  (compile [:h1.b.c {:class "a"}])                          ;; classes from tag + props are joined
-  (compile [:h1.b.c {:class-name "a"}])                     ;; ** class-name is ignored
-
-  ;; fragments
-  (compile '[:<> a b])                                      ;; all children are interpreted
-  (compile '^{:key "a"} [:<> a b])                          ;; with key
-
-  ;; :js
-  (compile '[:js SomeView props b])                         ;; in :js mode, all children are compiled/interpreted
-  (compile '[:js SomeView ^:props props b])                 ;; ^js for props
-  (compile '^{:key 1} [:js SomeView ^js props b])
-
-  ;; Doesn't convert string keys, but do convert keywords & symbols:
-  (compile '[:div {"kebab-case" y :camel-case x camel-case-2 8}])
-
-  (compile '[:js Transition {:in in-prop} (fn [state])])    ;; works eq to :>
-  (compile '[clj-view ^:props b c])
-  (compile '^{:key "k" :ref "r"} [:div#id.class ^:props b c])
-  (compile '[:div.c1 {:class x} "D"])
-  (compile '[:div.c1 {:class ["y" d]}])
-  (compile '(some-fn {:in in-prop} (fn [state])))           ;; FN call, don't touch
-
-  (compile '[:Text {:style [{:border-bottom "2px"}]}])
-
-  (compile '[:div {:style (assoc {} :width 10)}])           ;; style object is camelCased
-  (compile '[:div {:data-style (assoc {} :width 10)}])      ;; random props are not traversed
-
-  (compile '[:div (assoc {} :style {:width 10})])           ;; not a literal map, interpreted as a chile
-  (compile '[:div ^:props (assoc {} :style {:width 10})])   ;; props tag
-
+  (compile '[:div {:data-style (assoc {} :width 10)}])      ;; random props are not coerced to anything
 
   )

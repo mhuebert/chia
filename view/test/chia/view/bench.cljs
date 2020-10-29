@@ -23,7 +23,7 @@
   [:div "Hello v0"])
 
 (hv/defview v1 [^number a ^number b]
-  [:div "Hello v1" a b ^:hiccup [v0]])
+  [:div "Hello v1" a b ^:interpret [v0]])
 
 (hv/defview v2 []
   [:div "Hello v2." [v1 1 2]])

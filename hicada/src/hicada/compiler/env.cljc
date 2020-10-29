@@ -1,14 +1,19 @@
-(ns hicada.compiler.env
-  (:require [hicada.util :as util]))
+(ns hicada.compiler.env)
 
-(def default-tag-handlers {:js (fn [form]
-                                 (tap>  (meta form))
-                                 (-> form
-                                     (subvec 1)
-                                     (update 0 vary-meta assoc :tag 'js)
-                                     (with-meta (meta form))))
+(defn as-js [form]
+  (update form 0 vary-meta assoc :tag 'js))
+
+(defn handle-element-constructor [form]
+  (-> form
+      (subvec 1)
+      (with-meta (meta form))
+      (as-js)))
+
+(def default-tag-handlers {:> handle-element-constructor
                            :<> (fn [form]
-                                 (assoc form 0 'hicada.interpreter/Fragment))})
+                                 (-> form
+                                     (assoc 0 'hicada.interpreter/Fragment)
+                                     (as-js)))})
 
 ;; TODO: We should take &env around everything and also expect it as an argument.
 (def default-options {:inline? false
