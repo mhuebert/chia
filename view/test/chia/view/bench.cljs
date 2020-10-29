@@ -10,13 +10,39 @@
     [chia.view.hiccup :as hiccup]
     [triple.view :as triple]
     [triple.view.hiccup :as triple-hiccup]
-    [clojure.string :as str])
+    [clojure.string :as str]
+    [hicada.view :as hv])
   (:require-macros [chia.view.bench :as bench]
                    [hicada.compiler :as hc]
                    [hicada.infer :as infer]))
 
 (def element react/createElement)
 (def to-string rdom/renderToString)
+
+(defn v0 []
+  [:div "Hello v0"])
+
+(hv/defview v1 [^number a ^number b]
+  [:div "Hello v1" a b ^:hiccup [v0]])
+
+(hv/defview v2 []
+  [:div "Hello v2." [v1 1 2]])
+
+(hv/defview hv-render [{:keys [title body items]}]
+  [:div.card
+   [:div.card-title ^string title]
+   [:div.card-body ^string body]
+   [:ul.card-list
+    (for [^js item items]
+      ^{:key item} [:li item])]
+   [:div.card-footer
+    [:div.card-actions
+     [:button "ok"]
+     [:button "cancel"]]]])
+
+(comment
+  (hv/defview hv [] [:div.card])
+  (macroexpand '(hc/to-element [:div.card [:div.what title]])))
 
 (def sample-props {:style {:font-size 10}
                    :class "red"})
@@ -128,10 +154,10 @@
 
     (print :react "\n" (to-string (react-render test-data)))
     (print :chia-legacy "\n" (to-string (chia-legacy test-data)))
-    (print :triple "\n" (to-string (triple-hiccup/to-element
-                                     [triple-view test-data])))
+    (print :triple "\n" (to-string (triple-hiccup/to-element [triple-view test-data])))
+    (print :hicada-view "\n" (to-string (hicada.view/to-element [hv-render test-data])))
 
-    #_(-> suite
+    (-> suite
 
         (.add "reagent/interpret" (comp to-string
                                         #(reagent-render test-data)))
@@ -140,6 +166,10 @@
         (.add "triple/interpret" (comp to-string
                                        #(triple-hiccup/to-element
                                           [triple-view test-data])))
+
+        (.add "hicada/view" (comp to-string
+                                  #(hv/to-element
+                                     [hv-render test-data])))
 
         (.on "cycle" log-cycle)
         (.run))))

@@ -1,21 +1,25 @@
 (ns hicada.interpreter
-  (:require #?(:cljs [applied-science.js-interop :as j])
+  (:require #?@(:cljs
+                [[applied-science.js-interop :as j]
+                 ["react" :as react]
+                 ["react-dom" :as react-dom]])
             [clojure.string :as str]
             [clojure.string :refer [blank? join]]
             [hicada.normalize :as normalize]
             [hicada.util :as util]
-            hicada.macros))
+            [hicada.macros]))
 
-
-(defprotocol IInterpreter
-  (interpret [this] "Interpret a Clojure data structure as a React fn call."))
+#?(:cljs
+   (do
+     (def Fragment react/Fragment)
+     (def createElement react/createElement)))
 
 (defn create-element
   "Create a React element. Returns a JavaScript object when running
   under ClojureScript, and a om.dom.Element record in Clojure."
   [type props & children]
   #?(:clj  nil
-     :cljs (apply js/React.createElement type props children)))
+     :cljs (apply createElement type props children)))
 
 (defn classes-string [classes]
   (cond (string? classes) classes
@@ -56,71 +60,8 @@
                #js{}
                attrs))))
 
-
-(defn- interpret-seq
-  "Eagerly interpret the seq `x` as HTML elements."
-  [x]
-  (into [] (map interpret) x))
-
-(defn element
-  "Render an element vector as a HTML element."
-  [element]
-  (let [[type attrs content] (normalize/hiccup-vec element)]
-    (apply create-element type
-           (props attrs)
-           (interpret-seq content))))
-
-(extend-protocol IInterpreter
-
-  #?(:clj  clojure.lang.ChunkedCons
-     :cljs cljs.core.ChunkedCons)
-  (interpret [this]
-    (interpret-seq this))
-
-  ;;TODO: this type extension seems brittle.
-  #?@(:cljs [cljs.core.Repeat
-             (interpret [this]
-                        (interpret-seq this))])
-
-  #?(:clj  clojure.lang.PersistentVector$ChunkedSeq
-     :cljs cljs.core.ChunkedSeq)
-  (interpret [this]
-    (interpret-seq this))
-
-  #?(:clj  clojure.lang.Cons
-     :cljs cljs.core.Cons)
-  (interpret [this]
-    (interpret-seq this))
-
-  #?(:clj  clojure.lang.LazySeq
-     :cljs cljs.core.LazySeq)
-  (interpret [this]
-    (interpret-seq this))
-
-  #?(:clj  clojure.lang.PersistentList
-     :cljs cljs.core.List)
-  (interpret [this]
-    (interpret-seq this))
-
-  #?(:clj  clojure.lang.IndexedSeq
-     :cljs cljs.core.IndexedSeq)
-  (interpret [this]
-    (interpret-seq this))
-
-  #?(:clj  clojure.lang.APersistentVector$SubVector
-     :cljs cljs.core.Subvec)
-  (interpret [this]
-    (element this))
-
-  #?(:clj  clojure.lang.PersistentVector
-     :cljs cljs.core.PersistentVector)
-  (interpret [this]
-    (element this))
-
-  #?(:clj Object :cljs default)
-  (interpret [this]
-    this)
-
-  nil
-  (interpret [this]
-    nil))
+(defn interpret [x]
+  (prn :interpreting x)
+  (if (vector? x)
+    (str "<hiccup: " x ">")
+    x))

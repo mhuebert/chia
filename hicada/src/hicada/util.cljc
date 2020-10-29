@@ -7,6 +7,9 @@
 
 (defn guard [x f] (when (f x) x))
 
+(defn map-vals [m f]
+  (reduce-kv (fn [m k v] (assoc m k (f v))) m m))
+
 (defn interpreted? [x]
   (some-> (guard x seq?)
           first
@@ -78,7 +81,7 @@
                  (update 2 #(when % (dots->spaces %)))))))
 
 (defn hiccup-vec? [form]
-  (and (vector? form) (keyword? (first form))))
+  (and (vector? form) ((some-fn keyword? symbol?) (first form))))
 
 (defn compile-prop [xf m k v]
   (let [kname (if (string? k)

@@ -1,7 +1,7 @@
 (ns hicada.infer
   (:require [cljs.analyzer :as ana]
-            #?(:cljs cljs.analyzer.macros)
-            [hicada.compiler.env :as env]))
+            [hicada.compiler.env :as env])
+  #?(:cljs (:require-macros cljs.analyzer.macros)))
 
 (defn infer-type
   [form env]
@@ -18,12 +18,15 @@
   (let [{:keys [inlineable-types
                 warn-on-interpretation?
                 interpret]} env/*options*
-        tag (infer-type expr &env)]
-    (if (contains? inlineable-types tag)
+        tag (infer-type expr &env)
+        expr-meta (meta expr)]
+    (if (or (contains? inlineable-types tag)
+            (:element expr-meta))
       expr
       (binding [*out* *err*]
-        (when warn-on-interpretation?
-          (println "WARNING: interpreting by default, please specify ^:inline or ^:interpret")
+        (when (and warn-on-interpretation?
+                   (not (:hiccup expr-meta)))
+          (println "WARNING: interpreting by default, please specify ^:hiccup or ^:element")
           (prn expr)
           (println "Inferred tag was:" tag)
           (let [{:keys [line file]} (meta expr)]

@@ -10,11 +10,15 @@
     [hicada.compiler.impl :as compiler]
     [hicada.compiler.env :as env]
     [hicada.infer :as infer]
+    [hicada.interpreter :as interpret]
     [hicada.normalize :as norm]
     [hicada.util :as util]
-    [clojure.string :as str]))
+    [clojure.string :as str]
+    #?(:clj [net.cgrand.macrovich :as m]))
+  #?(:cljs (:require-macros hicada.compiler
+                            [net.cgrand.macrovich :as m])))
 
-(defn- primitive?
+(defn primitive?
   "True if x is a literal value that can be rendered as-is."
   [x]
   (or (string? x)
@@ -25,8 +29,8 @@
 (defn is-hiccup? [form]
   (if (primitive? form)
     false
-    (let [{:keys [hiccup not-hiccup tag]} (meta form)]
-      (cond not-hiccup false
+    (let [{:keys [hiccup element tag]} (meta form)]
+      (cond element false
             (= tag 'js) false
             (false? hiccup) false
             (true? hiccup) true
@@ -112,22 +116,23 @@
 
 (defn emit
   "Emits the final react js code"
-  [tag props children {:keys [js-element?
+  [tag props children {:keys [element?
                               id
                               class-string
                               key
                               ref
-                              prop-mode]}]
+                              prop-mode
+                              form-meta]}]
   (let [{:keys [create-element]} env/*options*
-        static-props (util/assoc-some nil
-                                      :id id
-                                      :key key
-                                      :ref ref)
+        static-props (seq (apply concat (util/assoc-some nil
+                                                         :id id
+                                                         :key key
+                                                         :ref ref)))
         emit-static-props (fn [form]
                             (let [ops (keep identity
                                             [(when (seq static-props)
                                                `(~'applied-science.js-interop/assoc!
-                                                  ~@(apply concat static-props)))
+                                                  ~@static-props))
                                              (when class-string
                                                `(~'hicada.interpreter/update-class! ~class-string))])]
                               (if (seq ops)
@@ -142,37 +147,33 @@
     ;; js-only --
     ;;   class-name: comes from tag, need to add (if :map or :nil, at compile, else at runtime)
     ;;   id: comes from tag, need to add (if :map or :nil, at compile, else at runtime)
-
-    (if js-element?
+    (if element?
       ;; js-element: everything needs to be compiled
-      (list* create-element
-             tag
-             (case prop-mode
-               ;; literal props, we can add static props at compile-time
-               (:map :nil)
-               (-> props
-                   (util/assoc-some :id id :key key :ref ref)
-                   (cond-> class-string (update :class norm/conj-class class-string))
-                   compile-props
-                   to-js)
-               ;; dynamic clj, need to interpret
-               :dynamic-map
-               (emit-static-props
-                 (when props
-                   (if (util/interpreted? props)
-                     props
-                     `(~'hicada.interpreter/props ~props))))
-               ;; don't compile js objects, but do add static data if present
-               :js-object
-               (emit-static-props props)
-               :no-props nil)
-             (mapv compile-or-interpret-form children))
+      (do
+        (tap> [:prop-mode prop-mode :cs class-string])
+        (list* create-element
+               tag
+               (case prop-mode
+                 ;; literal props, we can add static props at compile-time
+                 (:map :nil :no-props)
+                 (-> props
+                     (util/assoc-some :id id :key key :ref ref)
+                     (cond-> class-string (update :class norm/conj-class class-string))
+                     compile-props
+                     to-js)
+                 ;; dynamic clj, need to interpret
+                 :dynamic-map
+                 (emit-static-props
+                   (when props
+                     (if (util/interpreted? props)
+                       props
+                       `(~'hicada.interpreter/props ~props))))
+                 ;; don't compile js objects, but do add static data if present
+                 :js-object
+                 (emit-static-props props))
+               (mapv compile-or-interpret-form children)))
       ;; clj-element
-      (list* create-element
-             tag
-             (to-js static-props)                           ;; only static props are possible (:key, :ref as metadata)
-             (mapv compile-form children))                  ;; only hiccup forms are compiled (no wrapping of interpret)
-      )))
+      `(~'hicada.infer/maybe-interpret ~(with-meta `(~tag ~@(mapv compile-form children)) form-meta)))))
 
 (defn compile
   "Arguments:
@@ -187,6 +188,7 @@
   - tag-handlers:
    A map to handle special tags. Run before compile."
   ([content]
+   (tap> [:compiling content])
    (compile content nil))
   ([content options]
    (binding [env/*options* (env/with-defaults options)]
@@ -217,16 +219,17 @@
   ;; JS vs CLJ elements
   (compile-vec '[my-fn {:foo "bar"} a [:div]])              ;; symbol => pass children as unprocessed props
   (compile-vec '[:js my-fn {:foo "bar"} a [:div]])          ;; :js => process all args
+  (compile-vec '[^js my-fn {:foo "bar"} a [:div]])
 
   ;; Children
   (compile-vec '[:div
                  a                                          ;; maybe-interpret (not as props)
                  ^:hiccup b                                 ;; interpret
-                 ^:not-hiccup c                             ;; pass
+                 ^:element c                                ;; pass
                  ^js d])                                    ;; pass
 
   ;; fragments
-  (compile-vec '[:<> a b [:div]])                           ;; all children compiled/interpreted
+  (compile-vec '[:<> a b [:div] [x]])                       ;; all children compiled/interpreted
 
   ;; interpret
   (compile-or-interpret-form 'b)                            ;; maybe-interpret symbol
@@ -263,7 +266,7 @@
 
   ;; :js
   (compile '[:js SomeView props b])                         ;; in :js mode, all children are compiled/interpreted
-  (compile '[:js SomeView ^:props props b])                     ;; ^js for props
+  (compile '[:js SomeView ^:props props b])                 ;; ^js for props
   (compile '^{:key 1} [:js SomeView ^js props b])
 
   ;; Doesn't convert string keys, but do convert keywords & symbols:
@@ -283,5 +286,6 @@
 
   (compile '[:div (assoc {} :style {:width 10})])           ;; not a literal map, interpreted as a chile
   (compile '[:div ^:props (assoc {} :style {:width 10})])   ;; props tag
+
 
   )

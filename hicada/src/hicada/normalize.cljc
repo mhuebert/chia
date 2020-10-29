@@ -45,8 +45,7 @@
   [[tag & body :as vec]]
   (let [js-element? (or (string? tag)
                         (keyword? tag)
-                        (and (symbol? tag)
-                             (= 'js (:tag (meta tag)))))]
+                        (= 'js (:tag (meta tag))))]
     (if js-element?
       (let [[tag id class-string] (if (or (keyword? tag)
                                           (string? tag))
@@ -59,12 +58,12 @@
          (when props? props)
          (children-as-list (cond-> body props? next))
          (merge
-           {:js-element? true
+           {:element? true
             :id id
             :class-string class-string
             :prop-mode mode}
            (select-keys (meta vec) [:ref :key]))])
-      [tag nil body (select-keys (meta vec) [:key :ref])])))
+      [tag nil body {:form-meta (meta vec)}])))
 
 
 (comment

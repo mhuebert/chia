@@ -1,5 +1,5 @@
 (ns hicada.macros
-  (:refer-clojure :exclude [for map into])
+  (:refer-clojure :exclude [for map into into-array])
   (:require [net.cgrand.xforms :as x]
             #?(:clj [net.cgrand.macrovich :as macros]))
   #?(:cljs (:require-macros [hicada.macros :as m]
@@ -26,7 +26,7 @@
   (when (seq bindings)
     (let [coll (nth bindings 1)
           bindings (-> bindings
-                       (update 0 vary-meta assoc :tag 'any) ;; avoid type inference bug
+                       ;; (update 0 vary-meta assoc :tag 'any) ;; avoid type inference bug
                        (assoc 1 (symbol "%")))]
       `(transduce-arr (x/for ~bindings ~body) ~coll))))
 

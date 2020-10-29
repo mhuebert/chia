@@ -8,7 +8,7 @@
                                      (update 0 vary-meta assoc :tag 'js)
                                      (with-meta (meta form))))
                            :<> (fn [form]
-                                 (assoc form 0 'js/React.Fragment))})
+                                 (assoc form 0 'hicada.interpreter/Fragment))})
 
 ;; TODO: We should take &env around everything and also expect it as an argument.
 (def default-options {:inline? false
@@ -17,13 +17,14 @@
                       :warn-on-interpretation? true
                       ;; If you also want to camelcase string map keys, add string? here:
                       :camelcase-key-pred (some-fn keyword? symbol?)
-                      :create-element 'js/React.createElement
+                      :create-element 'hicada.interpreter/createElement
                       :inlineable-types '#{number
                                            string
-                                           function}
+                                           function
+                                           js}
                       :interpret 'hicada.interpreter/interpret
                       :tag-handlers default-tag-handlers
-                      :tags {:<> 'js/React.Fragment}})
+                      :tags {:<> 'hicada.interpreter/Fragment}})
 
 (defn with-defaults [options]
   (-> default-options
