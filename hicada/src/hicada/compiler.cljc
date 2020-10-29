@@ -293,8 +293,9 @@
   ;; whose return values will be inlined. the following is just an example, and
   ;; will not work here in a Clojure repl.
   (defn ^js my-fn [])
-  ;; the ^js type can now be inferred at call sites
-  .. (my-fn)                                                ;; inferred tag will be 'js
+  ;; the ^js type can now be inferred at call sites,
+  ;; and will not be wrapped with interpretation functions
+  .. (my-fn)
 
 
   ;; Here are some more complete examples that include props and children.
