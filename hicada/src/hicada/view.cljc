@@ -5,7 +5,7 @@
             [applied-science.js-interop :as j]
             #?@(:clj [[hicada.compiler :as c]
                       [net.cgrand.macrovich :as m]])
-            #?(:cljs [hicada.interpreter]))
+            #?(:cljs [hicada.runtime]))
   #?(:cljs (:require-macros [net.cgrand.macrovich :as m]
                             [hicada.compiler :as c])))
 
@@ -82,7 +82,7 @@
            [^:js {~(if single?
                      (vary-meta (first argv) assoc :clj true)
                      (with-meta argv {:js/shallow true})) :children :as p#}]
-           (when ~'triple.view/refresh-enabled? (~signature-sym))
+           (when ~'hicada.view/refresh-enabled? (~signature-sym))
            ~@(drop-last body)
            (~'hicada.compiler/to-element ~(last body)))
 
@@ -93,14 +93,14 @@
            ~@(when docstring [docstring])
            {:arglists (~argv)}
            ~simple-args
-           ~(list* 'hicada.interpret/createElement
+           ~(list* 'hicada.compiler/create-element
                    constructor-sym
                    (when key-fn `(j/obj :key (~key-fn-sym ~(first argv))))
                    simple-args))
-         (when ~'triple.view/refresh-enabled?
+         (when ~'hicada.view/refresh-enabled?
            ;; type, key, forceReset, getCustomHooks
            (~signature-sym ~name ~(hook-signature body) nil nil)
-           (~'triple.view/register! ~name (j/!get ~name :displayName)))
+           (~'hicada.view/register! ~name (j/!get ~name :displayName)))
          )))
 
   (defmacro to-element [form]

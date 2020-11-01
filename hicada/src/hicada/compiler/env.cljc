@@ -12,21 +12,23 @@
 (def default-tag-handlers {:> handle-element-constructor
                            :<> (fn [form]
                                  (-> form
-                                     (assoc 0 'hicada.interpret/Fragment)
+                                     (assoc 0 'hicada.runtime/Fragment)
                                      (as-js)))})
 
 ;; TODO: We should take &env around everything and also expect it as an argument.
 (def default-options {:warn-on-interpretation? true
-                      :create-element 'hicada.interpret/createElement
-                      :interpret/form 'hicada.interpret/form
-                      :interpret/props 'hicada.interpret/props
-                      :interpret/class 'hicada.interpret/class-string
-                      :interpret/update-class! 'hicada.interpret/update-class!
+                      :create-element 'hicada.runtime/createElement
+                      :interpret/form 'hicada.runtime/to-element
+                      :interpret/props 'hicada.runtime/props
+                      :interpret/class-string 'hicada.runtime/class-string
+                      :interpret/update-class! 'hicada.runtime/update-class!
+                      :interpret/assoc! 'applied-science.js-interop/!set
                       :inlineable-types '#{number
                                            string
                                            function
                                            js}
-                      :tag-handlers default-tag-handlers})
+                      :tag-handlers default-tag-handlers
+                      :rewrite-for? true})
 
 (defn with-defaults [options]
   (-> default-options

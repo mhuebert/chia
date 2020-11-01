@@ -1,5 +1,6 @@
-(ns hicada.compiler.impl
-  (:require [hicada.util :as util]))
+(ns hicada.compiler.utils
+  (:require [hicada.util :as util]
+            [hicada.compiler.env :as env]))
 
 (defn form-op
   "Get the name of the supplied form."
@@ -37,7 +38,15 @@
 
       "for"
       (let [[_ bindings body] form]
-        `(~'hicada.macros/for ~bindings ~(f body)))
+        (if (:rewrite-for? env/*options*)
+          (if (= 2 (count bindings))
+            (let [[item coll] bindings]
+              `(reduce (fn [out# ~item]
+                         (applied-science.js-interop/push! out# ~(f body)))
+                       (cljs.core/array)
+                       ~coll))
+            `(into-array (for #_~'hicada.macros/for ~bindings ~(f body))))
+          `(for ~bindings ~(f body))))
 
       ("when"
         "when-not"

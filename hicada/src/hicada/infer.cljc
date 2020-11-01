@@ -23,9 +23,6 @@
        (nil? form)
        (let [expr-meta (meta form)
              tag (or (:tag expr-meta) tag)]
-         (tap> {:form form
-                :meta (meta form)
-                :tag tag})
          (boolean (or (contains? inlineable-types tag)
                       (:inline expr-meta)))))))
 
@@ -40,11 +37,9 @@
       (binding [*out* *err*]
         (when (and warn-on-interpretation?
                    (not (:interpret (meta expr))))
-          (println "WARNING: interpreting by default, please specify ^:interpret or ^:inline")
-          (prn expr)
-          (println "Inferred tag was:" tag)
-          (let [{:keys [line file]} (meta expr)]
-            (when (and line file)
-              (println (str file ":" line))))
-          (println ""))
+          (println (str "WARNING: interpreting form " (pr-str expr)
+                        (let [{:keys [line file]} (meta expr)]
+                          (when (and line file)
+                            (str ", " file ":" line)))
+                        (some->> tag (str ", ")))))
         `(~(:interpret/form options) ~expr)))))

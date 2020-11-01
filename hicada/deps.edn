@@ -1,4 +1,8 @@
 {:paths ["src"]
- :deps {applied-science/js-interop {:mvn/version "0.2.7"}
+ :deps {org.clojure/clojurescript {:mvn/version "1.10.773"}
+        applied-science/js-interop {:mvn/version "0.2.7"}
         net.cgrand/xforms {:mvn/version "0.19.2"}
-        net.cgrand/macrovich {:mvn/version "0.2.1"}}}
+        net.cgrand/macrovich {:mvn/version "0.2.1"}}
+ :aliases
+ {:test
+  {:extra-paths ["test"]}}}

@@ -1,9 +1,9 @@
 (ns hicada.view
   (:require [applied-science.js-interop :as j]
-            hicada.interpreter)
+            hicada.runtime)
   (:require-macros hicada.view))
 
-(def ^:constant refresh-enabled?
+(def ^boolean refresh-enabled?
   (and goog/DEBUG (exists? js/ReactRefresh)))
 
 (defn register!
