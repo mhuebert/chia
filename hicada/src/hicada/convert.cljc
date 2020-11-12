@@ -1,35 +1,17 @@
-(ns hicada.runtime
-  (:require #?@(:cljs
-                [[applied-science.js-interop :as j]
-                 ["react" :as react]
-                 ["react-dom" :as react-dom]])
+(ns hicada.convert
+  (:require #?@(:cljs  [[hicada.react :as react]
+                        [applied-science.js-interop :as j]]
+                :clj   [[net.cgrand.macrovich :as m]])
             [clojure.string :as str]
             [clojure.string :refer [blank? join]]
+            [hicada.env :as env]
             [hicada.util :as util]
-            [hicada.macros]
-            #?(:clj [net.cgrand.macrovich :as m]))
-  #?(:cljs (:require-macros hicada.runtime
+            [hicada.macros])
+  #?(:cljs (:require-macros hicada.convert
                             [net.cgrand.macrovich :as m])))
 
-#?(:cljs
-   (do
-     (def Fragment react/Fragment)
-     (def Suspense react/Suspense)
-     (def createElement react/createElement)))
-
-(defn #?(:cljs ^string class-string
-         :clj  class-string) [classes]
-  (cond (string? classes) classes
-        (vector? classes) (str/join " " classes)
-        :else classes))
-
-(defn update-class! [obj class-string]
-  (let [f (fn [x]
-            (if (some? x)
-              (str class-string " " x)
-              class-string))]
-    #?(:cljs (j/update! obj :className f)
-       :clj  (update obj :className f))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; key transformation
 
 (def camel-case
   (util/memo-by-string
@@ -50,9 +32,34 @@
              {} m)))
 
 (m/deftime
+  (defn camel-case-keys-compile
+    "returns map with keys camel-cased"
+    [m]
+    (if (map? m)
+      (camel-case-keys m)
+      `(camel-case-keys ~m))))
 
-  (defn join-classes-compile
-    "Joins strings space separated"
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; class string transformation
+
+(defn #?(:cljs ^string class-string
+         :clj  class-string) [classes]
+  (cond (string? classes) classes
+        (vector? classes) (str/join " " classes)
+        :else classes))
+
+(defn update-class! [obj class-str]
+  (let [f (fn [x]
+            (if (some? x)
+              (str class-str " " x)
+              class-str))]
+    #?(:cljs (j/update! obj :className f)
+       :clj  (update obj :className f))))
+
+(m/deftime
+
+  (defn class-vector-string-compile
+    "Joins strings, space separated"
     [v]
     (m/case :cljs
             (let [strs (->> (repeat (count v) "~{}")
@@ -60,14 +67,25 @@
                             (apply str))]
               (list* 'js* (str "[" strs "].join(' ')") v))
             :clj
-            `(str/join " " ~(vec v))))
+            `(str/join " " ~(vec v)))))
 
-  (defn camel-case-keys-compile
-    "returns map with keys camel-cased"
-    [m]
-    (if (map? m)
-      (camel-case-keys m)
-      `(~'hicada.runtime/camel-case-keys ~m))))
+(defn format-class-prop [v]
+  (util/casetime
+    :usetime
+    (if (vector? v)
+      (str/join " " v)
+      v)
+
+    :deftime
+    (cond (string? v) v
+          (vector? v)
+          (if (every? string? v)
+            (str/join " " v)
+            (class-vector-string-compile v))
+          :else `(~'hicada.compiler/maybe-interpret-class ~v))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; parse static tag names
 
 (def ^:private dot-pattern #?(:cljs (js/RegExp "\\." "g")
                               :clj  "."))
@@ -91,30 +109,23 @@
                      vec
                      (update 2 #(when % (dots->spaces %)))))))))
 
-(m/usetime
-  (defn format-class-prop [v]
-    (if (vector? v)
-      (str/join " " v)
-      v)))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; parse style props
 
-(m/deftime
-  (defn format-class-prop [v]
-    (cond (string? v) v
-          (vector? v)
-          (if (every? string? v)
-            (str/join " " v)
-            (join-classes-compile v))
-          :else `(~'hicada.compiler/ensure-class-string ~v))))
-
-(m/deftime
-  (defn format-style-prop [v]
+(defn format-style-prop [v]
+  (util/casetime
+    :deftime
     (if (vector? v)
       (mapv camel-case-keys-compile v)
-      (camel-case-keys-compile v))))
+      (camel-case-keys-compile v))
 
-(m/usetime
-  (defn format-style-prop [v]
-    (camel-case-keys v)))
+    :usetime
+    (if (vector? v)
+      (mapv camel-case-keys v)
+      (camel-case-keys v))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; parse props (top-level)
 
 (defn add-prop [xf m k v]
   (let [kname (if (string? k)
@@ -127,33 +138,32 @@
                 (xf m kname (format-style-prop v))
                 (xf m kname v))))
 
-(m/deftime
-  (defn convert-props [props]
-    (reduce-kv (fn [m k v] (add-prop assoc m k v)) {} props)))
-
 (m/usetime
-
   #?(:cljs
      (defn js-set [o k v]
-       (j/!set o ^string k v)))
+       (j/!set o ^string k v))))
 
-  (defn convert-props [props]
+(defn convert-props [props]
+  (util/casetime
+    :usetime
     #?(:cljs (if (object? props)
                props
                (reduce-kv
                  (fn [m k v] (add-prop js-set m k v))
                  #js{}
                  props))
-       :clj  (reduce-kv (fn [m k v] (add-prop assoc m k v)) {} props))))
+       :clj  (reduce-kv (fn [m k v] (add-prop assoc m k v)) {} props))
+    :deftime
+    (reduce-kv (fn [m k v] (add-prop assoc m k v)) {} props)))
 
 #?(:cljs
-   (def tag-registry #js{"<>" Fragment
-                         "Fragment" Fragment
-                         "#" Suspense
-                         "Suspense" Suspense
+   (def tag-registry #js{"<>" react/Fragment
+                         "Fragment" react/Fragment
+                         "#" react/Suspense
+                         "Suspense" react/Suspense
                          ">" "create-element"}))
 
-(declare to-element)
+(declare as-element)
 
 #?(:cljs
    (m/usetime
@@ -189,16 +199,16 @@
                         true)))
        ([element-type props-obj form children-start interpret-children?]
         (let [form-count (count form)
-              coerce (if interpret-children? to-element identity)]
+              coerce (if interpret-children? as-element identity)]
           (case (- form-count children-start)               ;; fast cases for small numbers of children
-            0 (.call createElement nil element-type props-obj)
-            1 (.call createElement nil element-type props-obj (coerce (nth form children-start)))
-            2 (.call createElement nil element-type props-obj (coerce (nth form children-start)) (coerce (nth form (+ children-start 1))))
-            3 (.call createElement nil element-type props-obj (coerce (nth form children-start)) (coerce (nth form (+ children-start 1))) (coerce (nth form (+ children-start 2))))
+            0 (.call react/createElement nil element-type props-obj)
+            1 (.call react/createElement nil element-type props-obj (coerce (nth form children-start)))
+            2 (.call react/createElement nil element-type props-obj (coerce (nth form children-start)) (coerce (nth form (+ children-start 1))))
+            3 (.call react/createElement nil element-type props-obj (coerce (nth form children-start)) (coerce (nth form (+ children-start 1))) (coerce (nth form (+ children-start 2))))
             (let [out #js[element-type props-obj]]
               (loop [i children-start]
                 (if (== i form-count)
-                  (.apply createElement nil out)
+                  (.apply react/createElement nil out)
                   (do
                     (.push out (coerce (nth form i)))
                     (recur (inc i))))))))))
@@ -206,7 +216,7 @@
 
 
      (defprotocol IElement
-       (-to-element [form]))
+       (-as-element [form]))
 
      (defn interpret-vec [form]
        (let [form-0 (-nth form 0)]
@@ -215,7 +225,7 @@
                              (if (keyword? form-0)
                                (name form-0)
                                form-0))]
-             (if (identical? tag Fragment)
+             (if (identical? tag react/Fragment)
                (make-element tag nil form 1 true)
                (j/let [create-element? (identical? tag "create-element")
                        prop-position (if create-element? 2 1)
@@ -239,29 +249,29 @@
                                form
                                children-start
                                true))))
-           (to-element (apply form-0 (rest form))))))
+           (as-element (apply form-0 (rest form))))))
 
-     (defn to-element [form]
+     (defn as-element [form]
        (cond (vector? form) (interpret-vec form)
-             (seq? form) (make-element Fragment nil (vec form) 0 true)
-             ;(satisfies? IElement form) (-to-element form)
+             (seq? form) (make-element react/Fragment nil (vec form) 0 true)
+             ;(satisfies? IElement form) (-as-element form)
              :else form))))
 
 (comment
-  (to-element [:div])
-  (to-element [:div.a])
-  (to-element [:div.a {:class "b"}])
-  (to-element [:div.a {:class ["b" "c"]}])
-  (to-element [:div "a"])
-  #?(:cljs (to-element [:div #js{} "a"]))
+  (as-element [:div])
+  (as-element [:div.a])
+  (as-element [:div.a {:class "b"}])
+  (as-element [:div.a {:class ["b" "c"]}])
+  (as-element [:div "a"])
+  #?(:cljs (as-element [:div #js{} "a"]))
 
   (defn my-fn [x] [:div x])
-  (to-element [my-fn "a"])
-  (to-element [my-fn [:div.x]])
+  (as-element [my-fn "a"])
+  (as-element [my-fn [:div.x]])
 
-  (to-element [:div nil "a"])
+  (as-element [:div nil "a"])
 
-  (to-element [:<> "a" "b"])
-  (to-element [:<> [:div]])
+  (as-element [:<> "a" "b"])
+  (as-element [:<> [:div]])
 
   )

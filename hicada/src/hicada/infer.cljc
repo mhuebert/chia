@@ -1,7 +1,8 @@
 (ns hicada.infer
   (:require [cljs.analyzer :as ana]
-            [hicada.compiler.env :as env]
-            [hicada.util :as util])
+            [hicada.env :as env]
+            [hicada.util :as util]
+            #?(:clj cljs.analyzer.macros))
   #?(:cljs (:require-macros cljs.analyzer.macros)))
 
 (defn infer-type
@@ -10,13 +11,14 @@
                  (#?(:clj ana/no-warn :cljs cljs.analyzer.macros/no-warn)
                    (ana/analyze env form))))
 
+;; dev util
 (defmacro inferred-type [x]
   (list 'quote (infer-type x &env)))
 
-(defn inline?
+(defn skip?
   "Returns true if we can skip interpretation"
-  ([form] (inline? form nil (:inlineable-types env/*options*)))
-  ([form tag] (inline? form tag (:inlineable-types env/*options*)))
+  ([form] (skip? form nil (:skip-types env/*options*)))
+  ([form tag] (skip? form tag (:skip-types env/*options*)))
   ([form tag inlineable-types]
    (or (string? form)
        (number? form)
@@ -27,12 +29,12 @@
                       (:inline expr-meta)))))))
 
 (defmacro maybe-interpret
-  "Macro that wraps `expr` with interpreter call, if it cannot be inlined based on inferred type."
+  "Macro that wraps `expr` with interpreter call, if it cannot be skipped based on inferred type."
   [expr]
-  (let [{:keys [inlineable-types
+  (let [{:keys [skip-types
                 warn-on-interpretation?] :as options} env/*options*
         tag (infer-type expr &env)]
-    (if (inline? expr tag inlineable-types)
+    (if (skip? expr tag skip-types)
       expr
       (binding [*out* *err*]
         (when (and warn-on-interpretation?
@@ -42,4 +44,4 @@
                           (when (and line file)
                             (str ", " file ":" line)))
                         (some->> tag (str ", ")))))
-        `(~(:interpret/form options) ~expr)))))
+        `(~(:convert-form options) ~expr)))))

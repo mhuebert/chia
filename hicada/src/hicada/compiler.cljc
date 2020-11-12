@@ -8,15 +8,11 @@
   (:require
     cljs.analyzer
     [hicada.compiler.utils :as compiler]
-    [hicada.compiler.env :as env]
+    [hicada.env :as env]
     [hicada.infer :as infer]
-    [hicada.runtime :as runtime]
+    [hicada.convert :as runtime]
     [hicada.util :as util]
     [clojure.string :as str]))
-
-(defn kw->name
-  [x]
-  (cond-> x (keyword? x) name))
 
 (defn children-as-list
   "Normalize the children of a HTML element."
@@ -36,7 +32,7 @@
                    'js} (:tag props-meta)) :js-object)))
       :no-props))
 
-(defn analyze-hiccup-vec
+(defn analyze-vec
   "Given:
   [:div.x.y#id (other)]
   Returns:
@@ -44,18 +40,24 @@
          :class [\"x\" \"y\"]}
     (other)]"
   [[tag & body :as vec]]
-  (let [js-element? (or (string? tag)
-                        (keyword? tag)
-                        (= 'js (:tag (meta tag))))]
-    (if js-element?
-      (let [[tag id class-string] (if (or (keyword? tag)
-                                          (string? tag))
-                                    (runtime/parse-tag (name tag))
-                                    [tag nil nil])
+  (let [[tag id class-string] (if (or (keyword? tag)
+                                      (string? tag))
+                                (runtime/parse-tag (name tag))
+                                [tag nil nil])
+        registered-element (get-in env/*options* [:custom-elements tag])
+        is-element? (identical? (:create-element-tag env/*options*) tag)
+        create-element? (or (some? registered-element)
+                            is-element?
+                            (string? tag)
+                            (keyword? tag)
+                            (= 'js (:tag (meta tag))))]
+    (if create-element?
+      (let [[tag body] (if is-element? [(first body) (rest body)]
+                                       [tag body])
             props (first body)
             mode (props-mode props)
             props? (not= mode :no-props)]
-        [tag
+        [(or registered-element tag)
          (when props? props)
          (children-as-list (cond-> body props? next))
          (merge
@@ -68,10 +70,10 @@
 
 
 (comment
-  (analyze-hiccup-vec [:div#foo 'a])
-  (analyze-hiccup-vec [:div.a#foo])
-  (analyze-hiccup-vec [:h1.b {:className "a"}])
-  (analyze-hiccup-vec '[:div (for [x xs] [:span 1])]))
+  (analyze-vec [:div#foo 'a])
+  (analyze-vec [:div.a#foo])
+  (analyze-vec [:h1.b {:className "a"}])
+  (analyze-vec '[:div (for [x xs] [:span 1])]))
 
 (defn compile-mode
   [form]
@@ -84,10 +86,10 @@
             (vector? form) :compile
             :else :maybe-interpret))))
 
-(defmacro ensure-class-string [s]
+(defmacro maybe-interpret-class [s]
   (if (= 'string (infer/infer-type s &env))
     s
-    `(~(:interpret/class-string env/*options*) ~s)))
+    `(~(:convert-class env/*options*) ~s)))
 
 (defmacro create-element [& args]
   `(.call ~(:create-element env/*options*) nil ~@args))
@@ -116,20 +118,12 @@
     (map? x) (map-to-js x)
     :else x))
 
-(defn compile-props
-  "Compile a HTML attribute map to react (class -> className), camelCases :style."
-  [attrs]
-  (reduce-kv (fn [m k v]
-               (runtime/add-prop assoc m k v)) {} attrs))
-
 (declare emit)
 
 (defn compile-vec
   "Returns an unevaluated form that returns a react element"
   [[tag :as form]]
-  (let [handler (get-in env/*options* [:tag-handlers tag])
-        handled-form (cond-> form handler (handler))
-        [klass attrs children options] (analyze-hiccup-vec handled-form)]
+  (let [[klass attrs children options] (analyze-vec form)]
     (emit klass attrs children options)))
 
 (defn compile-or-interpret-child
@@ -139,7 +133,7 @@
     (throw (ex-info "a map is an invalid child" {:form form}))
     (case (compile-mode form)
       :inline form
-      :interpret `(~(:interpret/form env/*options*) ~form)
+      :interpret `(~(:convert-form env/*options*) ~form)
       :compile (compile-vec form)
       :maybe-interpret
       (or (compiler/wrap-return form compile-or-interpret-child)
@@ -152,7 +146,7 @@
   (or (compiler/wrap-return form compile-hiccup-child)
       (case (compile-mode form)
         :compile (compile-vec form)
-        :interpret `(~(:interpret/form env/*options*) ~form)
+        :interpret `(~(:convert-form env/*options*) ~form)
         form)))
 
 (defn emit
@@ -168,9 +162,9 @@
                                ;; adds dynamic props to js-props object at runtime
                                (if-let [ops (-> (for [[k v] {"id" id "key" key "ref" ref}
                                                       :when v]
-                                                  `(~(:interpret/assoc! env/*options*) ~k ~v))
+                                                  `(~(:assoc-prop env/*options*) ~k ~v))
                                                 (cond-> class-string
-                                                        (conj `(~(:interpret/update-class! env/*options*) ~class-string)))
+                                                        (conj `(~(:update-class env/*options*) ~class-string)))
                                                 seq)]
                                  `(-> ~form ~@ops)
                                  form))]
@@ -181,7 +175,7 @@
                ;; literal, we can add static props at compile-time
                (:map :nil :no-props)
                (-> (into (or props {}) (filter val) {:id id :key key :ref ref})
-                   compile-props
+                   runtime/convert-props
                    (cond-> class-string (update "className" #(cond (nil? %) class-string
                                                                    (string? %) (str class-string " " %)
                                                                    :else `(str ~(str class-string " ") ~%))))
@@ -190,7 +184,7 @@
                :dynamic
                (runtime-static-props
                  (when props
-                   `(~(:interpret/props env/*options*) ~props)))
+                   `(~(:convert-props env/*options*) ~props)))
                ;; skip interpret, but add static props
                :js-object
                (runtime-static-props props))
@@ -205,7 +199,7 @@
    o :warn-on-interpretation? - Print warnings when code cannot be pre-compiled and must be interpreted at runtime? (Defaults to `true`)
    o :inlineable-types - CLJS type tags that are safe to inline without interpretation. Defaults to `#{'number 'string}`
    o :is-hiccup? (opt) fn of expr that returns true (interpret), false (skip), or nil (maybe-interpret)
-   o :create-element 'hicada.runtime/createElement - you can also use your own function here.
+   o :create-element 'hicada.convert/createElement - you can also use your own function here.
    o :camelcase-key-pred - defaults to (some-fn keyword? symbol?), ie. map keys that have
                            string keys, are NOT by default converted from kebab-case to camelCase!
   - tag-handlers:
@@ -216,9 +210,22 @@
    (binding [env/*options* (env/with-defaults options)]
      (compile-or-interpret-child content))))
 
+(defn make-macro [name options]
+  (let [elements-sym (gensym (str name "-opts-elements"))
+        as-element-sym (gensym (str name "-opts-as-element"))
+        options (merge-with (fn [x y] (if (map? x) (merge x y) y)) options env/*options*)
+        options (assoc options :tag/as-element-js as-element-sym
+                               :tag/elements-js elements-sym)]
+    `(do
+       (def ~elements-sym (js-obj ~@(->> (:custom-elements options)
+                                         (merge) (apply concat))))
+       (defmacro ~name [body#]
+         `(compile body#)))))
+
 ;; should be "b c a", order preserved
 
-(defmacro to-element [body]
+
+(defmacro as-element [body]
   (compile body))
 
 (comment
@@ -248,14 +255,14 @@
   ;; Props
 
   ;; keys are camelCase'd
-  (compile-props {:on-click ()})
+  (runtime/convert-props {:on-click ()})
 
   ;; class vector is joined at compile time
-  (compile-props {:class ["b" "c"]})
+  (runtime/convert-props {:class ["b" "c"]})
   ;; class vector may include dynamic elements
-  (compile-props '{:class ["b" c]})
+  (runtime/convert-props '{:class ["b" c]})
   ;; class may be dynamic - with runtime interpretation
-  (compile-props '{:class x})
+  (runtime/convert-props '{:class x})
   ;; classes from tag + props are joined
   (compile [:h1.b.c {:class "a"}])
   ;; joining classes from tag + dynamic class forms
@@ -263,21 +270,21 @@
   (compile '[:div.c1 {:class ["y" d]}])
 
   ;; style map is also converted to camel-case
-  (compile-props '{:style {:font-weight 600}})
+  (runtime/convert-props '{:style {:font-weight 600}})
   ;; style map may be dynamic - with runtime interpretation
-  (compile-props '{:style x})
+  (runtime/convert-props '{:style x})
   (compile '[:div {:style (assoc {} :width 10)}])
   ;; multiple style maps may be passed (for RN)
-  (compile-props '{:style [{:font-size 10} x]})
+  (runtime/convert-props '{:style [{:font-size 10} x]})
 
   ;; some keys are handled as special cases when renamed
-  (compile-props {:for "htmlFor"                            ;; special case
-                  :class "className"                        ;; special case
-                  :kw-key "kwKey"                           ;; camelCase
-                  :aria-key "aria-key"                      ;; not camelCase (aria-*)
-                  :data-key "data-key"                      ;; not camelCase (data-*)
-                  "string-key" "string-key"                 ;; not camelCase (string)
-                  })
+  (runtime/convert-props {:for "htmlFor"                    ;; special case
+                          :class "className"                ;; special case
+                          :kw-key "kwKey"                   ;; camelCase
+                          :aria-key "aria-key"              ;; not camelCase (aria-*)
+                          :data-key "data-key"              ;; not camelCase (data-*)
+                          "string-key" "string-key"         ;; not camelCase (string)
+                          })
 
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;; Clojure vs React elements
@@ -313,12 +320,12 @@
   ;; a valid React element (in which case, we skip runtime interpretation).
 
   ;; primitive strings, numbers, and nil are inlined:
-  (infer/inline? "a string")                                ;; true
-  (infer/inline? 1)                                         ;; true
-  (infer/inline? nil)                                       ;; true
+  (infer/skip? "a string")                                ;; true
+  (infer/skip? 1)                                         ;; true
+  (infer/skip? nil)                                       ;; true
   ;; skip interpretation by adding ^:inline or ^js
-  (infer/inline? '^:inline (my-fn))                         ;; true
-  (infer/inline? '^js (my-fn))                              ;; true
+  (infer/skip? '^:inline (my-fn))                         ;; true
+  (infer/skip? '^js (my-fn))                              ;; true
 
   ;; using ^js allows us to rely on type propagation, eg. and define functions
   ;; whose return values will be inlined. the following is just an example, and
@@ -380,5 +387,10 @@
   (compile '[:div {:data-style (assoc {} :width 10)}])      ;; random props are not coerced to anything
 
   (compile 'hello)
+
+  (map compile (list
+                 [:Fragment]
+                 [:<>]
+                 [:Suspense]))
 
   )

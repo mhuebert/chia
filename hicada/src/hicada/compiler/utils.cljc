@@ -1,6 +1,6 @@
 (ns hicada.compiler.utils
   (:require [hicada.util :as util]
-            [hicada.compiler.env :as env]))
+            [hicada.env :as env]))
 
 (defn form-op
   "Get the name of the supplied form."

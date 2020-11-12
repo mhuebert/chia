@@ -1,9 +1,10 @@
 (ns hicada.compiler-test
   (:refer-clojure :exclude [compile])
   (:require [clojure.test :refer [deftest is are]]
+            [hicada.convert :refer [convert-props]]
             [hicada.compiler :as c :refer [compile
-                                           compile-props
-                                           compile-vec]]))
+                                           compile-vec]]
+            [hicada.view :as v :refer [as-element]]))
 
 (defmacro -- [doc & pairs]
   (if (= 1 (count pairs))
@@ -17,7 +18,7 @@
 
   (-- "DOM tags are compiled to `react/createElement` calls."
       (compile '[:div])
-      :=> '(hicada.runtime/createElement "div" nil))
+      :=> '(hicada.convert/createElement "div" nil))
 
   (-- "Symbol tags are compiled to function calls"
       (compile '[my-fn 1 2 3])
@@ -26,53 +27,53 @@
 
   (-- "a literal map is compiled to a prop object"
       (compile '[:span {:class "a"}])
-      :=> '(hicada.runtime/createElement
+      :=> '(hicada.convert/createElement
              "span"
              (js* "{'className':~{}}" "a")))
 
   (-- "a symbol or expression in 1st position is treated as a child element"
       (compile '[:span a])
-      :=> '(hicada.runtime/createElement "span" nil (hicada.infer/maybe-interpret a))
+      :=> '(hicada.convert/createElement "span" nil (hicada.infer/maybe-interpret a))
 
       (compile '[:span (a-fn)])
-      :=> '(hicada.runtime/createElement "span" nil (hicada.infer/maybe-interpret (a-fn))))
+      :=> '(hicada.convert/createElement "span" nil (hicada.infer/maybe-interpret (a-fn))))
 
   (-- "...unless we tag it with :props metadata"
       (compile-vec '[:span ^:props a])
-      :=> '(hicada.runtime/createElement "span" (hicada.runtime/props a)))
+      :=> '(hicada.convert/createElement "span" (hicada.convert/props a)))
 
   (-- "keys are camelCase'd"
-      (compile-props {:on-click ()})
+      (convert-props {:on-click ()})
       :=> {"onClick" ()})
 
   (-- "class vector is joined at compile time"
-      (compile-props {:class ["b" "c"]})
+      (convert-props {:class ["b" "c"]})
       :=> {"className" "b c"})
 
   (-- "class vector may include dynamic elements"
-      (compile-props '{:class ["b" c]})
+      (convert-props '{:class ["b" c]})
       :=> '{"className" (clojure.string/join " " [["b" c]])})
 
   (-- "class may be dynamic - with runtime interpretation"
-      (compile-props '{:class x})
-      :=> '{"className" (hicada.compiler/ensure-class-string x)})
+      (convert-props '{:class x})
+      :=> '{"className" (hicada.compiler/maybe-interpret-class x)})
 
   (-- "classes from tag + props are joined"
       (compile [:h1.b.c {:class "a"}])
-      :=> '(hicada.runtime/createElement "h1" (js* "{'className':~{}}" "a b c")))
+      :=> '(hicada.convert/createElement "h1" (js* "{'className':~{}}" "a b c")))
 
   (-- "warning - :class-name is overwritten by static class"
       (compile [:h1.a {:class-name "b"}])
-      :=> '(hicada.runtime/createElement "h1" (js* "{'className':~{}}" "a")))
+      :=> '(hicada.convert/createElement "h1" (js* "{'className':~{}}" "a")))
 
   (-- "joining classes from tag + dynamic class forms"
       (compile '[:div.c1 {:class x}])
-      :=> '(hicada.runtime/createElement
-            "div"
-            (js*
-              "{'className':~{}}"
-              (hicada.compiler/ensure-class-string
-                (clojure.core/str (hicada.compiler/ensure-class-string x) " " "c1")))))
+      :=> '(hicada.convert/createElement
+             "div"
+             (js*
+               "{'className':~{}}"
+               (hicada.compiler/maybe-interpret-class
+                 (clojure.core/str (hicada.compiler/maybe-interpret-class x) " " "c1")))))
 
   (comment
 
@@ -85,15 +86,15 @@
     (compile '[:div.c1 {:class ["y" d]}])
 
     ;; style map is also converted to camel-case
-    (compile-props '{:style {:font-weight 600}})
+    (convert-props '{:style {:font-weight 600}})
     ;; style map may be dynamic - with runtime interpretation
-    (compile-props '{:style x})
+    (convert-props '{:style x})
     (compile '[:div {:style (assoc {} :width 10)}])
     ;; multiple style maps may be passed (for RN)
-    (compile-props '{:style [{:font-size 10} x]})
+    (convert-props '{:style [{:font-size 10} x]})
 
     ;; some keys are handled as special cases when renamed
-    (compile-props {:for "htmlFor"                          ;; special case
+    (convert-props {:for "htmlFor"                          ;; special case
                     :class "className"                      ;; special case
                     :kw-key "kwKey"                         ;; camelCase
                     :aria-key "aria-key"                    ;; not camelCase (aria-*)
@@ -106,7 +107,7 @@
 
     ;; a keyword tag is assumed to map to a DOM element and is compiled to createElement
     (compile-vec [:div])
-    => (hicada.runtime/createElement "div" nil)
+    => (hicada.convert/createElement "div" nil)
 
     ;; a symbol tag is assumed to be a regular function that returns a React element.
     ;; this is compiled to a regular function call - with no special handling of "props"
@@ -126,7 +127,7 @@
     ;; add a ^js hint or use `:>` as the tag
     (compile-vec '[^js my-fn])
     (compile-vec '[:> my-fn])
-    => (hicada.runtime/createElement my-fn nil)
+    => (hicada.convert/createElement my-fn nil)
 
     ;; behind the scenes, `infer/inline?` determines whether a form is already
     ;; a valid React element (in which case, we skip runtime interpretation).
@@ -201,7 +202,7 @@
   ;;
   ;; DOM tags are compiled to `react/createElement` calls.
   (compile '[:div])
-  => (hicada.runtime/createElement "div" nil)
+  => (hicada.convert/createElement "div" nil)
 
   ;; Symbol tags are compiled to function calls
   (compile '[my-fn 1 2 3])
@@ -222,14 +223,14 @@
   ;; Props
 
   ;; keys are camelCase'd
-  (compile-props {:on-click ()})
+  (convert-props {:on-click ()})
 
   ;; class vector is joined at compile time
-  (compile-props {:class ["b" "c"]})
+  (convert-props {:class ["b" "c"]})
   ;; class vector may include dynamic elements
-  (compile-props '{:class ["b" c]})
+  (convert-props '{:class ["b" c]})
   ;; class may be dynamic - with runtime interpretation
-  (compile-props '{:class x})
+  (convert-props '{:class x})
   ;; classes from tag + props are joined
   (compile [:h1.b.c {:class "a"}])
   ;; warning - :class-name is ignored
@@ -239,15 +240,15 @@
   (compile '[:div.c1 {:class ["y" d]}])
 
   ;; style map is also converted to camel-case
-  (compile-props '{:style {:font-weight 600}})
+  (convert-props '{:style {:font-weight 600}})
   ;; style map may be dynamic - with runtime interpretation
-  (compile-props '{:style x})
+  (convert-props '{:style x})
   (compile '[:div {:style (assoc {} :width 10)}])
   ;; multiple style maps may be passed (for RN)
-  (compile-props '{:style [{:font-size 10} x]})
+  (convert-props '{:style [{:font-size 10} x]})
 
   ;; some keys are handled as special cases when renamed
-  (compile-props {:for "htmlFor"                            ;; special case
+  (convert-props {:for "htmlFor"                            ;; special case
                   :class "className"                        ;; special case
                   :kw-key "kwKey"                           ;; camelCase
                   :aria-key "aria-key"                      ;; not camelCase (aria-*)
@@ -260,7 +261,7 @@
 
   ;; a keyword tag is assumed to map to a DOM element and is compiled to createElement
   (compile-vec [:div])
-  => (hicada.runtime/createElement "div" nil)
+  => (hicada.convert/createElement "div" nil)
 
   ;; a symbol tag is assumed to be a regular function that returns a React element.
   ;; this is compiled to a regular function call - with no special handling of "props"
@@ -280,7 +281,7 @@
   ;; add a ^js hint or use `:>` as the tag
   (compile-vec '[^js my-fn])
   (compile-vec '[:> my-fn])
-  => (hicada.runtime/createElement my-fn nil)
+  => (hicada.convert/createElement my-fn nil)
 
   ;; behind the scenes, `infer/inline?` determines whether a form is already
   ;; a valid React element (in which case, we skip runtime interpretation).

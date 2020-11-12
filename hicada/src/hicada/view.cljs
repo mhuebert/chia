@@ -1,6 +1,6 @@
 (ns hicada.view
   (:require [applied-science.js-interop :as j]
-            hicada.runtime)
+            hicada.convert)
   (:require-macros hicada.view))
 
 (def ^boolean refresh-enabled?

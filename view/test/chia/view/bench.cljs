@@ -12,7 +12,8 @@
     [triple.view.hiccup :as triple-hiccup]
     [clojure.string :as str]
     [hicada.view :as hv]
-    [hicada.runtime :as hr])
+    [hicada.convert :as hr]
+    [test.hicada.macros-test :as hm])
   (:require-macros [chia.view.bench :as bench]
                    [hicada.compiler :as hc]
                    [hicada.infer :as infer]))
@@ -52,20 +53,20 @@
 
 (defn react-render [{:keys [title body items]}]
   (hc/create-element "div" #js {:className (str "card " title)}
-           (hc/create-element "div" #js {:className "card-title" :fontSize 10 :height 20 :width 30} title)
-           (hc/create-element "div" #js {:className (str "card-body "
-                                                         title " "
-                                                         body)} body)
-           (hc/create-element "ul" #js {:className "card-list"}
-                    (.apply hr/createElement
-                            nil
-                            (reduce (fn [out item]
-                                      (doto out (.push (element "li" #js {} item))))
-                                    #js[hr/Fragment nil] items)))
-           (hc/create-element "div" #js {:className "card-footer"}
-                    (hc/create-element "div" #js {:className "card-actions"}
-                             (hc/create-element "button" nil "ok")
-                             (hc/create-element "button" nil "cancel")))))
+                     (hc/create-element "div" #js {:className "card-title" :fontSize 10 :height 20 :width 30} title)
+                     (hc/create-element "div" #js {:className (str "card-body "
+                                                                   title " "
+                                                                   body)} body)
+                     (hc/create-element "ul" #js {:className "card-list"}
+                                        (.apply react/createElement
+                                                nil
+                                                (reduce (fn [out item]
+                                                          (doto out (.push (element "li" #js {} item))))
+                                                        #js[react/Fragment nil] items)))
+                     (hc/create-element "div" #js {:className "card-footer"}
+                                        (hc/create-element "div" #js {:className "card-actions"}
+                                                           (hc/create-element "button" nil "ok")
+                                                           (hc/create-element "button" nil "cancel")))))
 
 (v/defview chia-view [{:keys [title body items]}]
   [:div.card
@@ -152,7 +153,7 @@
      [:button "cancel"]]]])
 
 (defn hicada-element [{:keys [^js title ^js body items]}]
-  (hc/to-element
+  (hc/as-element
     [:div.card
      {:class title}
      [:div.card-title {:style {:font-size 10
@@ -174,7 +175,7 @@
   (hv/defview hv [] [:div.card])
   (macroexpand '(hc/to-element [:div.card [:div.what title]])))
 
-(defn ^:dev/after-load main [& args]
+(defn main [& args]
   (let [test-data (sample-data)
         suite (b/Suite.)]
     (aset js/window "Benchmark" suite)
@@ -197,7 +198,7 @@
     ;(print :chia-legacy "\n" (to-string (chia-legacy test-data)))
     ;(print :triple "\n" (to-string (triple-hiccup/to-element [triple-view test-data])))
     (print :hicada/view "\n" (to-string (hicada-view test-data)))
-    (print :hicada/interpret "\n" (to-string (hr/to-element [plain-fn test-data])))
+    (print :hicada/interpret "\n" (to-string (hr/as-element [plain-fn test-data])))
     ;(print :react "\n" (to-string (react-render test-data)))
 
 
@@ -206,22 +207,37 @@
         (.add "reagent/interpret" (comp to-string
                                         #(reagent-interpret test-data)))
         (.add "chia-hiccup/interpret" (comp to-string
-                                              #(chia-hiccup test-data)))
+                                            #(chia-hiccup test-data)))
         (.add "triple/interpret" (comp to-string
-                                         #(triple-hiccup/to-element
-                                            [triple-view test-data])))
+                                       #(triple-hiccup/to-element
+                                          [triple-view test-data])))
 
         (.add "react" (comp to-string #(react-render test-data)))
         (.add "hicada/view" (comp to-string #(hicada-view test-data)))
         (.add "hicada/element" (comp to-string #(hicada-element test-data)))
-        (.add "hicada/interpret" (comp to-string #(hr/to-element [plain-fn test-data])))
+        (.add "hicada/interpret" (comp to-string #(hr/as-element [plain-fn test-data])))
 
 
         (.on "cycle" log-cycle)
         (.run))))
 
+(let [A "a"
+      B "b"]
+  (assert (=
+            (hm/join-strings-impl ["a" "b"])
+            (hm/join-strings-macro ["a" "b"])
+            (hm/join-strings-macro [A B]))
+          "util/casetime, equivalent results")
+  (assert
+    (= '(clojure.string/join [A B])
+       (macroexpand '(hm/join-strings-macro [A B])))
+    "util/casetime, deftime expanding to form")
+  (assert
+    (= "ab"
+       (macroexpand '(hm/join-strings-macro ["a" "b"])))
+    "util/casetime, deftime expanding to result"))
 
-(defonce _ (do (main)
-               (.addEventListener js/window "click" #(let [test-data (sample-data)]
-                                                       (dotimes [n 10000]
-                                                         (to-string (hr/to-element [plain-fn test-data])))))))
+#_(defonce _ (do (main)
+                 (.addEventListener js/window "click" #(let [test-data (sample-data)]
+                                                         (dotimes [n 10000]
+                                                           (to-string (hr/as-element [plain-fn test-data])))))))
