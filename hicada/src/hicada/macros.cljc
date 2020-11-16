@@ -1,6 +1,7 @@
 (ns hicada.macros
   (:refer-clojure :exclude [for map into into-array])
   (:require [net.cgrand.xforms :as x]
+            [clojure.core :as core]
             #?(:clj [net.cgrand.macrovich :as macros]))
   #?(:cljs (:require-macros [hicada.macros :as m]
                             [net.cgrand.macrovich :as macros])))
@@ -22,13 +23,19 @@
          ([init xform coll]
           (transduce xform push! init coll))))
 
-(defmacro for [bindings body]
-  (when (seq bindings)
-    (let [coll (nth bindings 1)
-          bindings (-> bindings
-                       ;; (update 0 vary-meta assoc :tag 'any) ;; avoid type inference bug
-                       (assoc 1 (symbol "%")))]
-      `(transduce-arr (x/for ~bindings ~body) ~coll))))
+(defmacro for
+  ([bindings body]
+   (when (seq bindings)
+     (let [coll (nth bindings 1)
+            into-form (:into (apply hash-map bindings))
+           bindings (-> bindings
+                        ;; (update 0 vary-meta assoc :tag 'any) ;; avoid type inference bug
+                        (assoc 1 (symbol "%"))
+                        (->> (partition 2)
+                             (remove (comp #{:into} first))
+                             (apply concat)
+                             vec))]
+       `(transduce-arr (x/for ~bindings ~body) ~coll)))))
 
 (defmacro map
   [f coll]

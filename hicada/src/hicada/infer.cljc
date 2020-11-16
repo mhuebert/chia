@@ -17,9 +17,9 @@
 
 (defn skip?
   "Returns true if we can skip interpretation"
-  ([form] (skip? form nil (:skip-types env/*options*)))
-  ([form tag] (skip? form tag (:skip-types env/*options*)))
-  ([form tag inlineable-types]
+  ([options form] (skip? options form nil (:skip-types options)))
+  ([options form tag] (skip? options form tag (:skip-types options)))
+  ([options form tag inlineable-types]
    (or (string? form)
        (number? form)
        (nil? form)
@@ -30,18 +30,24 @@
 
 (defmacro maybe-interpret
   "Macro that wraps `expr` with interpreter call, if it cannot be skipped based on inferred type."
-  [expr]
-  (let [{:keys [skip-types
-                warn-on-interpretation?] :as options} env/*options*
-        tag (infer-type expr &env)]
-    (if (skip? expr tag skip-types)
-      expr
-      (binding [*out* *err*]
-        (when (and warn-on-interpretation?
-                   (not (:interpret (meta expr))))
-          (println (str "WARNING: interpreting form " (pr-str expr)
-                        (let [{:keys [line file]} (meta expr)]
-                          (when (and line file)
-                            (str ", " file ":" line)))
-                        (some->> tag (str ", ")))))
-        `(~(:convert-form options) ~expr)))))
+  [options-sym expr]
+  (doto (let [{:keys [skip-types
+                      warn-on-interpretation?
+                      throw-on-interpretation?] :as options} @(resolve options-sym)
+              tag (infer-type expr &env)]
+          (if (skip? options expr tag skip-types)
+            expr
+            (binding [*out* *err*]
+              (cond)
+              (when-not (:interpret (meta expr))
+                (when warn-on-interpretation?
+                  (println (str "WARNING: interpreting form " (pr-str expr)
+                                (let [{:keys [line file]} (meta expr)]
+                                  (when (and line file)
+                                    (str ", " file ":" line)))
+                                (some->> tag (str ", ")))))
+                (when throw-on-interpretation?
+                  (throw (ex-info "Interpreting when not allowed"
+                                  {:error :throw-on-interpret
+                                   :form expr}))))
+              `(~'hicada.convert/as-element ~options-sym ~expr)))) (-> (vector :X) tap>)))

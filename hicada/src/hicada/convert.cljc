@@ -1,7 +1,7 @@
 (ns hicada.convert
-  (:require #?@(:cljs  [[hicada.react :as react]
-                        [applied-science.js-interop :as j]]
-                :clj   [[net.cgrand.macrovich :as m]])
+  (:require #?@(:cljs [[hicada.react :as react]
+                       [applied-science.js-interop :as j]]
+                :clj  [[net.cgrand.macrovich :as m]])
             [clojure.string :as str]
             [clojure.string :refer [blank? join]]
             [hicada.env :as env]
@@ -9,6 +9,16 @@
             [hicada.macros])
   #?(:cljs (:require-macros hicada.convert
                             [net.cgrand.macrovich :as m])))
+
+(defn warn-on-interpret [options expr]
+  (when-not (:interpet (meta expr))
+    (when (:warn-on-interpretation? options)
+      (println (str "WARNING: interpreting form " (pr-str expr)
+                    (let [{:keys [line file]} (meta expr)]
+                      (when (and line file)
+                        (str ", " file ":" line))))))
+    (when (:throw-on-interpretation? options)
+      (throw (ex-info "Interpreting form" {:form expr})))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; key transformation
@@ -34,10 +44,12 @@
 (m/deftime
   (defn camel-case-keys-compile
     "returns map with keys camel-cased"
-    [m]
+    [options m]
     (if (map? m)
       (camel-case-keys m)
-      `(camel-case-keys ~m))))
+      (do
+        (warn-on-interpret options m)
+        `(camel-case-keys ~m)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; class string transformation
@@ -58,31 +70,35 @@
 
 (m/deftime
 
-  (defn class-vector-string-compile
+  (defmacro class-vector-string-compile
     "Joins strings, space separated"
-    [v]
+    [options v]
     (m/case :cljs
             (let [strs (->> (repeat (count v) "~{}")
                             (interpose ",")
                             (apply str))]
-              (list* 'js* (str "[" strs "].join(' ')") v))
+              (with-meta (list* 'js* (str "[" strs "].join(' ')") v) {:tag 'string}))
             :clj
-            `(str/join " " ~(vec v)))))
+            (do
+              (warn-on-interpret options v)
+              `(str/join " " ~(conj (vec v) " "))))))
 
-(defn format-class-prop [v]
-  (util/casetime
-    :usetime
-    (if (vector? v)
-      (str/join " " v)
-      v)
+(defn format-class-prop [options v]
+  #?(:cljs
+     (if (vector? v)
+       (str/join " " v)
+       v)
 
-    :deftime
-    (cond (string? v) v
-          (vector? v)
-          (if (every? string? v)
-            (str/join " " v)
-            (class-vector-string-compile v))
-          :else `(~'hicada.compiler/maybe-interpret-class ~v))))
+     :clj
+     (cond (string? v) v
+           (vector? v)
+           (if (every? string? v)
+             (str/join " " v)
+             `(class-vector-string-compile ~(:js-options-sym options) ~v))
+           :else
+           (do
+             (warn-on-interpret options v)
+             `(~'hicada.compiler/maybe-interpret-class ~(:js-options-sym options) ~v)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; parse static tag names
@@ -112,56 +128,85 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; parse style props
 
-(defn format-style-prop [v]
-  (util/casetime
-    :deftime
-    (if (vector? v)
-      (mapv camel-case-keys-compile v)
-      (camel-case-keys-compile v))
+(defn format-style-prop [options v]
+  #?(:clj
+     (if (vector? v)
+       (mapv (partial camel-case-keys-compile options) v)
+       (camel-case-keys-compile options v))
 
-    :usetime
-    (if (vector? v)
-      (mapv camel-case-keys v)
-      (camel-case-keys v))))
+     :cljs
+     (if (vector? v)
+       (mapv camel-case-keys v)
+       (camel-case-keys v))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; parse props (top-level)
 
-(defn add-prop [xf m k v]
+(defn add-prop [options prop-handlers assoc-prop m k v]
+  {:pre [(or (map? prop-handlers)
+             #?(:cljs (object? prop-handlers)))]}
   (let [kname (if (string? k)
                 k (camel-case (name k)))]
-    (case kname "class"
-                (xf m "className" (format-class-prop v))
-                "for"
-                (xf m "htmlFor" v)
-                "style"
-                (xf m kname (format-style-prop v))
-                (xf m kname v))))
+    (if-some [handler #?(:cljs (util/if-cljs-macrotime
+                                 (get prop-handlers kname)
+                                 (j/!get prop-handlers kname))
+                         :clj (get prop-handlers kname))]
+      (handler options prop-handlers assoc-prop m kname v)
+      (assoc-prop m kname v))))
 
 (m/usetime
   #?(:cljs
      (defn js-set [o k v]
        (j/!set o ^string k v))))
 
-(defn convert-props [props]
-  (util/casetime
-    :usetime
-    #?(:cljs (if (object? props)
-               props
-               (reduce-kv
-                 (fn [m k v] (add-prop js-set m k v))
-                 #js{}
-                 props))
-       :clj  (reduce-kv (fn [m k v] (add-prop assoc m k v)) {} props))
-    :deftime
-    (reduce-kv (fn [m k v] (add-prop assoc m k v)) {} props)))
+(defn compile-props [options props]
+  (let [handlers (get options :prop-handlers)]
+    (reduce-kv (fn [m k v] (add-prop options handlers assoc m k v)) {} props)))
 
-#?(:cljs
-   (def tag-registry #js{"<>" react/Fragment
-                         "Fragment" react/Fragment
-                         "#" react/Suspense
-                         "Suspense" react/Suspense
-                         ">" "create-element"}))
+(defn convert-props [options props]
+  #?(:cljs (util/if-cljs-macrotime
+             (compile-props options props)
+             (if
+               (object? props)
+               props
+               (let [handlers (j/!get options :prop-handlers)]
+                 (reduce-kv
+                   (fn [m k v] (add-prop options handlers js-set m k v))
+                   #js{}
+                   props))))
+     :clj  (compile-props options props)))
+
+(def default-options
+  '{;; settings for the compiler:
+    :warn-on-interpretation? true
+    :skip-types #{number
+                  string
+                  function
+                  js}
+    :rewrite-for? true
+
+    ;; relevant for the interpreter:
+    :custom-elements {"Fragment" hicada.react/Fragment
+                      "<>" hicada.react/Fragment
+                      "Suspense" hicada.react/Suspense
+                      ">" "hicada/create-element"}
+    :create-element hicada.react/createElement
+    :create-element-compile [.createElement (hicada.react/get-react)]
+    :prop-handlers
+    {"class"
+     (fn [options handlers assoc-prop m k v]
+       (assoc-prop m "className" (hicada.convert/format-class-prop options v)))
+     "for"
+     (fn [options handlers assoc-prop m k v]
+       (assoc-prop m "htmlFor" v))
+     "style"
+     (fn [options handlers assoc-prop m k v]
+       (assoc-prop m k (hicada.convert/format-style-prop options v)))
+     "&"
+     (fn [options handlers assoc-prop m k v]
+       (reduce-kv (fn [m k v] (hicada.convert/add-prop options handlers assoc-prop m k v)) m v))}})
+
+(env/def-options defaults {})
 
 (declare as-element)
 
@@ -188,46 +233,44 @@
      (defn make-element
        "Returns a React element. `tag` may be a string or a React component (a class or a function).
         Children will be read from `form` beginning at index `start`."
-       ([element-type form ^number prop-position]
+       ([options element-type form ^number prop-position]
         (let [props (-nth form prop-position js/undefined)
               props? (not (identical? js/undefined props))]
-          (make-element element-type
+          (make-element options
+                        element-type
                         (when props?
-                          (convert-props props))
+                          (convert-props options props))
                         form
-                        (cond-> prop-position props? inc)
-                        true)))
-       ([element-type props-obj form children-start interpret-children?]
-        (let [form-count (count form)
-              coerce (if interpret-children? as-element identity)]
+                        (cond-> prop-position props? inc))))
+       ([options element-type props-obj form children-start]
+        (let [form-count (count form)]
           (case (- form-count children-start)               ;; fast cases for small numbers of children
             0 (.call react/createElement nil element-type props-obj)
-            1 (.call react/createElement nil element-type props-obj (coerce (nth form children-start)))
-            2 (.call react/createElement nil element-type props-obj (coerce (nth form children-start)) (coerce (nth form (+ children-start 1))))
-            3 (.call react/createElement nil element-type props-obj (coerce (nth form children-start)) (coerce (nth form (+ children-start 1))) (coerce (nth form (+ children-start 2))))
+            1 (.call react/createElement nil element-type props-obj (as-element options (nth form children-start)))
+            2 (.call react/createElement nil element-type props-obj (as-element options (nth form children-start)) (as-element options (nth form (+ children-start 1))))
+            3 (.call react/createElement nil element-type props-obj (as-element options (nth form children-start)) (as-element options (nth form (+ children-start 1))) (as-element options (nth form (+ children-start 2))))
             (let [out #js[element-type props-obj]]
               (loop [i children-start]
                 (if (== i form-count)
                   (.apply react/createElement nil out)
                   (do
-                    (.push out (coerce (nth form i)))
+                    (.push out (as-element options (nth form i)))
                     (recur (inc i))))))))))
-
-
 
      (defprotocol IElement
        (-as-element [form]))
 
-     (defn interpret-vec [form]
+     (defn interpret-vec [options form]
        (let [form-0 (-nth form 0)]
          (if (keyword? form-0)
-           (let [tag (j/!get tag-registry (name form-0)
-                             (if (keyword? form-0)
-                               (name form-0)
-                               form-0))]
+           (let [tag (j/get-in options [:custom-elements (name form-0)]
+                               (if (keyword? form-0)
+                                 (name form-0)
+                                 form-0))]
              (if (identical? tag react/Fragment)
-               (make-element tag nil form 1 true)
-               (j/let [create-element? (identical? tag "create-element")
+               (make-element options tag nil form 1)
+               (j/let [create-element? (identical? tag "hicada/create-element")
+                       tag (if create-element? (-nth form 1) tag)
                        prop-position (if create-element? 2 1)
                        props (get-props form prop-position)
                        props? (defined? props)
@@ -239,23 +282,26 @@
                              tag)
                        props (cond-> props
                                      props?
-                                     (convert-props)
+                                     (->> (convert-props options))
                                      (string? tag)
                                      (add-static-props parsed-tag))
                        children-start (cond-> prop-position
                                               props? inc)]
-                 (make-element tag
+                 (make-element options
+                               tag
                                props
                                form
-                               children-start
-                               true))))
-           (as-element (apply form-0 (rest form))))))
+                               children-start))))
+           (as-element options (apply form-0 (rest form))))))
 
-     (defn as-element [form]
-       (cond (vector? form) (interpret-vec form)
-             (seq? form) (make-element react/Fragment nil (vec form) 0 true)
-             ;(satisfies? IElement form) (-as-element form)
-             :else form))))
+     (defn as-element
+       ([form]
+        (as-element defaults form))
+       ([options form]
+        (cond (vector? form) (interpret-vec options form)
+              (seq? form) (make-element options react/Fragment nil (vec form) 0)
+              (satisfies? IElement form) (-as-element form)
+              :else form)))))
 
 (comment
   (as-element [:div])

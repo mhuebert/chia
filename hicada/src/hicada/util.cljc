@@ -57,6 +57,11 @@
     deftime
     usetime))
 
+(defmacro if-cljs-macrotime [then else]
+  (if (re-matches #".*\$macros" (name (ns-name *ns*)))
+    then
+    else))
+
 (comment
 
   (defn a-fn []

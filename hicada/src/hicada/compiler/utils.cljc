@@ -1,6 +1,5 @@
 (ns hicada.compiler.utils
-  (:require [hicada.util :as util]
-            [hicada.env :as env]))
+  (:require [hicada.util :as util]))
 
 (defn form-op
   "Get the name of the supplied form."
@@ -19,7 +18,7 @@
 
 (defn wrap-return
   "Wraps return clauses of common Clojure operators with `f`"
-  [form f]
+  [form f options]
   (when-let [op (form-op form)]
     (case (name op)
       "do"
@@ -38,14 +37,8 @@
 
       "for"
       (let [[_ bindings body] form]
-        (if (:rewrite-for? env/*options*)
-          (if (= 2 (count bindings))
-            (let [[item coll] bindings]
-              `(reduce (fn [out# ~item]
-                         (applied-science.js-interop/push! out# ~(f body)))
-                       (cljs.core/array)
-                       ~coll))
-            `(into-array (for #_~'hicada.macros/for ~bindings ~(f body))))
+        (if (:rewrite-for? options true)
+          `(~'hicada.macros/for ~bindings ~(f body))
           `(for ~bindings ~(f body))))
 
       ("when"

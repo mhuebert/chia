@@ -8,29 +8,28 @@
                       [net.cgrand.macrovich :as m]])
             #?(:cljs [hicada.convert]))
   #?(:cljs (:require-macros [net.cgrand.macrovich :as m]
-                            [hicada.compiler :as c])))
+                            [hicada.compiler :as c]
+                            hicada.view)))
 
-(reset! env/default-options
-        (env/parse-opts
-          {;; settings for the compiler:
-           :warn-on-interpretation? true
-           :skip-types '#{number
-                          string
-                          function
-                          js}
-           :rewrite-for? true
+#?(:cljs
+   (do
+     (def ^boolean refresh-enabled?
+       (and goog/DEBUG (exists? js/ReactRefresh)))
 
-           ;; relevant for the interpreter:
-           :create-element-tag ">"
-           :custom-elements {"Fragment" hicada.react/Fragment
-                             "<>" hicada.react/Fragment
-                             "Suspense" hicada.react/Suspense}
-           :create-element hicada.react/createElement
-           :convert-form hicada.convert/as-element
-           :convert-props hicada.convert/convert-props
-           :convert-class hicada.convert/class-string
-           :update-class hicada.convert/update-class!
-           :assoc-prop applied-science.js-interop/assoc!}))
+     (defn register!
+       "Registers a component with the React Fresh runtime.
+       `type` is the component function, and `id` is the unique ID assigned to it
+       (e.g. component name) for cache invalidation."
+       [type id]
+       (when refresh-enabled?
+         (j/call js/ReactRefresh :register type id)))
+
+     (defn signature-fn []
+       (when refresh-enabled?
+         (j/call js/ReactRefresh :createSignatureFunctionForTransform)))))
+
+
+(env/def-options hiccup-opts {})
 
 (m/deftime
 
@@ -84,6 +83,9 @@
                  (vector? %) (gensym "vec")
                  :else (gensym)) argv))
 
+  (defmacro as-element [form]
+    (c/compile hiccup-opts form))
+
   (defmacro defview [name & args]
     (let [[docstring opts argv & body] (parse-args args string? map?)
           qualified-name (str *ns* "/" name)
@@ -100,14 +102,14 @@
                                               (with-meta argv {:js/shallow true})) :children :as p#}]
                                     (when ~'hicada.view/refresh-enabled? (~signature-sym))
                                     ~@(drop-last body)
-                                    (~'hicada.compiler/as-element ~(last body)))
+                                    (c/as-element hiccup-opts ~(last body)))
                                   (j/!set :displayName ~qualified-name))
              ~@(when key-fn [key-fn-sym key-fn])]
          (defn ~name
            ~@(when docstring [docstring])
            {:arglists (~argv)}
            ~simple-args
-           (~'hicada.compiler/create-element
+           (~@(:create-element-compile hiccup-opts)
              ~constructor-sym
              ~(when key-fn `(j/obj :key (~key-fn-sym ~(first argv))))
              ~@simple-args))
@@ -115,7 +117,5 @@
            ;; type, key, forceReset, getCustomHooks
            (~signature-sym ~name ~(hook-signature body) nil nil)
            (~'hicada.view/register! ~name (j/!get ~name :displayName)))
-         #'~name)))
+         #'~name))))
 
-  (defmacro as-element [form]
-    `(~'hicada.compiler/as-element ~form)))

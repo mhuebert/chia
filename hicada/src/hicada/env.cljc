@@ -1,7 +1,8 @@
 (ns hicada.env
   (:require [clojure.walk :as walk]
-            #?(:clj [net.cgrand.macrovich :as macros]
-               :cljs [applied-science.js-interop :as j]))
+            #?@(:clj  [[net.cgrand.macrovich :as macros]]
+                :cljs [[applied-science.js-interop :as j]
+                       hicada.react]))
   #?(:cljs (:require-macros hicada.env
                             [net.cgrand.macrovich :as macros])))
 
@@ -10,44 +11,27 @@
 
 (macros/deftime
 
-  (def defaults '{;; settings for the compiler:
-                  :warn-on-interpretation? true
-                  :skip-types '#{number
-                                 string
-                                 function
-                                 js}
-                  :rewrite-for? true
-
-                  ;; relevant for the interpreter:
-                  :create-element-tag ">"
-                  :custom-elements {"Fragment" hicada.react/Fragment
-                                    "<>" hicada.react/Fragment
-                                    "Suspense" hicada.react/Suspense}
-                  :create-element hicada.react/createElement
-                  :convert-form hicada.convert/as-element
-                  :convert-props hicada.convert/convert-props
-                  :convert-class hicada.convert/class-string
-                  :update-class hicada.convert/update-class!
-                  :assoc-prop applied-science.js-interop/!set})
-
   (defn dequote [x]
     (if (list? x) (second x) x))
 
-  (defmacro parse-opts
-    [opts]
-    (let [opts (merge-opts defaults opts)]
-      (macros/case :clj (walk/postwalk (fn [x] (if (symbol? x)
-                                                 `(quote ~x)
-                                                 x)) opts)
-                   :cljs `(delay
-                            (j/lit ~(dissoc (dequote opts)
-                                            :warn-on-interpretation?
-                                            :skip-types
-                                            :rewrite-for?)))))))
+  (defn qualified-sym [n]
+    (symbol (name (.-name *ns*)) (name n)))
 
-(def default-options (atom {}))
+  (defmacro def-options
+    [name opts]
+    (let [opts (merge-opts @#'hicada.convert/default-options opts)
+          quote-it (fn [x] `(quote ~x))
+          js-form `(~'applied-science.js-interop/lit ~(dissoc (dequote opts)
+                                                              :warn-on-interpretation?
+                                                              :skip-types
+                                                              :rewrite-for?
+                                                              :create-element-compile))
+          clj-form (-> opts
+                       (assoc :js-options-sym `(quote ~(qualified-sym name)))
+                       (update :skip-types quote-it)
+                       (update :custom-elements quote-it)
+                       (update :create-element quote-it)
+                       (update :create-element-compile quote-it))]
 
-(defn with-defaults [options]
-  (merge-opts @default-options options))
-
-(def ^:dynamic *options* nil)
+      (macros/case :cljs `(def ~name ~js-form)
+                   :clj `(def ~name ~clj-form)))))

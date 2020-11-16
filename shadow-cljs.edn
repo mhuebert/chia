@@ -1,7 +1,7 @@
 {:deps   true
  :builds {:test    {:target           :browser-test
                     :test-dir         "public/compiled/browser-tests"
-                    ;:ns-regexp "context-test$"
+                    :ns-regexp "compiler-test$"
                     :compiler-options {:static-fns false
                                        :elide-asserts true}
                     :devtools         {:http-port 8021
@@ -10,4 +10,7 @@
                     :modules    {:main {:entries [chia.view.bench]}}
                     :output-dir "public/compiled/bench/js"
                     :devtools   {:http-port 8031
-                                 :http-root "public/compiled/bench"}}}}
+                                 :http-root "public/compiled/bench"}}
+          :emit {:target :browser
+                 :modules {:main {:entries [test.hicada.emit-test]}}
+                 :output-dir "public/compiled/emit/js"}}}
