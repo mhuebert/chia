@@ -7,15 +7,15 @@
     [reagent.core :as reagent]
     [cljs.test :as t]
     [clojure.string :as str]
-    [hicada.view :as hv]
-    [hicada.convert :as hr]
-    [hicada.env :as henv]
-    [test.hicada.macros-test :as hm]
+    [yawn.view :as hv]
+    [yawn.convert :as hr]
+    [yawn.env :as henv]
+    [yawn.macros-test :as hm]
     [applied-science.js-interop :as j])
-  (:require-macros [hicada.macros :as m]
+  (:require-macros [yawn.macros :as m]
                    [chia.view.bench :as bench]
-                   [hicada.compiler :as hc]
-                   [hicada.infer :as infer]))
+                   [yawn.compiler :as hc]
+                   [yawn.infer :as infer]))
 
 (def element react/createElement)
 (def to-string rdom/renderToStaticMarkup)
@@ -45,7 +45,7 @@
      [:button "cancel"]]]])
 
 
-(hv/defview hicada-view [{:keys [^string title ^string body items]}]
+(hv/defview yawn-view [{:keys [^string title ^string body items]}]
   [:div.card
    {:class title}
    [:div.card-title {:style {:font-size 10
@@ -60,7 +60,7 @@
      [:button "ok"]
      [:button "cancel"]]]])
 
-(defn hicada-element [{:keys [^js title ^js body items]}]
+(defn yawn-element [{:keys [^js title ^js body items]}]
   (hv/as-element
     [:div.card
      {:class title}
@@ -120,17 +120,17 @@
         suite (b/Suite.)]
     (aset js/window "Benchmark" suite)
     (print :reagent "\n" (to-string (reagent-interpret test-data)))
-    (print :hicada/view "\n" (to-string (hicada-view test-data)))
-    (print :hicada/interpret "\n" (to-string (hv/as-element [plain-fn test-data])))
+    (print :yawn/view "\n" (to-string (yawn-view test-data)))
+    (print :yawn/interpret "\n" (to-string (hv/as-element [plain-fn test-data])))
     (print :react "\n" (to-string (react-render test-data)))
 
 
     (-> suite
 
 
-        (.add "hicada/view" (comp to-string #(hicada-view test-data)))
-        (.add "hicada/element" (comp to-string #(hicada-element test-data)))
-        (.add "hicada/interpret" (comp to-string #(hv/as-element [plain-fn test-data])))
+        (.add "yawn/view" (comp to-string #(yawn-view test-data)))
+        (.add "yawn/element" (comp to-string #(yawn-element test-data)))
+        (.add "yawn/interpret" (comp to-string #(hv/as-element [plain-fn test-data])))
         (.add "reagent/interpret" (comp to-string #(reagent-interpret test-data)))
         (.add "react" (comp to-string #(react-render test-data)))
 
@@ -153,4 +153,4 @@
              (macroexpand '(hm/join-strings-macro ["a" "b"])))
           "util/casetime, deftime expanding to result"))
 
-#_(defonce _ (main))
+(defonce _ (main))

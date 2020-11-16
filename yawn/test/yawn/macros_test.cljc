@@ -1,8 +1,8 @@
-(ns test.hicada.macros-test
-  (:require [hicada.util :as util]
+(ns yawn.macros-test
+  (:require [yawn.util :as util]
             [clojure.string :as str]
             [cljs.analyzer :as ana])
-  #?(:cljs (:require-macros test.hicada.macros-test)))
+  #?(:cljs (:require-macros yawn.macros-test)))
 
 (defmacro join-strings-macro [v]
   (util/casetime
@@ -14,6 +14,5 @@
 (comment
   (macroexpand '(join-strings-macro ["a" "b"]))
   (macroexpand '(join-strings-macro [a b]))
-
 
   )

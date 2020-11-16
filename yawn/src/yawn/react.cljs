@@ -1,4 +1,4 @@
-(ns hicada.react
+(ns yawn.react
   (:require ["react" :as react]))
 
 ;; https://github.com/lilactown/helix/commit/02b1e2072fb8283bd14575bd3686c94d9b15610f

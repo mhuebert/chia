@@ -1,5 +1,5 @@
-(ns hicada.compiler.utils
-  (:require [hicada.util :as util]))
+(ns yawn.wrap-return
+  (:require [yawn.util :as util]))
 
 (defn form-op
   "Get the name of the supplied form."
@@ -38,7 +38,7 @@
       "for"
       (let [[_ bindings body] form]
         (if (:rewrite-for? options true)
-          `(~'hicada.macros/for ~bindings ~(f body))
+          `(~'yawn.macros/for ~bindings ~(f body))
           `(for ~bindings ~(f body))))
 
       ("when"

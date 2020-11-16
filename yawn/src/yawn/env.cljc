@@ -1,15 +1,17 @@
-(ns hicada.env
-  (:require [clojure.walk :as walk]
-            #?@(:clj  [[net.cgrand.macrovich :as macros]]
+(ns yawn.env
+  (:require #?@(:clj  [[net.cgrand.macrovich :as macros]]
                 :cljs [[applied-science.js-interop :as j]
-                       hicada.react]))
-  #?(:cljs (:require-macros hicada.env
+                       yawn.react]))
+  #?(:cljs (:require-macros yawn.env
                             [net.cgrand.macrovich :as macros])))
 
 (defn merge-opts [x y]
   (merge-with (fn [x y] (if (map? x) (merge x y) y)) x y))
 
 (macros/deftime
+
+  (defonce defaults (atom nil))
+  (defn set-defaults! [options] (reset! defaults options))
 
   (defn dequote [x]
     (if (list? x) (second x) x))
@@ -19,7 +21,8 @@
 
   (defmacro def-options
     [name opts]
-    (let [opts (merge-opts @#'hicada.convert/default-options opts)
+    (assert @defaults "Defaults have not yet been set")
+    (let [opts (merge-opts @defaults opts)
           quote-it (fn [x] `(quote ~x))
           js-form `(~'applied-science.js-interop/lit ~(dissoc (dequote opts)
                                                               :warn-on-interpretation?

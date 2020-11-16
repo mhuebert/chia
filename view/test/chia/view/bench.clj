@@ -1,7 +1,7 @@
 (ns chia.view.bench
-  (:require [hicada.compiler :as c]))
+  (:require [yawn.compiler :as c]))
 
-(defmacro hicada [form]
+(defmacro yawn [form]
   (c/compile form))
 
 (tap> 1)

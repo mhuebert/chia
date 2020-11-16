@@ -1,4 +1,4 @@
-(ns hicada.compiler
+(ns yawn.compiler
   "
   Hicada - Hiccup compiler aus dem Allgaeu
 
@@ -7,13 +7,17 @@
   (:refer-clojure :exclude [compile])
   (:require
     cljs.analyzer
-    [hicada.compiler.utils :as compiler]
-    [hicada.convert :as convert]
-    [hicada.env :as env]
-    [hicada.infer :as infer]
-    [hicada.util :as util]
-    [clojure.string :as str]
-    [hicada.convert :as convert]))
+    [yawn.wrap-return :refer [wrap-return]]
+    [yawn.convert :as convert]
+    [yawn.infer :as infer]
+    [yawn.util :as util]
+    [yawn.convert :as convert]
+    [yawn.emit-js :as to-js]))
+
+(defn pass-options [opts]
+  {:pre [(some? opts)]
+   :post [(symbol? %)]}
+  (cond-> opts (map? opts) :js-options-sym))
 
 (defn children-as-list
   "Normalize the children of a HTML element."
@@ -46,7 +50,7 @@
                                 (convert/parse-tag (name tag))
                                 [tag nil nil])
         tag-override (get-in options [:custom-elements tag])
-        is-element? (= "hicada/create-element" tag-override)
+        is-element? (= "yawn/create-element" tag-override)
         create-element? (or (some? tag-override)
                             is-element?
                             (string? tag)
@@ -88,38 +92,15 @@
             :else :maybe-interpret))))
 
 (defmacro maybe-interpret-class [options-sym s]
+  {:pre [(some? options-sym) (symbol? options-sym)]}
   (if (= 'string (infer/infer-type s &env))
     s
     (do
       (convert/warn-on-interpret (resolve options-sym) s)
-      `(~'hicada.convert/class-string ~s))))
+      `(~'yawn.convert/class-string ~s))))
 
-(defmacro create-element [js-options-sym & args]
-  `(.call ~js-options-sym nil ~@args))
-
-(declare literal->js)
-
-(defn map-to-js [m]
-  {:pre [(every? util/primitive? (keys m))]}
-  (when (seq m)
-    (let [kvs-str (->> (keys m)
-                       (mapv #(str \' (literal->js %) "':~{}"))
-                       (interpose ",")
-                       (str/join))]
-      (vary-meta
-        (list* 'js* (str "{" kvs-str "}") (mapv literal->js (vals m)))
-        assoc :tag 'object))))
-
-(defn literal->js
-  "Efficiently emit to literal JS form"
-  [x]
-  (cond
-    (nil? x) x
-    (keyword? x) (name x)
-    (string? x) x
-    (vector? x) (apply list 'cljs.core/array (mapv literal->js x))
-    (map? x) (map-to-js x)
-    :else x))
+(defmacro create-element [options-sym & args]
+  `(.call ~options-sym nil ~@args))
 
 (declare emit)
 
@@ -137,20 +118,20 @@
     (case (compile-mode form)
       :inline form
       :interpret (do (convert/warn-on-interpret options form)
-                     `(~'hicada.convert/as-element ~(:js-options-sym options) ~form))
+                     `(~'yawn.convert/as-element ~(pass-options options) ~form))
       :compile (compile-vec options form)
       :maybe-interpret
-      (or (compiler/wrap-return form (partial compile-or-interpret-child options) options)
-          `(infer/maybe-interpret ~(:js-options-sym options) ~form)))))
+      (or (wrap-return form (partial compile-or-interpret-child options) options)
+          `(infer/maybe-interpret ~(pass-options options) ~form)))))
 
 (defn compile-hiccup-child
   "Only compiles 'obvious' potential hiccup forms, ie. vectors... other args
    are untouched."
   [options form]
-  (or (compiler/wrap-return form compile-hiccup-child options)
+  (or (wrap-return form compile-hiccup-child options)
       (case (compile-mode form)
         :compile (compile-vec options form)
-        :interpret `(~'hicada.convert/as-element ~(:js-options-sym options) ~form)
+        :interpret `(~'yawn.convert/as-element ~(pass-options options) ~form)
         form)))
 
 (defn emit
@@ -169,7 +150,7 @@
                                                       :when v]
                                                   `(~'applied-science.js-interop/!set ~k ~v))
                                                 (cond-> class-string
-                                                        (conj `(~'hicada.convert/update-class! ~class-string)))
+                                                        (conj `(~'yawn.convert/update-class! ~class-string)))
                                                 seq)]
                                  `(-> ~form ~@ops)
                                  form))]
@@ -187,23 +168,23 @@
                           class-string (update "className" #(cond (nil? %) class-string
                                                                   (string? %) (str class-string " " %)
                                                                   :else `(str ~(str class-string " ") ~%))))
-                  (literal->js props*)
+                  (to-js/literal->js props*)
                   (if (:& props)
                     `(-> ~props*
                          (~'applied-science.js-interop/extend!
-                           (~'hicada.convert/convert-props ~(:js-options-sym options) ~(:& props))))
+                           (~'yawn.convert/convert-props ~(pass-options options) ~(:& props))))
                     props*))
             ;; dynamic clj, need to interpret & then add static props
             :dynamic
             (runtime-static-props
               (when props
-                `(~'hicada.convert/convert-props ~(:js-options-sym options) ~props)))
+                `(~'yawn.convert/convert-props ~(pass-options options) ~props)))
             ;; skip interpret, but add static props
             :js-object
             (runtime-static-props props))
          ~@(mapv (partial compile-or-interpret-child options) children))
       ;; clj-element
-      `(~'hicada.infer/maybe-interpret ~(:js-options-sym options) ~(with-meta `(~tag ~@(mapv (partial compile-hiccup-child (:js-options-sym options)) children)) form-meta)))))
+      `(~'yawn.infer/maybe-interpret ~(pass-options options) ~(with-meta `(~tag ~@(mapv (partial compile-hiccup-child (pass-options options)) children)) form-meta)))))
 
 (defn compile
   "Arguments:
@@ -212,7 +193,7 @@
    o :warn-on-interpretation? - Print warnings when code cannot be pre-compiled and must be interpreted at runtime? (Defaults to `true`)
    o :inlineable-types - CLJS type tags that are safe to inline without interpretation. Defaults to `#{'number 'string}`
    o :is-hiccup? (opt) fn of expr that returns true (interpret), false (skip), or nil (maybe-interpret)
-   o :create-element 'hicada.convert/createElement - you can also use your own function here.
+   o :create-element 'yawn.convert/createElement - you can also use your own function here.
    o :camelcase-key-pred - defaults to (some-fn keyword? symbol?), ie. map keys that have
                            string keys, are NOT by default converted from kebab-case to camelCase!
   - tag-handlers:

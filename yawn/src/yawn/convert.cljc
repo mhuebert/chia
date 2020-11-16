@@ -1,13 +1,13 @@
-(ns hicada.convert
-  (:require #?@(:cljs [[hicada.react :as react]
+(ns yawn.convert
+  (:require #?@(:cljs [[yawn.react :as react]
                        [applied-science.js-interop :as j]]
                 :clj  [[net.cgrand.macrovich :as m]])
             [clojure.string :as str]
-            [clojure.string :refer [blank? join]]
-            [hicada.env :as env]
-            [hicada.util :as util]
-            [hicada.macros])
-  #?(:cljs (:require-macros hicada.convert
+            [yawn.env :as env]
+            [yawn.util :as util]
+            [yawn.emit-js :as emit-js]
+            yawn.macros)
+  #?(:cljs (:require-macros yawn.convert
                             [net.cgrand.macrovich :as m])))
 
 (defn warn-on-interpret [options expr]
@@ -42,6 +42,7 @@
              {} m)))
 
 (m/deftime
+
   (defn camel-case-keys-compile
     "returns map with keys camel-cased"
     [options m]
@@ -70,35 +71,32 @@
 
 (m/deftime
 
-  (defmacro class-vector-string-compile
+  (defmacro join-strings-compile
     "Joins strings, space separated"
-    [options v]
-    (m/case :cljs
-            (let [strs (->> (repeat (count v) "~{}")
-                            (interpose ",")
-                            (apply str))]
-              (with-meta (list* 'js* (str "[" strs "].join(' ')") v) {:tag 'string}))
-            :clj
-            (do
-              (warn-on-interpret options v)
-              `(str/join " " ~(conj (vec v) " "))))))
+    [options-sym sep v]
+    (cond (string? v) v
+          (vector? v)
+          (if (every? string? v)
+            (str/join sep v)
+            (m/case :cljs
+                    (emit-js/join-strings sep v)
+                    :clj
+                    `(str/join ~sep ~(vec v))))
+          :else
+          (do
+            (warn-on-interpret (resolve options-sym) v)
+            `(~'yawn.compiler/maybe-interpret-class ~options-sym ~v)))))
 
-(defn format-class-prop [options v]
+(defn join-strings [options v]
   #?(:cljs
-     (if (vector? v)
-       (str/join " " v)
-       v)
+     (util/if-cljs-macrotime
+       `(join-strings-compile ~(:js-options-sym options) " " ~v)
+       (if (vector? v)
+         (str/join " " v)
+         v))
 
      :clj
-     (cond (string? v) v
-           (vector? v)
-           (if (every? string? v)
-             (str/join " " v)
-             `(class-vector-string-compile ~(:js-options-sym options) ~v))
-           :else
-           (do
-             (warn-on-interpret options v)
-             `(~'hicada.compiler/maybe-interpret-class ~(:js-options-sym options) ~v)))))
+     `(join-strings-compile ~(:js-options-sym options) " " ~v)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; parse static tag names
@@ -176,35 +174,36 @@
                    props))))
      :clj  (compile-props options props)))
 
-(def default-options
-  '{;; settings for the compiler:
-    :warn-on-interpretation? true
-    :skip-types #{number
-                  string
-                  function
-                  js}
-    :rewrite-for? true
+(m/deftime
+  (env/set-defaults!
+    '{;; settings for the compiler:
+      :warn-on-interpretation? true
+      :skip-types #{number
+                    string
+                    function
+                    js}
+      :rewrite-for? true
 
-    ;; relevant for the interpreter:
-    :custom-elements {"Fragment" hicada.react/Fragment
-                      "<>" hicada.react/Fragment
-                      "Suspense" hicada.react/Suspense
-                      ">" "hicada/create-element"}
-    :create-element hicada.react/createElement
-    :create-element-compile [.createElement (hicada.react/get-react)]
-    :prop-handlers
-    {"class"
-     (fn [options handlers assoc-prop m k v]
-       (assoc-prop m "className" (hicada.convert/format-class-prop options v)))
-     "for"
-     (fn [options handlers assoc-prop m k v]
-       (assoc-prop m "htmlFor" v))
-     "style"
-     (fn [options handlers assoc-prop m k v]
-       (assoc-prop m k (hicada.convert/format-style-prop options v)))
-     "&"
-     (fn [options handlers assoc-prop m k v]
-       (reduce-kv (fn [m k v] (hicada.convert/add-prop options handlers assoc-prop m k v)) m v))}})
+      ;; relevant for the interpreter:
+      :custom-elements {"Fragment" yawn.react/Fragment
+                        "<>" yawn.react/Fragment
+                        "Suspense" yawn.react/Suspense
+                        ">" "yawn/create-element"}
+      :create-element yawn.react/createElement
+      :create-element-compile [.createElement (yawn.react/get-react)]
+      :prop-handlers
+      {"class"
+       (fn [options handlers assoc-prop m k v]
+         (assoc-prop m "className" (yawn.convert/join-strings options v)))
+       "for"
+       (fn [options handlers assoc-prop m k v]
+         (assoc-prop m "htmlFor" v))
+       "style"
+       (fn [options handlers assoc-prop m k v]
+         (assoc-prop m k (yawn.convert/format-style-prop options v)))
+       "&"
+       (fn [options handlers assoc-prop m k v]
+         (reduce-kv (fn [m k v] (yawn.convert/add-prop options handlers assoc-prop m k v)) m v))}}))
 
 (env/def-options defaults {})
 
@@ -269,7 +268,7 @@
                                  form-0))]
              (if (identical? tag react/Fragment)
                (make-element options tag nil form 1)
-               (j/let [create-element? (identical? tag "hicada/create-element")
+               (j/let [create-element? (identical? tag "yawn/create-element")
                        tag (if create-element? (-nth form 1) tag)
                        prop-position (if create-element? 2 1)
                        props (get-props form prop-position)

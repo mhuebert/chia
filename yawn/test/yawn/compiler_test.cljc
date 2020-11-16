@@ -1,16 +1,15 @@
-(ns test.hicada.compiler-test
+(ns yawn.compiler-test
   (:refer-clojure :exclude [compile])
   (:require [clojure.test :refer [deftest is are]]
-            [hicada.env :as env]
-            [hicada.convert :as convert]
-            [hicada.compiler :as compiler :refer [compile
-                                           compile-vec]]
-            [hicada.infer :as infer]
-            [hicada.view :refer [as-element]]
+            [yawn.convert :as convert]
+            [yawn.compiler :as compiler]
+            [yawn.env :as env]
+            [yawn.infer :as infer]
+            [yawn.view :refer [as-element]]
             #?@(:cljs
                 [["react" :as react :refer [Fragment] :rename {createElement rce}]
                  ["react-dom/server" :as rdom]]))
-  #?(:cljs (:require-macros [test.hicada.compiler-test :refer [--]])))
+  #?(:cljs (:require-macros [yawn.compiler-test :refer [--]])))
 
 (env/def-options no-interpret {:throw-on-interpretation? :throw})
 
@@ -43,7 +42,7 @@
 
      (is
        (= (let [props {:a 1}]
-                  (to-string (convert/as-element [:div props])))
+            (to-string (convert/as-element [:div props])))
           "<div a=\"1\"></div>")
        "Interpreter can handle dynamic props")
 
@@ -110,31 +109,31 @@
    (deftest compile-tests
 
      (-- "DOM tags are compiled to `react/createElement` calls."
-         (compile '[:div])
-         :=> '(hicada.compiler/create-element "div" nil))
+         (compiler/compile '[:div])
+         :=> '(yawn.compiler/create-element "div" nil))
 
      (-- "Symbol tags are compiled to function calls"
-         (compile '[my-fn 1 2 3])
-         :=> '(hicada.infer/maybe-interpret
-                hicada.convert/defaults
+         (compiler/compile '[my-fn 1 2 3])
+         :=> '(yawn.infer/maybe-interpret
+                yawn.convert/defaults
                 (my-fn 1 2 3)))
 
      (-- "a literal map is compiled to a prop object"
-         (compile '[:span {:class "a"}])
-         :=> '(hicada.compiler/create-element
+         (compiler/compile '[:span {:class "a"}])
+         :=> '(yawn.compiler/create-element
                 "span"
                 (js* "{'className':~{}}" "a")))
 
      (-- "a symbol or expression in 1st position is treated as a child element"
-         (compile '[:span a])
-         :=> '(hicada.compiler/create-element "span" nil (hicada.infer/maybe-interpret hicada.convert/defaults a))
+         (compiler/compile '[:span a])
+         :=> '(yawn.compiler/create-element "span" nil (yawn.infer/maybe-interpret yawn.convert/defaults a))
 
-         (compile '[:span (a-fn)])
-         :=> '(hicada.compiler/create-element "span" nil (hicada.infer/maybe-interpret hicada.convert/defaults (a-fn))))
+         (compiler/compile '[:span (a-fn)])
+         :=> '(yawn.compiler/create-element "span" nil (yawn.infer/maybe-interpret yawn.convert/defaults (a-fn))))
 
      (-- "...unless we tag it with :props metadata"
-         (compile-vec hicada.convert/defaults '[:span ^:props a])
-         :=> '(hicada.compiler/create-element "span" (hicada.convert/convert-props hicada.convert/defaults a)))
+         (compiler/compile-vec yawn.convert/defaults '[:span ^:props a])
+         :=> '(yawn.compiler/create-element "span" (yawn.convert/convert-props yawn.convert/defaults a)))
 
      (-- "keys are camelCase'd"
          (compile-props {:on-click ()})
@@ -150,19 +149,19 @@
 
      (-- "class may be dynamic - with runtime interpretation"
          (compile-props '{:class x})
-         :=> '{"className" (hicada.compiler/maybe-interpret-class x)})
+         :=> '{"className" (yawn.compiler/maybe-interpret-class x)})
 
      (-- "classes from tag + props are joined"
-         (compile [:h1.b.c {:class "a"}])
-         :=> '(hicada.compiler/create-element "h1" (js* "{'className':~{}}" "b c a")))
+         (compiler/compile [:h1.b.c {:class "a"}])
+         :=> '(yawn.compiler/create-element "h1" (js* "{'className':~{}}" "b c a")))
 
      (-- "joining classes from tag + dynamic class forms"
-         (compile '[:div.c1 {:class x}])
-         :=> '(hicada.compiler/create-element
+         (compiler/compile '[:div.c1 {:class x}])
+         :=> '(yawn.compiler/create-element
                 "div"
-                (js* "{'className':~{}}" (clojure.core/str "c1 " (hicada.compiler/maybe-interpret-class x))))
-         (compile '[:div.c1 {:class ["y" d]}])
-         :=> '(hicada.compiler/create-element
+                (js* "{'className':~{}}" (clojure.core/str "c1 " (yawn.compiler/maybe-interpret-class x))))
+         (compiler/compile '[:div.c1 {:class ["y" d]}])
+         :=> '(yawn.compiler/create-element
                 "div"
                 (js* "{'className':~{}}" (clojure.core/str "c1 " (clojure.string/join " " ["y" d])))))
 
@@ -170,11 +169,11 @@
          (convert-props '{:style {:font-weight 600}})
          :=> {"style" {"fontWeight" 600}}
          (convert-props '{:style x})
-         :=> '{"style" (hicada.convert/camel-case-keys x)})
+         :=> '{"style" (yawn.convert/camel-case-keys x)})
 
      (-- "multiple style maps may be passed (for RN)"
          (convert-props '{:style [{:font-size 10} x]})
-         :=> '{"style" [{"fontSize" 10} (hicada.convert/camel-case-keys x)]})
+         :=> '{"style" [{"fontSize" 10} (yawn.convert/camel-case-keys x)]})
 
      (-- "special cases of key renaming"
          (keys (compile-props {:for "htmlFor"               ;; special case
@@ -192,24 +191,24 @@
               "string-key"])
 
      (-- "a keyword tag is assumed to map to a DOM element and is compiled to createElement"
-         (compile [:div])
-         :=> '(hicada.compiler/create-element "div" nil))
+         (compiler/compile [:div])
+         :=> '(yawn.compiler/create-element "div" nil))
 
      (-- "a symbol tag is assumed to be a regular function that returns a React element.
        this is compiled to a regular function call - with no special handling of \"props\""
-         (compile '[my-fn 1 2 3])
-         :=> '(hicada.infer/maybe-interpret hicada.convert/defaults (my-fn 1 2 3)))
+         (compiler/compile '[my-fn 1 2 3])
+         :=> '(yawn.infer/maybe-interpret yawn.convert/defaults (my-fn 1 2 3)))
 
      (-- "arguments that look like hiccup forms are compiled unless tagged with ^:inline"
-         (compile '[my-fn [:div]]))
-     (compile '[my-fn [other-fn]])
-     (compile '[my-fn ^:inline [other-fn]])
+         (compiler/compile '[my-fn [:div]]))
+     (compiler/compile '[my-fn [other-fn]])
+     (compiler/compile '[my-fn ^:inline [other-fn]])
 
      ;; to invoke a symbol with createElement (instead of calling it as a function),
      ;; add a ^js hint or use `:>` as the tag
      (-- "invoke a symbol with createElement using ^js metadata"
-         (compile '[^js my-fn])
-         :=> '(hicada.compiler/create-element my-fn nil))
+         (compiler/compile '[^js my-fn])
+         :=> '(yawn.compiler/create-element my-fn nil))
 
 
      ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -217,8 +216,8 @@
 
 
      (-- "invoke a symbol with createElement using :> tag"
-         (compile '[:> my-fn])
-         :=> '(hicada.compiler/create-element my-fn nil))
+         (compiler/compile '[:> my-fn])
+         :=> '(yawn.compiler/create-element my-fn nil))
 
      ;; behind the scenes, `infer/inline?` determines whether a form is already
      ;; a valid React element (in which case, we skip runtime interpretation).
@@ -238,16 +237,16 @@
 
      (-- "various ways to control interpretation/inlining of children"
 
-         (compile '[:div
-                    a                                       ;; maybe-interpret (not as props)
-                    ^:interpret b                           ;; interpret-form
-                    ^:inline c                              ;; inline
-                    ^js d])
-         '(hicada.compiler/create-element
+         (compiler/compile '[:div
+                             a                              ;; maybe-interpret (not as props)
+                             ^:interpret b                  ;; interpret-form
+                             ^:inline c                     ;; inline
+                             ^js d])
+         '(yawn.compiler/create-element
             "div"
             nil
-            (hicada.infer/maybe-interpret hicada.convert/defaults a)
-            (hicada.convert/as-element hicada.convert/defaults b)
+            (yawn.infer/maybe-interpret yawn.convert/defaults a)
+            (yawn.convert/as-element yawn.convert/defaults b)
             c
             d))
 
@@ -261,35 +260,35 @@
        .. (my-fn))
 
      (-- ":<> compiles to a react Fragment, children are compiled/interpreted"
-         (compile '[:<> [:div]])
-         '(hicada.compiler/create-element
-            hicada.react/Fragment nil
-            (hicada.compiler/create-element "div" nil)))
+         (compiler/compile '[:<> [:div]])
+         '(yawn.compiler/create-element
+            yawn.react/Fragment nil
+            (yawn.compiler/create-element "div" nil)))
 
 
      (-- "...with a react key"
-         (compile '^{:key "a"} [:<>])
-         '(hicada.compiler/create-element hicada.react/Fragment (js* "{'key':~{}}" "a")))
+         (compiler/compile '^{:key "a"} [:<>])
+         '(yawn.compiler/create-element yawn.react/Fragment (js* "{'key':~{}}" "a")))
 
      (comment
        ;; key as metadata - only on element forms
-       (compile ^{:key 1} [:span "x"])
-       (compile ^{:key 1} [:span {:foo "bar"} "x"])         ;; with props map
-       (compile ^{:key 1} [:span 'd "x"])                   ;; with symbol child (unrelated)
-       (compile (quote ^{:key 1} [:span ^:props d "x"]))    ;; with dynamic props
-       (compile '(for [x [1 2 3]]
-                   ^{:key (:y x)} [:span x]))               ;; dynamic key
+       (compiler/compile ^{:key 1} [:span "x"])
+       (compiler/compile ^{:key 1} [:span {:foo "bar"} "x"]) ;; with props map
+       (compiler/compile ^{:key 1} [:span 'd "x"])          ;; with symbol child (unrelated)
+       (compiler/compile (quote ^{:key 1} [:span ^:props d "x"])) ;; with dynamic props
+       (compiler/compile '(for [x [1 2 3]]
+                            ^{:key (:y x)} [:span x]))      ;; dynamic key
 
        ;; warning - key metadata is ignored because a-symbol is a function
-       (compile '^{:key 1} [a-symbol]))
+       (compiler/compile '^{:key 1} [a-symbol]))
 
      (-- "compile inner forms"
-         (compile '(do [:div]))
-         '(do (hicada.compiler/create-element "div" nil)))
+         (compiler/compile '(do [:div]))
+         '(do (yawn.compiler/create-element "div" nil)))
 
      (-- "ignore inner forms of unknown operators"
-         (compile '(hello [:div]))
-         '(hicada.infer/maybe-interpret hicada.convert/defaults (hello [:div])))
+         (compiler/compile '(hello [:div]))
+         '(yawn.infer/maybe-interpret yawn.convert/defaults (hello [:div])))
 
      (comment
        ;; interpret
@@ -303,10 +302,10 @@
 
 
        ;; dynamic props with key and ref added at runtime
-       (compile '^{:key "k" :ref "r"}
-                [:div#id.class ^:props b c])
+       (compiler/compile '^{:key "k" :ref "r"}
+                         [:div#id.class ^:props b c])
 
-       (compile '[:div {:data-style (assoc {} :width 10)}]) ;; random props are not coerced to anything
+       (compiler/compile '[:div {:data-style (assoc {} :width 10)}]) ;; random props are not coerced to anything
        )))
 
 

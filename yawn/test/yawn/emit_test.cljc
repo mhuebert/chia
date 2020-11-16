@@ -1,6 +1,6 @@
-(ns test.hicada.emit-test
-  (:require [hicada.compiler :as c])
-  #?(:cljs (:require-macros [test.hicada.emit-test :refer [emit]])))
+(ns yawn.emit-test
+  (:require [yawn.compiler :as c])
+  #?(:cljs (:require-macros [yawn.emit-test :refer [emit]])))
 
 (defmacro emit [label expr]
   `(do (~'js/console.log "START" ~label "------------------------")

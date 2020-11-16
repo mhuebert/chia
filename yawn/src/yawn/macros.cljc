@@ -1,9 +1,9 @@
-(ns hicada.macros
+(ns yawn.macros
   (:refer-clojure :exclude [for map into into-array])
   (:require [net.cgrand.xforms :as x]
             [clojure.core :as core]
             #?(:clj [net.cgrand.macrovich :as macros]))
-  #?(:cljs (:require-macros [hicada.macros :as m]
+  #?(:cljs (:require-macros [yawn.macros :as m]
                             [net.cgrand.macrovich :as macros])))
 
 (def push! (completing #?(:cljs (fn [^js/Array arr x] (doto arr (.push x)))
@@ -11,7 +11,7 @@
 
 (defmacro transduce-arr [xform coll]
   `(transduce ~xform
-              ~(macros/case :cljs 'hicada.macros/push!
+              ~(macros/case :cljs 'yawn.macros/push!
                             :clj `conj)
               ~(macros/case :cljs '(cljs.core/array)
                             :clj [])

@@ -1,7 +1,7 @@
-(ns hicada.infer
+(ns yawn.infer
   (:require [cljs.analyzer :as ana]
-            [hicada.env :as env]
-            [hicada.util :as util]
+            [yawn.env :as env]
+            [yawn.util :as util]
             #?(:clj cljs.analyzer.macros))
   #?(:cljs (:require-macros cljs.analyzer.macros)))
 
@@ -50,4 +50,4 @@
                   (throw (ex-info "Interpreting when not allowed"
                                   {:error :throw-on-interpret
                                    :form expr}))))
-              `(~'hicada.convert/as-element ~options-sym ~expr)))) (-> (vector :X) tap>)))
+              `(~'yawn.convert/as-element ~options-sym ~expr)))) (-> (vector :X) tap>)))

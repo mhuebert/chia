@@ -1,6 +1,6 @@
-(ns hicada.util
+(ns yawn.util
   #?(:cljs (:require [applied-science.js-interop :as j]))
-  #?(:cljs (:require-macros hicada.util)))
+  #?(:cljs (:require-macros yawn.util)))
 
 (defn primitive?
   "True if x is a literal value that can be rendered as-is."

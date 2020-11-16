@@ -1,15 +1,15 @@
-(ns hicada.view
+(ns yawn.view
   (:require [clojure.string :as str]
             [clojure.walk :as walk]
             [cljs.analyzer :as ana]
             [applied-science.js-interop :as j]
-            [hicada.env :as env]
-            #?@(:clj [[hicada.compiler :as c]
+            [yawn.env :as env]
+            #?@(:clj [[yawn.compiler :as c]
                       [net.cgrand.macrovich :as m]])
-            #?(:cljs [hicada.convert]))
+            #?(:cljs [yawn.convert]))
   #?(:cljs (:require-macros [net.cgrand.macrovich :as m]
-                            [hicada.compiler :as c]
-                            hicada.view)))
+                            [yawn.compiler :as c]
+                            yawn.view)))
 
 #?(:cljs
    (do
@@ -95,12 +95,12 @@
           key-fn-sym (gensym (str name "-keyfn"))
           name (vary-meta name assoc :tag 'js)
           simple-args (simple-argv argv)]
-      `(let [~signature-sym (when ~'hicada.view/refresh-enabled? (~'hicada.view/signature-fn))
+      `(let [~signature-sym (when ~'yawn.view/refresh-enabled? (~'yawn.view/signature-fn))
              ~constructor-sym (-> (j/fn ~constructor-sym    ;; name
                                     [^:js {~(if (= 1 (count argv))
                                               (vary-meta (first argv) assoc :clj true)
                                               (with-meta argv {:js/shallow true})) :children :as p#}]
-                                    (when ~'hicada.view/refresh-enabled? (~signature-sym))
+                                    (when ~'yawn.view/refresh-enabled? (~signature-sym))
                                     ~@(drop-last body)
                                     (c/as-element hiccup-opts ~(last body)))
                                   (j/!set :displayName ~qualified-name))
@@ -113,9 +113,9 @@
              ~constructor-sym
              ~(when key-fn `(j/obj :key (~key-fn-sym ~(first argv))))
              ~@simple-args))
-         (when ~'hicada.view/refresh-enabled?
+         (when ~'yawn.view/refresh-enabled?
            ;; type, key, forceReset, getCustomHooks
            (~signature-sym ~name ~(hook-signature body) nil nil)
-           (~'hicada.view/register! ~name (j/!get ~name :displayName)))
+           (~'yawn.view/register! ~name (j/!get ~name :displayName)))
          #'~name))))
 
