@@ -7,12 +7,17 @@
   (:refer-clojure :exclude [compile])
   (:require
     cljs.analyzer
-    [yawn.wrap-return :refer [wrap-return]]
+    [yawn.wrap-return :refer [wrap-return wrap-return*]]
     [yawn.convert :as convert]
     [yawn.infer :as infer]
     [yawn.util :as util]
     [yawn.convert :as convert]
     [yawn.emit-js :as to-js]))
+
+(defmethod wrap-return* "for"
+  [[_ bindings body] f options]
+  (when (:rewrite-for? options true)
+    `(~'yawn.macros/for ~bindings ~(f body))))
 
 (defn pass-options [opts]
   {:pre [(some? opts)]

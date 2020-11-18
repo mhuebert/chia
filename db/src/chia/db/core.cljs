@@ -1,6 +1,6 @@
 (ns chia.db.core
   (:refer-clojure
-   :exclude [get get-in select-keys set! peek contains? namespace])
+    :exclude [get get-in select-keys set! peek contains? namespace])
   (:require [cljs-uuid-utils.core :as uuid-utils]
             [clojure.set :as set]
             [chia.db.patterns :as patterns]
@@ -10,7 +10,7 @@
 
 (enable-console-print!)
 
-(def ^:dynamic *notify* true)                               ;; if false, datoms are not tracked & listeners are not notified. faster.
+(def ^:dynamic ^boolean *notify* true)                      ;; if false, datoms are not tracked & listeners are not notified. faster.
 (def ^:dynamic *db-log* nil)                                ;; maintains log of transactions while bound
 
 (def conj-set (fnil conj #{}))
@@ -117,11 +117,11 @@
   "Add refs to entity"
   [db {:keys [db/id] :as entity}]
   (reduce-kv
-   (fn [m attr ids]
-     (assoc m (keyword (core/namespace attr) (str "_" (name attr)))
-              ids))
-   entity
-   (d/get-in* @db [:vae id])))
+    (fn [m attr ids]
+      (assoc m (keyword (core/namespace attr) (str "_" (name attr)))
+               ids))
+    entity
+    (d/get-in* @db [:vae id])))
 
 (defn- assert-uniqueness [db-snap id attr val]
   (when-not (empty? (d/get-in* db-snap [:ave attr val]))
@@ -221,30 +221,30 @@
 
 (defn add-map-indexes [db-snap id m prev-m]
   (reduce-kv
-   (fn [db-snap attr val]
-     (let [schema (get-schema db-snap attr)
-           prev-val (core/get prev-m attr)]
-       (cond (many? schema)
-             (update-index db-snap id attr
-                           (set/difference val prev-val)
-                           (set/difference prev-val val)
-                           schema)
-             (not= val prev-val)
-             (update-index db-snap id attr val prev-val schema)
-             :else db-snap)))
-   db-snap m))
+    (fn [db-snap attr val]
+      (let [schema (get-schema db-snap attr)
+            prev-val (core/get prev-m attr)]
+        (cond (many? schema)
+              (update-index db-snap id attr
+                            (set/difference val prev-val)
+                            (set/difference prev-val val)
+                            schema)
+              (not= val prev-val)
+              (update-index db-snap id attr val prev-val schema)
+              :else db-snap)))
+    db-snap m))
 
 (defn add-map-datoms [datoms id m prev-m db-snap]
   (reduce-kv
-   (fn [datoms attr val]
-     (let [prev-val (core/get prev-m attr)]
-       (cond-> datoms
-               (not= val prev-val) (conj! (if (many? db-snap attr)
-                                            [id attr
-                                             (set/difference val prev-val)
-                                             (set/difference prev-val val)]
-                                            [id attr val prev-val])))))
-   datoms m))
+    (fn [datoms attr val]
+      (let [prev-val (core/get prev-m attr)]
+        (cond-> datoms
+                (not= val prev-val) (conj! (if (many? db-snap attr)
+                                             [id attr
+                                              (set/difference val prev-val)
+                                              (set/difference prev-val val)]
+                                             [id attr val prev-val])))))
+    datoms m))
 
 (defn- remove-nils [m]
   (reduce-kv (fn [m k v]
