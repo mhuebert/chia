@@ -1,7 +1,7 @@
 {:deps true
  :builds {:test {:target :browser-test
                  :test-dir "public/compiled/browser-tests"
-                 :ns-regexp "compiler-test$"
+                 ;:ns-regexp "compiler-test$"
                  :compiler-options {:static-fns false
                                     :elide-asserts true}
                  :devtools {:http-port 8021
