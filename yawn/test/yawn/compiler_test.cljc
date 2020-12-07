@@ -1,14 +1,19 @@
 (ns yawn.compiler-test
   (:refer-clojure :exclude [compile])
-  (:require [clojure.test :refer [deftest is are]]
+  (:require [clojure.test :as t :refer [deftest is are]]
             [yawn.convert :as convert]
             [yawn.compiler :as compiler]
             [yawn.env :as env]
             [yawn.infer :as infer]
             [yawn.view :refer [as-element]]
+            [yawn.macros :as ym]
             #?@(:cljs
-                [["react" :as react :refer [Fragment] :rename {createElement rce}]
-                 ["react-dom/server" :as rdom]]))
+                [[yawn.selfhost-test :as selfhost
+                  :refer [eval-sync]
+                  :rename {eval-sync e}]
+                 ["react" :as react :refer [Fragment] :rename {createElement rce}]
+                 ["react-dom/server" :as rdom]])
+            [yawn.compiler :as c])
   #?(:cljs (:require-macros [yawn.compiler-test :refer [--]])))
 
 (env/def-options no-interpret {:throw-on-interpretation? :throw})
@@ -21,88 +26,155 @@
                             (partition 2))]
              `(is (= ~a ~b) ~doc)))))
 
-(def convert-props (partial convert/convert-props convert/defaults))
+(def interpret-props (partial convert/interpret-props convert/defaults))
 (def compile-props (partial convert/compile-props convert/defaults))
 
 #?(:cljs
    (do
-     (def to-string rdom/renderToStaticMarkup)
      (defn a-fn [] [:div])
      (defn a-constructor []
        (convert/as-element [:div]))))
 
 #?(:cljs
-   (deftest macro-tests
+   (do
+     (def to-string rdom/renderToStaticMarkup)
+     (deftest init-selfhost
+       (t/async done
+                (selfhost/init!
+                 (fn []
+                   (selfhost/eval-str
+                    '(require '[yawn.selfhost-test-util :as util :refer [to-string]]
+                              '[yawn.compiler :as compiler])
+                    (fn []
+                      (is (fn? (selfhost/eval-sync '(do to-string))))
+                      (is (= 2 (selfhost/eval-sync '(+ 1 1))))
+                      (done)))))))
 
-     (is
-       (thrown? js/Error
-                (let [props {:a 1}]
-                  (to-string (compiler/as-element [:div props]))))
-       "Dynamic props must be annotated for the compiler")
+     (prn :stage-info (ym/stage-info))
 
-     (is
-       (= (let [props {:a 1}]
-            (to-string (convert/as-element [:div props])))
-          "<div a=\"1\"></div>")
-       "Interpreter can handle dynamic props")
+     (comment
 
-     (are [expr html]
-       (= (to-string (compiler/as-element expr))
-          (to-string (convert/as-element convert/defaults expr))
-          html)
+      (e '(compiler/as-element [:div]))
 
-       ;; element
-       [:div]
-       "<div></div>"
+      (e '(require '[yawn.macros :as ym]))
+      (e '(require '[yawn.macros-test :as mt]))
 
-       ;; fn
-       (a-fn)
-       "<div></div>"
+      (e '(macroexpand '(mt/stage-info)))
+      (e '(macroexpand '(mt/util-macro-fn)))
+      (e '(mt/util-fn))
 
-       ;; with classes
-       [:div.x.y {:class "z"}]
-       "<div class=\"x y z\"></div>"
+      (e '(require '[yawn.env :as env]))
+      (e 'env/!compile-opts)
+      (e '(ns cljs.user (:require [yawn.env :as env])))
+      (e '(env/def-options opts {}))
 
-       ;; dynamic class
-       (let [class "c"]
-         [:div.a.b {:class class}])
-       "<div class=\"a b c\"></div>"
+      (e '(require '[yawn.compiler :as c]))
+      (e '(c/as-element [:div]))
 
-       [:div {:style {:font-size 12}}]
-       "<div style=\"font-size:12px\"></div>"
 
-       [:div [a-fn]]
-       "<div><div></div></div>"
+      (e '(require '[yawn.macros-test-util :as util]))
 
-       [:div (a-fn)]
-       "<div><div></div></div>"
 
-       (let [props {:style {:font-size 12}
-                    :class "c"}]
-         [:div.a.b ^:props props])
-       "<div style=\"font-size:12px\" class=\"a b c\"></div>"
 
-       (let [c "c"]
-         [:div.a {:class ["b" c]}])
-       "<div class=\"a b c\"></div>"
+      (ym/stage :macro :macro :runtime :runtime)
 
-       [:> "div" [:div]]
-       "<div><div></div></div>"
+      (ns cljs.user)
+      (ym/stage-info)
+      (e '(ym/stage-info))
+      (e '(ns cljs.user$macros
+            (:require [yawn.macros :as ym])))
+      (e '(ns cljs.user
+            (:require [yawn.macros :as ym])))
 
-       [:<> [:div] [:div]]
-       "<div></div><div></div>"
+      (e '(ns yawn.convert))
+      (e 'defaults)
+      (e '(ns yawn.convert$macros))
+      (e 'defaults)
 
-       (do [:div])
-       "<div></div>"
+      (eval-sync '(do to-string))
+      (eval-sync 'to-string)
+      (eval-sync
+       '(require #_'[yawn.compiler :as compiler]
+                 '[yawn.convert :as convert]))
+      (selfhost/eval-sync
+       'convert/defaults)
+      (selfhost/eval-sync
+               '(macroexpand
+                 '(compiler/as-element 1))))
 
-       (let [props {:style {:font-size 12}}]
-         [:div {:x 1 :& props}])
-       "<div x=\"1\" style=\"font-size:12px\"></div>"
+     (deftest macro-tests
 
-       ;; ^:inline
-       ;; ^js, inline and as metadata on function
-       ;; ^:interpret
-       )))
+       (is
+        (thrown? js/Error
+                 (let [props {:a 1}]
+                   (to-string (compiler/as-element [:div props]))))
+        "Dynamic props must be annotated for the compiler")
+
+       (is
+        (= (let [props {:a 1}]
+             (to-string (convert/as-element [:div props])))
+           "<div a=\"1\"></div>")
+        "Interpreter can handle dynamic props")
+
+       (are [expr html]
+         (= (to-string (compiler/as-element expr))
+            (to-string (convert/as-element convert/defaults expr))
+            #_(selfhost/eval-sync
+             `(to-string (compiler/as-element ~expr)))
+            html)
+
+         ;; element
+         [:div]
+         "<div></div>"
+
+         ;; fn
+         (a-fn)
+         "<div></div>"
+
+         ;; with classes
+         [:div.x.y {:class "z"}]
+         "<div class=\"x y z\"></div>"
+
+         ;; dynamic class
+         (let [class "c"]
+           [:div.a.b {:class class}])
+         "<div class=\"a b c\"></div>"
+
+         [:div {:style {:font-size 12}}]
+         "<div style=\"font-size:12px\"></div>"
+
+         [:div [a-fn]]
+         "<div><div></div></div>"
+
+         [:div (a-fn)]
+         "<div><div></div></div>"
+
+         (let [props {:style {:font-size 12}
+                      :class "c"}]
+           [:div.a.b ^:props props])
+         "<div style=\"font-size:12px\" class=\"a b c\"></div>"
+
+         (let [c "c"]
+           [:div.a {:class ["b" c]}])
+         "<div class=\"a b c\"></div>"
+
+         [:> "div" [:div]]
+         "<div><div></div></div>"
+
+         [:<> [:div] [:div]]
+         "<div></div><div></div>"
+
+         (do [:div])
+         "<div></div>"
+
+         (let [props {:style {:font-size 12}}]
+           [:div {:x 1 :& props}])
+         "<div x=\"1\" style=\"font-size:12px\"></div>"
+
+         ;; ^:inline
+         ;; ^js, inline and as metadata on function
+         ;; ^:interpret
+         ))))
 
 
 #?(:clj
@@ -133,7 +205,7 @@
 
      (-- "...unless we tag it with :props metadata"
          (compiler/compile-vec yawn.convert/defaults '[:span ^:props a])
-         :=> '(yawn.compiler/create-element "span" (yawn.convert/convert-props yawn.convert/defaults a)))
+         :=> '(yawn.compiler/create-element "span" (yawn.convert/interpret-props yawn.convert/defaults a)))
 
      (-- "keys are camelCase'd"
          (compile-props {:on-click ()})
@@ -166,13 +238,13 @@
                 (js* "{'className':~{}}" (clojure.core/str "c1 " (clojure.string/join " " ["y" d])))))
 
      (-- "style map is also converted to camel-case"
-         (convert-props '{:style {:font-weight 600}})
+         (compile-props '{:style {:font-weight 600}})
          :=> {"style" {"fontWeight" 600}}
-         (convert-props '{:style x})
-         :=> '{"style" (yawn.convert/camel-case-keys x)})
+         (compile-props '{:style x})
+         :=> '{"style" (yawn.convert/camel-case-keys->obj x)})
 
      (-- "multiple style maps may be passed (for RN)"
-         (convert-props '{:style [{:font-size 10} x]})
+         (compile-props '{:style [{:font-size 10} x]})
          :=> '{"style" [{"fontSize" 10} (yawn.convert/camel-case-keys x)]})
 
      (-- "special cases of key renaming"

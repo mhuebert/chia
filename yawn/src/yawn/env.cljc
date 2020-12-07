@@ -1,5 +1,6 @@
 (ns yawn.env
-  (:require #?@(:clj  [[net.cgrand.macrovich :as macros]]
+  (:require [clojure.walk :as walk]
+            #?@(:clj  [[net.cgrand.macrovich :as macros]]
                 :cljs [[applied-science.js-interop :as j]
                        yawn.react]))
   #?(:cljs (:require-macros yawn.env
@@ -8,33 +9,50 @@
 (defn merge-opts [x y]
   (merge-with (fn [x y] (if (map? x) (merge x y) y)) x y))
 
-(macros/deftime
+(defonce !compile-opts (atom {}))
 
-  (defonce defaults (atom nil))
-  (defn set-defaults! [options] (reset! defaults options))
+(defn get-opts [sym] (or (@!compile-opts sym)
+                         (prn :not-found sym (keys @!compile-opts))
+                         (throw (ex-info "Compile opts not found" {:sym sym
+                                                                   :keys (keys @!compile-opts)}))))
 
-  (defn dequote [x]
-    (if (list? x) (second x) x))
+(defonce defaults (atom nil))
 
-  (defn qualified-sym [n]
-    (symbol (name (.-name *ns*)) (name n)))
+(defn set-defaults! [options] (reset! defaults options))
 
-  (defmacro def-options
-    [name opts]
-    (assert @defaults "Defaults have not yet been set")
-    (let [opts (merge-opts @defaults opts)
-          quote-it (fn [x] `(quote ~x))
-          js-form `(~'applied-science.js-interop/lit ~(dissoc (dequote opts)
-                                                              :warn-on-interpretation?
-                                                              :skip-types
-                                                              :rewrite-for?
-                                                              :create-element-compile))
-          clj-form (-> opts
-                       (assoc :js-options-sym `(quote ~(qualified-sym name)))
-                       (update :skip-types quote-it)
-                       (update :custom-elements quote-it)
-                       (update :create-element quote-it)
-                       (update :create-element-compile quote-it))]
+(defn dequote [x]
+  (if (list? x) (second x) x))
 
-      (macros/case :cljs `(def ~name ~js-form)
-                   :clj `(def ~name ~clj-form)))))
+(defn qualified-sym [n]
+  (symbol (name (.-name *ns*)) (name n)))
+
+(defmacro def-options
+  [name opts]
+  (assert @defaults "Defaults have not yet been set")
+  (let [opts (merge-opts @defaults opts)
+        quote-it (fn [x] `(quote ~x))
+        stage (fn [form pick]
+                (walk/postwalk (fn [x]
+                                 {:pre [(#{:compile :interpret} pick)]}
+                                 (if (and (map? x) (:compile x))
+                                   (get x pick)
+                                   x)) form))
+        js-form `(~'applied-science.js-interop/lit ~(-> (dequote opts)
+                                                        (stage :interpret)
+                                                        (dissoc :warn-on-interpretation?
+                                                                :skip-types
+                                                                :rewrite-for?
+                                                                :create-element-compile)))
+        qualified-name `(quote ~(qualified-sym name))
+        clj-form (-> opts
+                     (stage :compile)
+                     (assoc :js-options-sym qualified-name)
+                     (update :skip-types quote-it)
+                     (update :custom-elements quote-it)
+                     (update :create-element quote-it)
+                     (update :create-element-compile quote-it))]
+
+    `(do
+       (swap! !compile-opts assoc ~qualified-name ~clj-form)
+       ~(macros/case :cljs `(def ~name ~js-form)
+                     :clj `(def ~name ~clj-form)))))

@@ -2,8 +2,11 @@
  :aliases {:test {:extra-paths ["view/test"
                                 "db/test"
                                 "yawn/test"]
-                  :extra-deps {reagent {:mvn/version "1.0.0-alpha2"}}}}
- :deps {thheller/shadow-cljs {:mvn/version "2.11.5"}
+                  :extra-deps {reagent {:mvn/version "1.0.0-alpha2"}
+                               org.clojure/clojurescript {:git/url "https://github.com/mhuebert/clojurescript"
+                                                          :sha "e2799f258833f4e524144980510be3e79b2f44b2"
+                                                          #_#_:mvn/version "1.10.773"}}}}
+ :deps {thheller/shadow-cljs {:mvn/version "2.11.8"}
         org.clojure/test.check {:mvn/version "1.1.0"}
 
         applied-science/js-interop {:mvn/version "0.2.7"}

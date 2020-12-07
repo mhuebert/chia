@@ -6,13 +6,14 @@
   weavejester/hiccup -> r0man/sablono -> Hicada."
   (:refer-clojure :exclude [compile])
   (:require
-    cljs.analyzer
-    [yawn.wrap-return :refer [wrap-return wrap-return*]]
-    [yawn.convert :as convert]
-    [yawn.infer :as infer]
-    [yawn.util :as util]
-    [yawn.convert :as convert]
-    [yawn.emit-js :as to-js]))
+   [cljs.analyzer :as ana]
+   [yawn.wrap-return :refer [wrap-return wrap-return*]]
+   [yawn.convert :as convert]
+   [yawn.infer :as infer]
+   [yawn.util :as util]
+   [yawn.convert :as convert]
+   [yawn.emit-js :as to-js]
+   [yawn.env :as env]))
 
 (defmethod wrap-return* "for"
   [[_ bindings body] f options]
@@ -98,10 +99,12 @@
 
 (defmacro maybe-interpret-class [options-sym s]
   {:pre [(some? options-sym) (symbol? options-sym)]}
+  (prn :maybe-interpret options-sym)
   (if (= 'string (infer/infer-type s &env))
     s
     (do
-      (convert/warn-on-interpret (resolve options-sym) s)
+      (convert/warn-on-interpret #?(:clj (resolve options-sym)
+                                    :cljs (ana/resolve-symbol options-sym)) s)
       `(~'yawn.convert/class-string ~s))))
 
 (defmacro create-element [options-sym & args]
@@ -155,7 +158,7 @@
                                                       :when v]
                                                   `(~'applied-science.js-interop/!set ~k ~v))
                                                 (cond-> class-string
-                                                        (conj `(~'yawn.convert/update-class! ~class-string)))
+                                                        (conj `(~'yawn.convert/update-class->obj ~class-string)))
                                                 seq)]
                                  `(-> ~form ~@ops)
                                  form))]
@@ -177,13 +180,13 @@
                   (if (:& props)
                     `(-> ~props*
                          (~'applied-science.js-interop/extend!
-                           (~'yawn.convert/convert-props ~(pass-options options) ~(:& props))))
+                           (~'yawn.convert/interpret-props ~(pass-options options) ~(:& props))))
                     props*))
             ;; dynamic clj, need to interpret & then add static props
             :dynamic
             (runtime-static-props
               (when props
-                `(~'yawn.convert/convert-props ~(pass-options options) ~props)))
+                `(~'yawn.convert/interpret-props ~(pass-options options) ~props)))
             ;; skip interpret, but add static props
             :js-object
             (runtime-static-props props))
@@ -204,7 +207,7 @@
   - tag-handlers:
    A map to handle special tags. Run before compile."
   ([content]
-   (compile convert/defaults content))
+   (compile (env/get-opts 'yawn.convert/defaults) content))
   ([options content]
    {:pre [(map? options)]}
    (compile-or-interpret-child options content)))
@@ -212,7 +215,7 @@
 (defmacro as-element
   ([options-sym content]
    {:pre [(symbol? options-sym)]}
-   (compile @(resolve options-sym) content))
+   (compile (env/get-opts (ana/resolve-symbol options-sym)) content))
   ([content]
-   (compile convert/defaults content)))
+   `(as-element ~'yawn.convert/defaults ~content)))
 

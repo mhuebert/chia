@@ -2,7 +2,8 @@
   (:refer-clojure :exclude [for map into into-array])
   (:require [net.cgrand.xforms :as x]
             [clojure.core :as core]
-            #?(:clj [net.cgrand.macrovich :as macros]))
+            #?(:clj [net.cgrand.macrovich :as macros])
+            [clojure.string :as str])
   #?(:cljs (:require-macros [yawn.macros :as m]
                             [net.cgrand.macrovich :as macros])))
 
@@ -42,6 +43,21 @@
   `(transduce-arr
      (clojure.core/map ~f)
      ~coll))
+
+(defmacro stage
+  [& {:keys [macro runtime]}]
+  (tap> [:stage (name (ns-name *ns*))])
+  #?(:clj  (if (not (:ns &env)) :macro :runtime)
+     :cljs (if (re-matches #".*\$macros" (name (ns-name *ns*)))
+             macro
+             runtime)))
+
+(defmacro stage-info
+  [& {:keys [macro runtime]}]
+  {"lang"        #?(:clj :clj :cljs :cljs)
+   "target-cljs" (boolean (:ns &env))
+   "macro-ns"    (str/ends-with? (name (ns-name *ns*)) "$macros")
+   "lexically-in-macro" (contains? &env '&env)})
 
 (comment
 

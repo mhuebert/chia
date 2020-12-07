@@ -16,7 +16,7 @@
 
 (defmulti wrap-return*
           "multimethod for extending `wrap-return`. "
-          (comp operator (fn [x & _] x)))
+          (comp operator (fn [form f options] (operator form))))
 
 (defmethod wrap-return* :default
   [form f options]

@@ -1,16 +1,23 @@
-{:deps true
- :builds {:test {:target :browser-test
-                 :test-dir "public/compiled/browser-tests"
-                 ;:ns-regexp "compiler-test$"
-                 :compiler-options {:static-fns false
-                                    :elide-asserts true}
-                 :devtools {:http-port 8021
-                            :http-root "public/compiled/browser-tests"}}
-          :bench {:target :browser
-                  :modules {:main {:entries [chia.view.bench]}}
-                  :output-dir "public/compiled/bench/js"
-                  :devtools {:http-port 8031
-                             :http-root "public/compiled/bench"}}
-          :emit {:target :browser
-                 :modules {:main {:entries [yawn.emit-test]}}
-                 :output-dir "public/compiled/emit/js"}}}
+{:deps   true
+ :builds {:selfhost {:target     :bootstrap
+                     :output-dir "public/compiled/browser-tests/selfhost"
+                     :entries    [yawn.view
+                                  yawn.macros
+                                  yawn.compiler
+                                  yawn.macros-test
+                                  yawn.selfhost-test-util]}
+          :test     {:target           :browser-test
+                     :test-dir         "public/compiled/browser-tests"
+                     :ns-regexp        "yawn.*-test$"
+                     :compiler-options {:static-fns    false
+                                        :elide-asserts true}
+                     :devtools         {:http-port 8021
+                                        :http-root "public/compiled/browser-tests"}}
+          :bench    {:target     :browser
+                     :modules    {:main {:entries [chia.view.bench]}}
+                     :output-dir "public/compiled/bench/js"
+                     :devtools   {:http-port 8031
+                                  :http-root "public/compiled/bench"}}
+          :emit     {:target     :browser
+                     :modules    {:main {:entries [yawn.emit-test]}}
+                     :output-dir "public/compiled/emit/js"}}}
