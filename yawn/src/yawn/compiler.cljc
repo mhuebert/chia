@@ -6,14 +6,17 @@
   weavejester/hiccup -> r0man/sablono -> Hicada."
   (:refer-clojure :exclude [compile])
   (:require
+   [clojure.string :as str]
    [cljs.analyzer :as ana]
    [yawn.wrap-return :refer [wrap-return wrap-return*]]
    [yawn.convert :as convert]
    [yawn.infer :as infer]
    [yawn.util :as util]
    [yawn.convert :as convert]
-   [yawn.emit-js :as to-js]
-   [yawn.env :as env]))
+   [yawn.env :as env])
+  #?(:cljs (:require-macros yawn.compiler)))
+
+(defn defaults [] (env/get-opts 'yawn.convert/defaults))
 
 (defmethod wrap-return* "for"
   [[_ bindings body] f options]
@@ -99,24 +102,50 @@
 
 (defmacro maybe-interpret-class [options-sym s]
   {:pre [(some? options-sym) (symbol? options-sym)]}
-  (prn :maybe-interpret options-sym)
   (if (= 'string (infer/infer-type s &env))
     s
     (do
-      (convert/warn-on-interpret #?(:clj (resolve options-sym)
-                                    :cljs (ana/resolve-symbol options-sym)) s)
+      (convert/warn-on-interpret (env/get-opts (ana/resolve-symbol options-sym)) s)
       `(~'yawn.convert/class-string ~s))))
 
 (defmacro create-element [options-sym & args]
-  `(.call ~options-sym nil ~@args))
+  (concat (:create-element-compile (env/get-opts options-sym))
+          args))
 
-(declare emit)
+(declare emit literal->js)
+
+(defn literal->js
+  "Efficiently emit to literal JS form"
+  [x]
+  (cond
+    (nil? x) x
+    (keyword? x) (name x)
+    (string? x) x
+    (vector? x) (apply list 'cljs.core/array (mapv literal->js x))
+    (map? x) (when (seq x)
+               (assert (every? util/primitive? (keys m)))
+               `(~'js-obj ~@(->> x (apply concat) (map literal->js))))
+    :else x))
+
+(defn join-strings-compile
+  "Joins strings, space separated"
+  [options sep v]
+  (cond (string? v) v
+        (vector? v)
+        (if (every? string? v)
+          (str/join sep v)
+          `(~'clojure.core/str ~@(interpose sep v)))
+        :else
+        (do
+          (convert/warn-on-interpret options v)
+          `(~'yawn.compiler/maybe-interpret-class ~(:js-options-sym options) ~v))))
 
 (defn compile-vec
   "Returns an unevaluated form that returns a react element"
-  [options [tag :as form]]
-  (let [[tag props children form-opts] (analyze-vec options form)]
-    (emit options tag props children form-opts)))
+  ([form] (compile-vec (defaults) form))
+  ([options [tag :as form]]
+   (let [[tag props children form-opts] (analyze-vec options form)]
+     (emit options tag props children form-opts))))
 
 (defn compile-or-interpret-child
   "Compiles hiccup forms & wraps ambiguous forms for runtime interpretation"
@@ -141,6 +170,32 @@
         :compile (compile-vec options form)
         :interpret `(~'yawn.convert/as-element ~(pass-options options) ~form)
         form)))
+
+(defn camel-case-keys->map [m]
+  (reduce-kv
+   (fn [m k v]
+     (assoc m (convert/camel-case (name k)) v))
+   {} m))
+
+(defn camel-case-keys-compile
+  "returns map with keys camel-cased"
+  [options m]
+  (if (map? m)
+    (camel-case-keys->map m)
+    (do
+      (convert/warn-on-interpret options m)
+      `(convert/camel-case-keys->obj ~m))))
+
+(defn format-style-prop->map [options v]
+  (if (vector? v)
+    (mapv (partial camel-case-keys-compile options) v)
+    (camel-case-keys-compile options v)))
+
+(defn compile-props
+  ([props] (compile-props (defaults) props))
+  ([options props]
+   (let [handlers (get options :prop-handlers)]
+     (reduce-kv (fn [m k v] (convert/add-prop->map options handlers m k v)) {} props))))
 
 (defn emit
   "Emits the final react js code"
@@ -171,12 +226,12 @@
             (as-> (or props {}) props*
                   (dissoc props* :&)
                   (into props* (filter val) {:id id :key key :ref ref})
-                  (convert/compile-props options props*)
+                  (compile-props options props*)
                   (cond-> props*
                           class-string (update "className" #(cond (nil? %) class-string
                                                                   (string? %) (str class-string " " %)
-                                                                  :else `(str ~(str class-string " ") ~%))))
-                  (to-js/literal->js props*)
+                                                                  :else `(~'clojure.core/str ~(str class-string " ") ~%))))
+                  (literal->js props*)
                   (if (:& props)
                     `(-> ~props*
                          (~'applied-science.js-interop/extend!
@@ -207,7 +262,7 @@
   - tag-handlers:
    A map to handle special tags. Run before compile."
   ([content]
-   (compile (env/get-opts 'yawn.convert/defaults) content))
+   (compile (defaults) content))
   ([options content]
    {:pre [(map? options)]}
    (compile-or-interpret-child options content)))
@@ -215,7 +270,6 @@
 (defmacro as-element
   ([options-sym content]
    {:pre [(symbol? options-sym)]}
-   (compile (env/get-opts (ana/resolve-symbol options-sym)) content))
+   (compile (defaults) content))
   ([content]
    `(as-element ~'yawn.convert/defaults ~content)))
-

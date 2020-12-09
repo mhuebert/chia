@@ -44,20 +44,13 @@
      (clojure.core/map ~f)
      ~coll))
 
-(defmacro stage
-  [& {:keys [macro runtime]}]
-  (tap> [:stage (name (ns-name *ns*))])
-  #?(:clj  (if (not (:ns &env)) :macro :runtime)
-     :cljs (if (re-matches #".*\$macros" (name (ns-name *ns*)))
-             macro
-             runtime)))
-
-(defmacro stage-info
-  [& {:keys [macro runtime]}]
-  {"lang"        #?(:clj :clj :cljs :cljs)
-   "target-cljs" (boolean (:ns &env))
-   "macro-ns"    (str/ends-with? (name (ns-name *ns*)) "$macros")
-   "lexically-in-macro" (contains? &env '&env)})
+(comment
+ (defmacro stage-info
+   [& {:keys [macro runtime]}]
+   {"lang"               #?(:clj :clj :cljs :cljs)
+    "target-cljs"        (boolean (:ns &env))
+    "macro-ns"           (str/ends-with? (name (ns-name *ns*)) "$macros")
+    "lexically-in-macro" (contains? &env '&env)}))
 
 (comment
 

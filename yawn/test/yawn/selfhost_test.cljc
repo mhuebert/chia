@@ -16,7 +16,8 @@
                           :load-on-init '#{yawn.compiler}}
                          #(cb)))
 
-(defn eval-str [source cb]
+
+(defn eval-form [form cb]
   (let [options {:eval    cljs/js-eval
                  :ns (::ns @c-state (symbol "cljs.user"))
                  ;; use the :load function provided by shadow-cljs, which uses the bootstrap build's
@@ -24,9 +25,10 @@
                  :load    (partial shadow.bootstrap/load c-state)
                  :context :expr}
         f (fn [x] (when (:error x)
+                    (prn :error form)
                     (js/console.error (ex-cause (:error x))))
             (cb x))]
-    (cljs/eval-str c-state (str source) "[test]" options f)))
+    (cljs/eval c-state form options f)))
 
 (defn compile-str [source cb]
   (let [options {:eval    cljs/js-eval
@@ -42,7 +44,7 @@
 
 (defn eval-sync [source]
   (let [a (atom nil)]
-    (eval-str source #(reset! a %))
+    (eval-form source #(reset! a %))
     (when (:ns @a)
       (swap! c-state assoc ::ns (:ns @a)))
     (:value @a)))

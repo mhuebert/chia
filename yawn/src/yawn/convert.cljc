@@ -5,7 +5,6 @@
             [clojure.string :as str]
             [yawn.env :as env]
             [yawn.util :as util]
-            [yawn.emit-js :as emit-js]
             yawn.macros)
   #?(:cljs (:require-macros yawn.convert
                             [net.cgrand.macrovich :as m])))
@@ -38,22 +37,6 @@
         (j/!set m (camel-case (name k)) v))
       #js{} m)))
 
-(defn camel-case-keys->map [m]
-  (reduce-kv
-   (fn [m k v]
-     (assoc m (camel-case (name k)) v))
-   {} m))
-
-(defn camel-case-keys-compile
-  "returns map with keys camel-cased"
-  [options m]
-  (if (map? m)
-    (camel-case-keys->map m)
-    (do
-      (warn-on-interpret options m)
-      (m/case :cljs `(camel-case-keys->obj ~m)
-              :clj `(camel-case-keys->map ~m)))))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; class string transformation
 
@@ -74,22 +57,6 @@
 
 (defn update-class->map [obj class-str]
   (update obj :className update-class* class-str))
-
-(defn join-strings-compile
-  "Joins strings, space separated"
-  [options sep v]
-  (cond (string? v) v
-        (vector? v)
-        (if (every? string? v)
-          (str/join sep v)
-          (m/case :cljs
-                  (emit-js/join-strings sep v)
-                  :clj
-                  `(str/join ~sep ~(vec v))))
-        :else
-        (do
-          (warn-on-interpret options v)
-          `(~'yawn.compiler/maybe-interpret-class ~(:js-options-sym options) ~v))))
 
 (defn join-strings [sep v]
   (if (vector? v)
@@ -124,11 +91,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; parse style props
 
-(defn format-style-prop->map [options v]
-  (if (vector? v)
-    (mapv (partial camel-case-keys-compile options) v)
-    (camel-case-keys-compile options v)))
-
 #?(:cljs
    (defn format-style-prop->object [v]
      (if (vector? v)
@@ -155,61 +117,54 @@
       (handler options prop-handlers m kname v)
       (assoc m kname v))))
 
-
-(defn compile-props [options props]
-  (let [handlers (get options :prop-handlers)]
-    (reduce-kv (fn [m k v] (add-prop->map options handlers m k v)) {} props)))
-
-
 (defn interpret-props [options props]
-#?(:cljs (if
-          (object? props)
-           props
-           (let [handlers (j/!get options :prop-handlers)]
+  #?(:cljs (if
+            (object? props)
+             props
+             (let [handlers (j/!get options :prop-handlers)]
+               (reduce-kv
+                (fn [m k v] (add-prop->object options handlers m k v))
+                #js{}
+                props)))
+     :clj  (let [handlers (get options :prop-handlers)]
              (reduce-kv
-              (fn [m k v] (add-prop->object options handlers m k v))
-              #js{}
-              props)))
-   :clj  (let [handlers (get options :prop-handlers)]
-           (reduce-kv
-            (fn [m k v] (add-prop->map options handlers m k v))
-            {}
-            props))))
+              (fn [m k v] (add-prop->map options handlers m k v))
+              {}
+              props))))
 
-(m/deftime
- (env/set-defaults!
-  '{;; settings for the compiler:
-    :warn-on-interpretation? true
-    :skip-types              #{number
-                               string
-                               function
-                               js}
-    :rewrite-for?            true
+(env/set-defaults!
+ '{;; settings for the compiler:
+   :warn-on-interpretation? true
+   :skip-types              #{number
+                              string
+                              function
+                              js}
+   :rewrite-for?            true
 
-    ;; relevant for the interpreter:
-    :custom-elements         {"Fragment" yawn.react/Fragment
-                              "<>"       yawn.react/Fragment
-                              "Suspense" yawn.react/Suspense
-                              ">"        "yawn/create-element"}
-    :create-element          yawn.react/createElement
-    :create-element-compile  [.createElement (yawn.react/get-react)]
-    :prop-handlers           {"class"
-                              (fn [options handlers m k v]
-                                {:compile   (assoc m "className" (yawn.convert/join-strings-compile options " " v))
-                                 :interpret (applied-science.js-interop/!set m "className" (yawn.convert/join-strings " " v))})
-                              "for"
-                              (fn [options handlers m k v]
-                                {:compile   (assoc m "htmlFor" v)
-                                 :interpret (applied-science.js-interop/!set m "htmlFor" v)})
-                              "style"
-                              (fn [options handlers m k v]
-                                {:compile   (assoc m k (yawn.convert/format-style-prop->map options v))
-                                 :interpret (applied-science.js-interop/!set m k (yawn.convert/format-style-prop->object v))})
-                              "&"
-                              (fn [options handlers m k v]
-                                (reduce-kv (fn [m k v] ({:compile yawn.convert/add-prop->map
-                                                         :interpret yawn.convert/add-prop->object}
-                                                        options handlers m k v)) m v))}}))
+   ;; relevant for the interpreter:
+   :custom-elements         {"Fragment" yawn.react/Fragment
+                             "<>"       yawn.react/Fragment
+                             "Suspense" yawn.react/Suspense
+                             ">"        "yawn/create-element"}
+   :create-element          yawn.react/createElement
+   :create-element-compile  [.createElement yawn.react/react]
+   :prop-handlers           {"class"
+                             (fn [options handlers m k v]
+                               {:compile   (assoc m "className" (yawn.compiler/join-strings-compile options " " v))
+                                :interpret (applied-science.js-interop/!set m "className" (yawn.convert/join-strings " " v))})
+                             "for"
+                             (fn [options handlers m k v]
+                               {:compile   (assoc m "htmlFor" v)
+                                :interpret (applied-science.js-interop/!set m "htmlFor" v)})
+                             "style"
+                             (fn [options handlers m k v]
+                               {:compile   (assoc m k (yawn.compiler/format-style-prop->map options v))
+                                :interpret (applied-science.js-interop/!set m k (yawn.convert/format-style-prop->object v))})
+                             "&"
+                             (fn [options handlers m k v]
+                               (reduce-kv (fn [m k v] ({:compile   yawn.convert/add-prop->map
+                                                        :interpret yawn.convert/add-prop->object}
+                                                       options handlers m k v)) m v))}})
 
 (env/def-options defaults {})
 

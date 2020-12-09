@@ -3,8 +3,9 @@
                                 "db/test"
                                 "yawn/test"]
                   :extra-deps {reagent {:mvn/version "1.0.0-alpha2"}
-                               org.clojure/clojurescript {:git/url "https://github.com/mhuebert/clojurescript"
-                                                          :sha "e2799f258833f4e524144980510be3e79b2f44b2"
+                               org.clojure/clojurescript {:local/root "../clojurescript"
+                                                          #_#_#_#_:git/url "https://github.com/mhuebert/clojurescript"
+                                                          :sha "dec62e8de0bd4a1bb60c7e71825f28fd706e94be"
                                                           #_#_:mvn/version "1.10.773"}}}}
  :deps {thheller/shadow-cljs {:mvn/version "2.11.8"}
         org.clojure/test.check {:mvn/version "1.1.0"}

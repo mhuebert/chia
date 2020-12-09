@@ -4,15 +4,17 @@
                      :entries    [yawn.view
                                   yawn.macros
                                   yawn.compiler
-                                  yawn.macros-test
-                                  yawn.selfhost-test-util]}
+                                  yawn.selfhost-test-util
+                                  "react-dom/server"]
+                     :devtools   {:ignore-warnings true}}
           :test     {:target           :browser-test
                      :test-dir         "public/compiled/browser-tests"
                      :ns-regexp        "yawn.*-test$"
                      :compiler-options {:static-fns    false
                                         :elide-asserts true}
                      :devtools         {:http-port 8021
-                                        :http-root "public/compiled/browser-tests"}}
+                                        :http-root "public/compiled/browser-tests"
+                                        :ignore-warnings true}}
           :bench    {:target     :browser
                      :modules    {:main {:entries [chia.view.bench]}}
                      :output-dir "public/compiled/bench/js"
