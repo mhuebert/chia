@@ -2,7 +2,6 @@
   (:require ["react" :as react]
             [applied-science.js-interop :as j]
             [chia.view.hiccup.impl :as hiccup]
-            [chia.util.perf :as perf]
             [chia.util :as u]))
 
 (def -react-element react/createElement)
@@ -36,8 +35,6 @@
               (.push out (to-element (nth form i)))
               (recur (inc i)))))))))
 
-(defonce sentinel #js{})
-
 (defn props? [props]
   (not (identical? props sentinel)))
 
@@ -60,13 +57,13 @@
   (cond (vector? form) (let [tag (-nth form 0)]
                          (cond (fn? tag) (to-element (apply tag (rest form)))
                                (keyword? tag)
-                               (if (perf/identical? :<> tag)
+                               (if (keyword-identical? :<> tag)
                                  (make-element -react-fragment nil form 1)
-                                 (let [parsed-key (hiccup/parse-key-memo (name tag))
+                                 (j/let [^:js [tag id classes :as parsed-key] (hiccup/parse-key-memo (name tag))
                                        props (get-props form 1)
                                        props? (props? props)]
-                                   (make-element (.-tag parsed-key)
-                                                 (hiccup/props->js parsed-key (when props? props))
+                                   (make-element tag
+                                                 (hiccup/props->js tag id classes (when props? props))
                                                  form
                                                  (if props? 2 1))))
 
@@ -98,25 +95,3 @@
       (assoc el 1 (apply f props args))
       (into [(el 0) (apply f {} args)] (subvec el 1)))))
 
-(defn element
-  "Converts Hiccup form into a React element. If a non-vector form
-   is supplied, it is returned untouched. Attribute and style keys
-   are converted from `dashed-names` to `camelCase` as spec'd by React.
-
-   - optional -
-   :wrap-props (fn) is applied to all props maps during parsing.
-   :create-element (fn) overrides React.createElement."
-  ([form]
-   (to-element form))
-  ([{:keys [wrap-props]} form]
-   (binding [hiccup/*wrap-props* wrap-props]
-     (to-element form))))
-
-
-
-;; patch IPrintWithWriter to print javascript symbols without throwing errors
-(when (exists? js/Symbol)
-  (extend-protocol IPrintWithWriter
-    js/Symbol
-    (-pr-writer [sym writer _]
-      (-write writer (str "\"" (.toString sym) "\"")))))

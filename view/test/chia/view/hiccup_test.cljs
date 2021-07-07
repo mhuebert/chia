@@ -2,17 +2,18 @@
   (:require [cljs.test :refer [deftest is are testing]]
             ["react" :as react]
             ["react-dom" :as react-dom]
-            [chia.view.hiccup :refer [element]]
+            [applied-science.js-interop :as j]
+            [chia.view.hiccup :refer [to-element]]
             [chia.view.hiccup.impl :as hiccup]))
 
 (enable-console-print!)
 
 (defn element-args [form]
-  (let [tag (nth form 0)
-        props (nth form 1 nil)
-        props? (or (nil? props) (map? props))
-        parsed-key (hiccup/parse-key-memo (name tag))]
-    (-> (into [(.-tag parsed-key) (hiccup/props->js parsed-key (when props? props))] (drop (if props? 2 1) form))
+  (j/let [tag (nth form 0)
+          props (nth form 1 nil)
+          props? (or (nil? props) (map? props))
+          ^:js [tag id classes] (hiccup/parse-key-memo (name tag))]
+    (-> (into [tag (hiccup/props->js tag id classes (when props? props))] (drop (if props? 2 1) form))
         (update 1 js->clj :keywordize-keys true))))
 
 (deftest hiccup-test
@@ -44,13 +45,13 @@
         "If tag name is not specified, use a `div`")
 
     (is (= (element-args [:div {:data-collapse true
-                                :aria-label    "hello"}])
+                                :aria-label "hello"}])
            ["div" {:data-collapse true
-                   :aria-label    "hello"}])
+                   :aria-label "hello"}])
         "Do not camelCase data- and aria- attributes")
 
     (is (= (element-args [:div {:some/attr true
-                                :someAttr  "hello"}])
+                                :someAttr "hello"}])
            ["div" {:someAttr "hello"}])
         "Elide namespaced attributes")
 
@@ -67,15 +68,15 @@
 
 
     (is (= (element-args [:#el.pink {:data-collapse true
-                                     :aria-label    "hello"
-                                     :class         "bg-black"
+                                     :aria-label "hello"
+                                     :class "bg-black"
                                      #_#_:classes ["white"]
-                                     :style         {:font-family "serif"
-                                                     :font-size   12}}])
+                                     :style {:font-family "serif"
+                                             :font-size 12}}])
            ["div" {:data-collapse true
-                   :aria-label    "hello"
-                   :className     "pink bg-black"
-                   :style         {:fontFamily "serif"
-                                   :fontSize   12}
-                   :id            "el"}])
+                   :aria-label "hello"
+                   :className "pink bg-black"
+                   :style {:fontFamily "serif"
+                           :fontSize 12}
+                   :id "el"}])
         "All together")))

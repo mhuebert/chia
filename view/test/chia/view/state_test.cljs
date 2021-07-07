@@ -4,7 +4,7 @@
    ["react-test-renderer" :as test-utils]
    [chia.db :as d]
    [chia.view :as v]
-   [chia.view.legacy :as vl]
+   [chia.view.class :as vl]
    [chia.view.util :as vu]))
 
 (defn act! [f & args]

@@ -27,7 +27,8 @@
 (defn render! [x]
   (if test-renderer?
     (.update @root (cond-> x concurrent? (concurrent)))
-    (v/render-to-dom (cond-> x concurrent? (concurrent)) test-element {:reload? false})))
+    (v/render-to-dom (cond-> x concurrent? (concurrent))
+                     test-element)))
 
 (def render-count (atom 0))
 (defn count-render! []

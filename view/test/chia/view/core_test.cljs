@@ -1,11 +1,10 @@
 (ns chia.view.core-test
   (:require [cljs.test :refer [deftest is are testing]]
             [chia.view :as v]
-            [chia.view.legacy :as legacy]
+            [chia.view.class :as legacy]
             [chia.view.util :as u]
-            [goog.object :as gobj]
-            [goog.dom :as gdom]
-            ["react-dom" :as react-dom]))
+            ["react-dom" :as react-dom]
+            [applied-science.js-interop :as j]))
 
 
 (defonce render-count (atom nil))
@@ -28,35 +27,35 @@
   true)
 
 (legacy/defclass apple
-  {:view/initial-state (fn [this]
-                         (log-args :view/initial-state this)
-                         {:eaten? false})
+                 {:view/initial-state (fn [this]
+                                        (log-args :view/initial-state this)
+                                        {:eaten? false})
 
-   :view/did-mount #(log-args :view/did-mount %1)
+                  :view/did-mount #(log-args :view/did-mount %1)
 
-   :static/get-derived-state-from-props
-   (fn [props $state]
-     (swap! lifecycle-log assoc :static/get-derived-state-from-props
-            {:view/props (gobj/get $state "props")
-             :view/prev-props (gobj/get $state "prev-props")
-             :view/prev-state (gobj/get $state "prev-state")
-             :view/children (gobj/get $state "children")
-             :view/state (some-> (.-state $state) (deref))})
-     $state)
+                  :static/get-derived-state-from-props
+                  (fn [props $state]
+                    (swap! lifecycle-log assoc :static/get-derived-state-from-props
+                           {:view/props (j/get $state ":props")
+                            :view/prev-props (j/get $state ":prev-props")
+                            :view/prev-state (j/get $state ":prev-state")
+                            :view/children (j/get $state ":children")
+                            :view/state (some-> (.-state $state) (deref))})
+                    $state)
 
-   :view/will-receive-state #(log-args :view/will-receive-state %1)
+                  :view/will-receive-state #(log-args :view/will-receive-state %1)
 
-   :view/should-update #(log-args :view/should-update %1)
+                  :view/should-update #(log-args :view/should-update %1)
 
-   :view/did-update #(log-args :view/did-update %1)
+                  :view/did-update #(log-args :view/did-update %1)
 
-   :view/will-unmount #(log-args :view/will-unmount %1)
-   :pRef (fn [& args]
-           (println "I am a ref that was called!" args))}
-  [{:keys [view/state] :as this} _]
-  (log-args :view/render this)
-  (swap! render-count inc)
-  [:div "I am an apple."
+                  :view/will-unmount #(log-args :view/will-unmount %1)
+                  :pRef (fn [& args]
+                          (println "I am a ref that was called!" args))}
+                 [{:keys [view/state] :as this} _]
+                 (log-args :view/render this)
+                 (swap! render-count inc)
+                 [:div "I am an apple."
    (when-not (:eaten? @state)
      [:p {:ref #(when % (swap! state assoc :p %))
           :style {:font-weight "bold"}} " ...and I am brave and alive."])])

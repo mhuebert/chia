@@ -1,8 +1,7 @@
 (ns chia.view.bench
-  (:require [hicada.compiler :as hicada]))
+  (:require [yawn.compiler :as c]))
 
-(defmacro hicada [body]
-  (hicada/compile body {:create-element  'chia.view.bench/element
-                        :transform-fn    (comp)
-                        :array-children? false
-                        {}               &env}))
+(defmacro yawn [form]
+  (c/compile form))
+
+(tap> 1)

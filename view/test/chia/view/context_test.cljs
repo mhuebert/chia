@@ -1,11 +1,9 @@
 (ns chia.view.context-test
   (:require [chia.view :as v]
-            [chia.view.legacy :as vl]
+            [chia.view.class :as vl]
             [chia.view.util :as vu]
             [cljs.test :as test :refer [is]]
-            [chia.reactive.atom :as ra]
-            [chia.reactive :as r]
-            [chia.view.hooks :as hooks]))
+            [chia.reactive.atom :as ra]))
 
 (defn render! [view]
   (v/render-to-dom (view) (vu/find-or-append-element :context-test :div))

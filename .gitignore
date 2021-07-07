@@ -11,11 +11,8 @@ node_modules
 .scratch
 project.clj
 target
-demo/public
+public
 **/compiled/**
-**/out/**
-website/public/js
-website/public/*.html
 package.json
 package-lock.json
 yarn.lock
