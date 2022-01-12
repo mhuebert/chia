@@ -15,7 +15,7 @@
     "jss": "^10.0.0-alpha.16",
     "jss-plugin-global": "^10.0.0-alpha.16",
     "jss-preset-default": "^10.0.0-alpha.16",
-    "markdown-it": "^8.4.2",
+    "markdown-it": "^12.3.2",
     "punycode": "^2.1.1",
     "react": "^16.8.6",
     "react-dom": "^16.8.6",
